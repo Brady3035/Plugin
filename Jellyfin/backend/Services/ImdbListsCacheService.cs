@@ -47,6 +47,21 @@ public class ImdbListsCacheService : FileBackedCacheService<ImdbListsCacheEntry>
             entry.RatingsFilled = true;
         }
     }
+
+    /// <summary>
+    /// Clears the backdrop of chart titles cached before they got one from TMDB, which used the
+    /// poster instead, so clients treat them like any title without a backdrop.
+    /// </summary>
+    public static void DropPosterBackdrops(IEnumerable<CustomRowItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (item.BackdropUrl != null && item.BackdropUrl == item.PosterUrl)
+            {
+                item.BackdropUrl = null;
+            }
+        }
+    }
 }
 
 public class ImdbListsCacheEntry

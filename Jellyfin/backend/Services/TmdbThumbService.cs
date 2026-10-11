@@ -58,7 +58,7 @@ public class TmdbThumbService
             return cached.Path;
         }
 
-        var language = SeasonalRowService.MetadataLanguage(_configManager.Configuration.PreferredMetadataLanguage);
+        var language = MetadataLanguage(_configManager.Configuration.PreferredMetadataLanguage);
         var url = $"https://api.themoviedb.org/3/{mediaType}/{tmdbId}?append_to_response=images&include_image_language={language},null";
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         TmdbRequestHelper.ApplyAuth(request, apiKey);
@@ -89,9 +89,15 @@ public class TmdbThumbService
         }
     }
 
+    internal static string MetadataLanguage(string? configured)
+    {
+        var code = (configured ?? string.Empty).Split('-')[0].Trim().ToLowerInvariant();
+        return code.Length == 2 ? code : "en";
+    }
+
     internal static string? PickPath(JsonElement details, string language)
     {
-        var titled = SeasonalRowService.TitledBackdrop(details, language);
+        var titled = TitledBackdrop(details, language);
         if (titled != null)
         {
             return titled;
@@ -99,6 +105,24 @@ public class TmdbThumbService
 
         return details.TryGetProperty("backdrop_path", out var backdrop) && backdrop.ValueKind == JsonValueKind.String
             ? backdrop.GetString()
+            : null;
+    }
+
+    /// <summary>
+    /// The backdrop in <paramref name="language"/> from details fetched with their images, or
+    /// null when TMDB has none in that language.
+    /// </summary>
+    private static string? TitledBackdrop(JsonElement details, string language)
+    {
+        if (!details.TryGetProperty("images", out var images) || !images.TryGetProperty("backdrops", out var backdrops) || backdrops.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var titled = backdrops.EnumerateArray().FirstOrDefault(b =>
+            b.TryGetProperty("iso_639_1", out var lang) && string.Equals(lang.GetString(), language, StringComparison.OrdinalIgnoreCase));
+        return titled.ValueKind == JsonValueKind.Object && titled.TryGetProperty("file_path", out var path) && path.ValueKind == JsonValueKind.String
+            ? path.GetString()
             : null;
     }
 }

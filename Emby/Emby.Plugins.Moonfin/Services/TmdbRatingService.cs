@@ -99,32 +99,61 @@ namespace Emby.Plugins.Moonfin.Services
             return certification;
         }
 
-        /// <summary>The TMDB movie or show an IMDb id belongs to, or null when TMDB doesn't know it.</summary>
-        public async Task<(string MediaType, long TmdbId)?> FindByImdbAsync(string imdbId, string apiKey, CancellationToken cancellationToken)
+        /// <summary>
+        /// The TMDB movie or show an IMDb id belongs to and its backdrop, or null when TMDB doesn't
+        /// know it. The backdrop comes with the same find call, so it costs nothing extra.
+        /// </summary>
+        public async Task<(string MediaType, long TmdbId, string? BackdropPath)?> FindByImdbAsync(string imdbId, string apiKey, CancellationToken cancellationToken)
         {
             var key = "imdb:" + imdbId;
             var cached = _cache.TryGet(key, CacheTtl);
-            if (cached != null)
-                return cached.TmdbId.HasValue && cached.MediaType != null ? (cached.MediaType, cached.TmdbId.Value) : ((string, long)?)null;
+            if (cached != null && IsCurrentFind(cached))
+                return cached.TmdbId.HasValue && cached.MediaType != null ? (cached.MediaType, cached.TmdbId.Value, cached.BackdropPath) : ((string, long, string?)?)null;
 
             using var doc = await GetJsonAsync("https://api.themoviedb.org/3/find/" + Uri.EscapeDataString(imdbId) + "?external_source=imdb_id", apiKey, cancellationToken).ConfigureAwait(false);
-            (string MediaType, long TmdbId)? found = null;
+            (string MediaType, long TmdbId, string? BackdropPath)? found = null;
             if (doc != null)
-                found = FirstId(doc.RootElement, "movie_results", "movie") ?? FirstId(doc.RootElement, "tv_results", "tv");
+                found = FirstMatch(doc.RootElement, "movie_results", "movie") ?? FirstMatch(doc.RootElement, "tv_results", "tv");
 
-            _cache.Set(key, new TmdbRatingEntry { MediaType = found?.MediaType, TmdbId = found?.TmdbId });
+            _cache.Set(key, new TmdbRatingEntry
+            {
+                MediaType = found?.MediaType,
+                TmdbId = found?.TmdbId,
+                BackdropPath = found?.BackdropPath,
+                BackdropChecked = true
+            });
             return found;
+        }
+
+        /// <summary>
+        /// Whether a cached IMDb entry can be used as it is. One from before backdrops were kept is
+        /// asked again once, unless TMDB didn't know the title at all, since then there's no
+        /// backdrop to find either.
+        /// </summary>
+        internal static bool IsCurrentFind(TmdbRatingEntry entry)
+        {
+            return entry.BackdropChecked || entry.TmdbId == null;
+        }
+
+        /// <summary>
+        /// Whether the item has a backdrop of its own. IMDb charts cached before they got TMDB
+        /// backdrops used the poster as one, and that doesn't count.
+        /// </summary>
+        internal static bool HasBackdrop(CustomRowItem item)
+        {
+            return !string.IsNullOrEmpty(item.BackdropUrl) && item.BackdropUrl != item.PosterUrl;
         }
 
         private async Task<string?> ResolveCertificationAsync(CustomRowItem item, string apiKey, CancellationToken cancellationToken)
         {
-            var mediaType = string.Equals(item.Type, "Series", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
+            var mediaType = MediaTypeOf(item);
             long? tmdbId = long.TryParse(item.ProviderIds?.Tmdb, out var parsed) ? parsed : (long?)null;
             if (tmdbId == null && !string.IsNullOrWhiteSpace(item.ProviderIds?.Imdb))
             {
                 var found = await FindByImdbAsync(item.ProviderIds!.Imdb!, apiKey, cancellationToken).ConfigureAwait(false);
                 if (found != null)
                 {
+                    ApplyFound(item, found.Value.MediaType, found.Value.TmdbId, found.Value.BackdropPath);
                     mediaType = found.Value.MediaType;
                     tmdbId = found.Value.TmdbId;
                 }
@@ -133,6 +162,22 @@ namespace Emby.Plugins.Moonfin.Services
             return tmdbId == null
                 ? null
                 : await GetCertificationAsync(mediaType, tmdbId.Value, apiKey, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Gives an IMDb-only item what its TMDB match adds: the TMDB id, and the backdrop when it
+        /// has none of its own. The id is left off when TMDB files the title as the other kind, so
+        /// a client doesn't look a show up as a movie.
+        /// </summary>
+        internal static void ApplyFound(CustomRowItem item, string mediaType, long tmdbId, string? backdropPath)
+        {
+            if (mediaType == MediaTypeOf(item)) item.ProviderIds.Tmdb = tmdbId.ToString();
+            if (!HasBackdrop(item)) item.BackdropUrl = backdropPath;
+        }
+
+        private static string MediaTypeOf(CustomRowItem item)
+        {
+            return string.Equals(item.Type, "Series", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
         }
 
         private async Task<string?> FetchMovieCertificationAsync(long tmdbId, string apiKey, CancellationToken cancellationToken)
@@ -199,14 +244,17 @@ namespace Emby.Plugins.Moonfin.Services
             return null;
         }
 
-        private static (string MediaType, long TmdbId)? FirstId(JsonElement root, string property, string mediaType)
+        internal static (string MediaType, long TmdbId, string? BackdropPath)? FirstMatch(JsonElement root, string property, string mediaType)
         {
             if (root.TryGetProperty(property, out var list) && list.ValueKind == JsonValueKind.Array)
             {
                 foreach (var entry in list.EnumerateArray())
                 {
                     if (entry.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.Number)
-                        return (mediaType, id.GetInt64());
+                    {
+                        var backdrop = entry.TryGetProperty("backdrop_path", out var path) && path.ValueKind == JsonValueKind.String ? path.GetString() : null;
+                        return (mediaType, id.GetInt64(), backdrop);
+                    }
                 }
             }
 

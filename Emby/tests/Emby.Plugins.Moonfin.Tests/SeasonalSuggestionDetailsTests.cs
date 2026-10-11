@@ -14,6 +14,7 @@ public sealed class SeasonalSuggestionDetailsTests
           "vote_average": 7.08,
           "runtime": 96,
           "genres": [{"id": 35, "name": "Comedy"}, {"id": 14, "name": "Fantasy"}],
+          "imdb_id": "tt0107120",
           "images": {
             "backdrops": [
               {"iso_639_1": null, "file_path": "/plain.jpg"},
@@ -29,35 +30,37 @@ public sealed class SeasonalSuggestionDetailsTests
         var item = new CustomRowItem { Id = 10439, BackdropUrl = "/discover.jpg" };
         using var doc = JsonDocument.Parse(Details);
 
-        SeasonalRowService.ApplyDetails(item, doc.RootElement, "en");
+        SeasonalRowService.ApplyDetails(item, doc.RootElement);
 
         Assert.Equal("Three witches return to Salem.", item.Overview);
         Assert.Equal(7.1, item.Rating);
         Assert.Equal(96 * TimeSpan.TicksPerMinute, item.RunTimeTicks);
         Assert.Equal(new[] { "Comedy", "Fantasy" }, item.Genres);
-        Assert.Equal("/titled.jpg", item.BackdropUrl);
+        Assert.Equal("tt0107120", item.ProviderIds.Imdb);
     }
 
     [Fact]
-    public void ABackdropWithoutTheTitleKeepsTheOneDiscoverGave()
+    public void TheBackdropStaysTheOneDiscoverGaveEvenWithATitledOne()
     {
         var item = new CustomRowItem { Id = 10439, BackdropUrl = "/discover.jpg" };
-        using var doc = JsonDocument.Parse("""{"runtime": 0, "images": {"backdrops": [{"iso_639_1": null, "file_path": "/plain.jpg"}]}}""");
+        using var doc = JsonDocument.Parse(Details);
 
-        SeasonalRowService.ApplyDetails(item, doc.RootElement, "en");
+        SeasonalRowService.ApplyDetails(item, doc.RootElement);
+
+        Assert.Equal("/discover.jpg", item.BackdropUrl);
+    }
+
+    [Fact]
+    public void MissingDetailsLeaveTheItemAsDiscoverGaveIt()
+    {
+        var item = new CustomRowItem { Id = 10439, BackdropUrl = "/discover.jpg" };
+        using var doc = JsonDocument.Parse("""{"runtime": 0, "imdb_id": null}""");
+
+        SeasonalRowService.ApplyDetails(item, doc.RootElement);
 
         Assert.Equal("/discover.jpg", item.BackdropUrl);
         Assert.Null(item.RunTimeTicks);
         Assert.Null(item.Genres);
-    }
-
-    [Theory]
-    [InlineData("en-US", "en")]
-    [InlineData("fr", "fr")]
-    [InlineData("", "en")]
-    [InlineData(null, "en")]
-    public void TheMetadataLanguageIsATwoLetterCode(string? configured, string expected)
-    {
-        Assert.Equal(expected, SeasonalRowService.MetadataLanguage(configured));
+        Assert.Null(item.ProviderIds.Imdb);
     }
 }

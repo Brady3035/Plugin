@@ -12,6 +12,7 @@ public sealed class SeasonalSuggestionDetailsTests
           "vote_average": 6.74,
           "runtime": 100,
           "genres": [{"id": 16, "name": "Animation"}, {"id": 12, "name": "Adventure"}],
+          "imdb_id": "tt0338348",
           "images": {
             "backdrops": [
               {"iso_639_1": null, "file_path": "/plain.jpg"},
@@ -27,35 +28,37 @@ public sealed class SeasonalSuggestionDetailsTests
         var item = new CustomRowItem { Id = 10719, BackdropUrl = "/discover.jpg" };
         using var doc = JsonDocument.Parse(Details);
 
-        SeasonalRowService.ApplyDetails(item, doc.RootElement, "en");
+        SeasonalRowService.ApplyDetails(item, doc.RootElement);
 
         Assert.Equal("A boy rides a train to the North Pole.", item.Overview);
         Assert.Equal(6.7, item.Rating);
         Assert.Equal(100 * TimeSpan.TicksPerMinute, item.RunTimeTicks);
         Assert.Equal(["Animation", "Adventure"], item.Genres);
-        Assert.Equal("/titled.jpg", item.BackdropUrl);
+        Assert.Equal("tt0338348", item.ProviderIds.Imdb);
     }
 
     [Fact]
-    public void ABackdropWithoutTheTitleKeepsTheOneDiscoverGave()
+    public void TheBackdropStaysTheOneDiscoverGaveEvenWithATitledOne()
     {
         var item = new CustomRowItem { Id = 10719, BackdropUrl = "/discover.jpg" };
-        using var doc = JsonDocument.Parse("""{"runtime": 0, "images": {"backdrops": [{"iso_639_1": null, "file_path": "/plain.jpg"}]}}""");
+        using var doc = JsonDocument.Parse(Details);
 
-        SeasonalRowService.ApplyDetails(item, doc.RootElement, "en");
+        SeasonalRowService.ApplyDetails(item, doc.RootElement);
+
+        Assert.Equal("/discover.jpg", item.BackdropUrl);
+    }
+
+    [Fact]
+    public void MissingDetailsLeaveTheItemAsDiscoverGaveIt()
+    {
+        var item = new CustomRowItem { Id = 10719, BackdropUrl = "/discover.jpg" };
+        using var doc = JsonDocument.Parse("""{"runtime": 0, "imdb_id": null}""");
+
+        SeasonalRowService.ApplyDetails(item, doc.RootElement);
 
         Assert.Equal("/discover.jpg", item.BackdropUrl);
         Assert.Null(item.RunTimeTicks);
         Assert.Null(item.Genres);
-    }
-
-    [Theory]
-    [InlineData("en-US", "en")]
-    [InlineData("fr", "fr")]
-    [InlineData("", "en")]
-    [InlineData(null, "en")]
-    public void TheMetadataLanguageIsATwoLetterCode(string? configured, string expected)
-    {
-        Assert.Equal(expected, SeasonalRowService.MetadataLanguage(configured));
+        Assert.Null(item.ProviderIds.Imdb);
     }
 }

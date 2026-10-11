@@ -724,6 +724,7 @@ public class CustomRowFetchService
     private async Task<List<CustomRowItem>> FetchImdbList(string type, Guid? userId, CancellationToken cancellationToken)
     {
         var items = await LoadImdbList(type, cancellationToken).ConfigureAwait(false);
+        ImdbListsCacheService.DropPosterBackdrops(items);
 
         // The sync task fills ratings with the admin key. This covers a chart it fetched before
         // a key was set, or one fetched on demand here.

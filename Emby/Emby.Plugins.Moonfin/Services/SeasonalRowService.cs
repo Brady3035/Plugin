@@ -83,9 +83,9 @@ namespace Emby.Plugins.Moonfin.Services
                 var holiday = candidate.Holiday;
                 // The query already applied the server's limits. This also drops unrated titles,
                 // which the server lets through unless the user blocks them as a class.
-                var owned = OwnedMovies(libraryManager, holiday, user).Where(item => limit.IsAllowed(item.OfficialRating)).ToList();
+                var owned = DistinctOwned(OwnedMovies(libraryManager, holiday, user).Where(item => limit.IsAllowed(item.OfficialRating)));
                 var suggestions = seerrReady
-                    ? await SuggestionsAsync(holiday, apiKey!, OwnedTmdbIds(owned), limit, now, cancellationToken).ConfigureAwait(false)
+                    ? await SuggestionsAsync(holiday, apiKey!, OwnedKeys(owned, _keywords.AllTmdbIds()), limit, now, cancellationToken).ConfigureAwait(false)
                     : new List<CustomRowItem>();
 
                 if (owned.Count + suggestions.Count < MinItems) continue;
@@ -130,22 +130,68 @@ namespace Emby.Plugins.Moonfin.Services
             return found.Values.OrderBy(i => i.Id).ToList();
         }
 
-        private HashSet<long> OwnedTmdbIds(IEnumerable<BaseItem> owned)
+        /// <summary>
+        /// The owned titles once each. Two library copies of one movie, like a 4K and a 1080p file
+        /// in different libraries, are separate items, so they're matched by their provider ids too.
+        /// </summary>
+        internal static List<BaseItem> DistinctOwned(IEnumerable<BaseItem> owned)
         {
-            var ids = _keywords.AllTmdbIds();
+            return SeasonalTitles.Distinct(owned, IdKeys);
+        }
+
+        /// <summary>
+        /// What a suggestion the user owns would match: every TMDB id in the library, the ids of
+        /// the owned titles, and the name and year of an owned title that has no TMDB id.
+        /// </summary>
+        internal static HashSet<string> OwnedKeys(IEnumerable<BaseItem> owned, IEnumerable<long> libraryTmdbIds)
+        {
+            var keys = new HashSet<string>(libraryTmdbIds.Select(id => SeasonalTitles.TmdbKey(id.ToString())!), StringComparer.Ordinal);
             foreach (var item in owned)
             {
-                string? tmdbId = null;
-                item.ProviderIds?.TryGetValue("Tmdb", out tmdbId);
-                if (long.TryParse(tmdbId, out var id)) ids.Add(id);
+                keys.UnionWith(IdKeys(item));
+                var name = SeasonalTitles.NameKey(item.Name, item.ProductionYear);
+                if (string.IsNullOrWhiteSpace(ProviderId(item, "Tmdb")) && name != null) keys.Add(name);
             }
-            return ids;
+            return keys;
+        }
+
+        private static List<string> IdKeys(BaseItem item)
+        {
+            return SeasonalTitles.IdKeys(ProviderId(item, "Tmdb"), ProviderId(item, "Imdb"));
+        }
+
+        private static string? ProviderId(BaseItem item, string name)
+        {
+            string? value = null;
+            item.ProviderIds?.TryGetValue(name, out value);
+            return value;
+        }
+
+        /// <summary>
+        /// The suggestions this user can see, each title once and none they own. A title they own
+        /// matches by TMDB or IMDb id, or by name and year when the owned copy has no TMDB id.
+        /// </summary>
+        internal static List<CustomRowItem> PickSuggestions(IEnumerable<CustomRowItem> all, ISet<string> ownedKeys, RatingLimit limit, int max)
+        {
+            var visible = all.Where(item => !IsOwned(item, ownedKeys) && limit.IsAllowed(item.OfficialRating));
+            return SeasonalTitles.Distinct(visible, SuggestionIdKeys).Take(max).ToList();
+        }
+
+        private static bool IsOwned(CustomRowItem item, ISet<string> ownedKeys)
+        {
+            var name = SeasonalTitles.NameKey(item.Name, item.ProductionYear);
+            return SuggestionIdKeys(item).Any(ownedKeys.Contains) || (name != null && ownedKeys.Contains(name));
+        }
+
+        private static List<string> SuggestionIdKeys(CustomRowItem item)
+        {
+            return SeasonalTitles.IdKeys(item.Id?.ToString() ?? item.ProviderIds?.Tmdb, item.ProviderIds?.Imdb);
         }
 
         private async Task<List<CustomRowItem>> SuggestionsAsync(
             SeasonalHoliday holiday,
             string apiKey,
-            HashSet<long> ownedTmdbIds,
+            ISet<string> ownedKeys,
             RatingLimit limit,
             DateTime now,
             CancellationToken cancellationToken)
@@ -163,11 +209,7 @@ namespace Emby.Plugins.Moonfin.Services
                 }
             }
 
-            return all
-                .Where(item => !(item.Id.HasValue && ownedTmdbIds.Contains(item.Id.Value)))
-                .Where(item => limit.IsAllowed(item.OfficialRating))
-                .Take(MaxSuggestions)
-                .ToList();
+            return PickSuggestions(all, ownedKeys, limit, MaxSuggestions);
         }
 
         private async Task<List<CustomRowItem>> DiscoverAsync(SeasonalHoliday holiday, string apiKey, CancellationToken cancellationToken)
@@ -221,31 +263,24 @@ namespace Emby.Plugins.Moonfin.Services
         }
 
         // Discover leaves out what the card under a focused suggestion shows, so each title is
-        // looked up once per cache period. The wide image prefers a backdrop in the server's
-        // metadata language, since those carry the title the way a library thumb does.
+        // looked up once per cache period. The backdrop stays the one discover gave, since clients
+        // show it behind the page and fetch the titled art for a focused card on their own.
         private async Task FillDetailsAsync(List<CustomRowItem> items, string apiKey, CancellationToken cancellationToken)
         {
-            var language = MetadataLanguage(_configManager.Configuration.PreferredMetadataLanguage);
             foreach (var item in items)
             {
-                var url = "https://api.themoviedb.org/3/movie/" + item.Id + "?append_to_response=images&include_image_language=" + language + ",null";
+                var url = "https://api.themoviedb.org/3/movie/" + item.Id;
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 MoonfinHttp.ApplyTmdbAuth(request, apiKey);
                 using var response = await _client.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode) continue;
 
                 using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
-                ApplyDetails(item, doc.RootElement, language);
+                ApplyDetails(item, doc.RootElement);
             }
         }
 
-        internal static string MetadataLanguage(string? configured)
-        {
-            var code = (configured ?? string.Empty).Split('-')[0].Trim().ToLowerInvariant();
-            return code.Length == 2 ? code : "en";
-        }
-
-        internal static void ApplyDetails(CustomRowItem item, JsonElement details, string language)
+        internal static void ApplyDetails(CustomRowItem item, JsonElement details)
         {
             if (details.TryGetProperty("overview", out var overview) && overview.ValueKind == JsonValueKind.String)
                 item.Overview = overview.GetString();
@@ -266,24 +301,9 @@ namespace Emby.Plugins.Moonfin.Services
                 if (names.Count > 0) item.Genres = names;
             }
 
-            var titled = TitledBackdrop(details, language);
-            if (titled != null) item.BackdropUrl = titled;
-        }
-
-        /// <summary>
-        /// The backdrop in <paramref name="language"/> from details fetched with their images, or
-        /// null when TMDB has none in that language.
-        /// </summary>
-        internal static string? TitledBackdrop(JsonElement details, string language)
-        {
-            if (!details.TryGetProperty("images", out var images) || !images.TryGetProperty("backdrops", out var backdrops) || backdrops.ValueKind != JsonValueKind.Array)
-                return null;
-
-            var titled = backdrops.EnumerateArray().FirstOrDefault(b =>
-                b.TryGetProperty("iso_639_1", out var lang) && string.Equals(lang.GetString(), language, StringComparison.OrdinalIgnoreCase));
-            return titled.ValueKind == JsonValueKind.Object && titled.TryGetProperty("file_path", out var path) && path.ValueKind == JsonValueKind.String
-                ? path.GetString()
-                : null;
+            // Lets a suggestion match an owned copy that only has an IMDb id.
+            if (details.TryGetProperty("imdb_id", out var imdb) && imdb.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(imdb.GetString()))
+                item.ProviderIds.Imdb = imdb.GetString();
         }
     }
 }

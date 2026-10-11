@@ -126,7 +126,9 @@ namespace Emby.Plugins.Moonfin.Api
             if (await UsesPersonalKeyAsync(source, userId.Value).ConfigureAwait(false))
                 cacheKey += ":" + userId.Value.ToString("N");
 
-            if (!refresh)
+            // IMDb charts keep their own daily cache, which the sync task refreshes, so a copy
+            // kept here could be from before the last refresh.
+            if (!refresh && source != "imdb")
             {
                 var cached = Cache.TryGet(cacheKey, CacheTtl);
                 if (cached != null)
@@ -630,6 +632,7 @@ namespace Emby.Plugins.Moonfin.Api
         private async Task<List<CustomRowItem>> FetchImdbList(string type, Guid userId)
         {
             var items = await LoadImdbList(type).ConfigureAwait(false);
+            ImdbListsCacheService.DropPosterBackdrops(items);
 
             // The sync task fills ratings with the admin key. This covers a chart it fetched before
             // a key was set, or one fetched on demand here.

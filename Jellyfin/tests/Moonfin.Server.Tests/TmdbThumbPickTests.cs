@@ -39,4 +39,14 @@ public sealed class TmdbThumbPickTests
 
         Assert.Null(TmdbThumbService.PickPath(doc.RootElement, "en"));
     }
+
+    [Theory]
+    [InlineData("en-US", "en")]
+    [InlineData("fr", "fr")]
+    [InlineData("", "en")]
+    [InlineData(null, "en")]
+    public void TheMetadataLanguageIsATwoLetterCode(string? configured, string expected)
+    {
+        Assert.Equal(expected, TmdbThumbService.MetadataLanguage(configured));
+    }
 }

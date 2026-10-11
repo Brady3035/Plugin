@@ -206,7 +206,6 @@ public class ImdbListsTask : IScheduledTask
                 ProductionYear = year,
                 Rank = rank++,
                 PosterUrl = posterUrl,
-                BackdropUrl = posterUrl,
                 ProviderIds = new CustomRowItemProviderIds
                 {
                     Imdb = id
