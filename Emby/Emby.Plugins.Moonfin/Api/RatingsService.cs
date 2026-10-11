@@ -459,6 +459,31 @@ namespace Emby.Plugins.Moonfin.Api
             return ResultFactory.GetResult(Request, new System.IO.MemoryStream(bytes), "image/png", headers);
         }
 
+        public async Task<object?> Get(GetTmdbThumbRequest request)
+        {
+            var apiKey = await GetUserTmdbApiKey().ConfigureAwait(false);
+            var thumbs = Plugin.Instance?.TmdbThumbs;
+            if (string.IsNullOrWhiteSpace(apiKey) || thumbs == null)
+            {
+                Request.Response.StatusCode = 404;
+                return null!;
+            }
+
+            var mediaType = string.Equals(request.Type, "tv", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
+            var path = await thumbs.GetPathAsync(mediaType, request.TmdbId, request.ImdbId, apiKey!, System.Threading.CancellationToken.None).ConfigureAwait(false);
+            if (string.IsNullOrEmpty(path))
+            {
+                Request.Response.StatusCode = 404;
+                return null!;
+            }
+
+            var imageScheme = string.Equals(request.Scheme, "http", StringComparison.OrdinalIgnoreCase) ? "http" : "https";
+            Request.Response.StatusCode = 302;
+            Request.Response.AddHeader("Cache-Control", "public,max-age=86400");
+            Request.Response.AddHeader("Location", imageScheme + "://image.tmdb.org/t/p/w1280" + path);
+            return null!;
+        }
+
         private async Task<string?> GetUserTmdbApiKey()
         {
             var userId = AuthHelpers.GetCurrentUserId(Request, _authContext);

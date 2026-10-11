@@ -81,6 +81,8 @@ namespace Emby.Plugins.Moonfin.Api
                 jellyseerrUrl = seerrUrl,
                 mdblistAvailable = !string.IsNullOrWhiteSpace(config?.MdblistApiKey),
                 tmdbAvailable = !string.IsNullOrWhiteSpace(config?.TmdbApiKey),
+                // Older plugins leave this out, so the app keeps the backdrop Seerr gave it.
+                tmdbThumbsSupported = true,
                 // Older plugins leave this out, which the app reads as false and hides the
                 // messages button.
                 messagesSupported = true,
@@ -617,11 +619,14 @@ namespace Emby.Plugins.Moonfin.Api
         /// </summary>
         internal static object MapItemToDto(BaseItem item, User? user)
         {
+            // Every image a card can ask for. Without Thumb and Banner a row set to either falls
+            // back to the backdrop even when the library has the real art.
             var imageTags = new Dictionary<string, string>();
-            var primaryInfo = item.GetImageInfo(ImageType.Primary, 0);
-            if (primaryInfo != null) imageTags["Primary"] = primaryInfo.DateModified.Ticks.ToString("X");
-            var logoInfo = item.GetImageInfo(ImageType.Logo, 0);
-            if (logoInfo != null) imageTags["Logo"] = logoInfo.DateModified.Ticks.ToString("X");
+            foreach (var type in new[] { ImageType.Primary, ImageType.Thumb, ImageType.Banner, ImageType.Logo })
+            {
+                var info = item.GetImageInfo(type, 0);
+                if (info != null) imageTags[type.ToString()] = info.DateModified.Ticks.ToString("X");
+            }
 
             var backdropTags = new List<string>();
             foreach (var bd in item.GetImages(ImageType.Backdrop))

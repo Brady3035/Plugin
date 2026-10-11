@@ -266,13 +266,24 @@ namespace Emby.Plugins.Moonfin.Services
                 if (names.Count > 0) item.Genres = names;
             }
 
-            if (details.TryGetProperty("images", out var images) && images.TryGetProperty("backdrops", out var backdrops) && backdrops.ValueKind == JsonValueKind.Array)
-            {
-                var titled = backdrops.EnumerateArray().FirstOrDefault(b =>
-                    b.TryGetProperty("iso_639_1", out var lang) && string.Equals(lang.GetString(), language, StringComparison.OrdinalIgnoreCase));
-                if (titled.ValueKind == JsonValueKind.Object && titled.TryGetProperty("file_path", out var path) && path.ValueKind == JsonValueKind.String)
-                    item.BackdropUrl = path.GetString();
-            }
+            var titled = TitledBackdrop(details, language);
+            if (titled != null) item.BackdropUrl = titled;
+        }
+
+        /// <summary>
+        /// The backdrop in <paramref name="language"/> from details fetched with their images, or
+        /// null when TMDB has none in that language.
+        /// </summary>
+        internal static string? TitledBackdrop(JsonElement details, string language)
+        {
+            if (!details.TryGetProperty("images", out var images) || !images.TryGetProperty("backdrops", out var backdrops) || backdrops.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var titled = backdrops.EnumerateArray().FirstOrDefault(b =>
+                b.TryGetProperty("iso_639_1", out var lang) && string.Equals(lang.GetString(), language, StringComparison.OrdinalIgnoreCase));
+            return titled.ValueKind == JsonValueKind.Object && titled.TryGetProperty("file_path", out var path) && path.ValueKind == JsonValueKind.String
+                ? path.GetString()
+                : null;
         }
     }
 }

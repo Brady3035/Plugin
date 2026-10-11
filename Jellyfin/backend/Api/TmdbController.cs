@@ -22,6 +22,7 @@ public class TmdbController : ControllerBase
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly StudioLogoCacheService _studioCache;
     private readonly StudioLogoFetchService _studioFetch;
+    private readonly TmdbThumbService _thumbs;
 
     // Cache: key = "tmdbId:season" => (response, timestamp)
     private static readonly ConcurrentDictionary<string, (TmdbSeasonRatingsResponse Response, DateTimeOffset CachedAt)> _seasonCache = new();
@@ -39,12 +40,14 @@ public class TmdbController : ControllerBase
         MoonfinSettingsService settingsService,
         IHttpClientFactory httpClientFactory,
         StudioLogoCacheService studioCache,
-        StudioLogoFetchService studioFetch)
+        StudioLogoFetchService studioFetch,
+        TmdbThumbService thumbs)
     {
         _settingsService = settingsService;
         _httpClientFactory = httpClientFactory;
         _studioCache = studioCache;
         _studioFetch = studioFetch;
+        _thumbs = thumbs;
     }
 
     /// <summary>
@@ -440,6 +443,44 @@ public class TmdbController : ControllerBase
         Response.Headers["Cache-Control"] = "public,max-age=31536000,immutable";
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return PhysicalFile(path, "image/png");
+    }
+
+    /// <summary>
+    /// Redirects to the wide TMDB image for a movie or show the server doesn't have, so a client
+    /// can load it like any other image URL.
+    /// </summary>
+    /// <param name="type">movie or tv.</param>
+    /// <param name="tmdbId">TMDB id of the title.</param>
+    /// <param name="imdbId">IMDb id, used when there is no TMDB id.</param>
+    /// <param name="scheme">http for a client that can't follow a redirect from http to https, like a Roku on a plain http server.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpGet("Thumb")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status302Found)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetThumb(
+        [FromQuery] string? type,
+        [FromQuery] long? tmdbId,
+        [FromQuery] string? imdbId,
+        [FromQuery] string? scheme,
+        CancellationToken cancellationToken)
+    {
+        var apiKey = await GetUserApiKey();
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return NotFound();
+        }
+
+        var mediaType = string.Equals(type, "tv", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
+        var path = await _thumbs.GetPathAsync(mediaType, tmdbId, imdbId, apiKey, cancellationToken);
+        if (string.IsNullOrEmpty(path))
+        {
+            return NotFound();
+        }
+
+        var imageScheme = string.Equals(scheme, "http", StringComparison.OrdinalIgnoreCase) ? "http" : "https";
+        Response.Headers["Cache-Control"] = "public,max-age=86400";
+        return Redirect($"{imageScheme}://image.tmdb.org/t/p/w1280{path}");
     }
 
     private async Task<string?> GetUserApiKey()

@@ -33,6 +33,7 @@ namespace Emby.Plugins.Moonfin
         public CustomRowCacheService? CustomRowCache { get; private set; }
         public TmdbRatingCacheService? TmdbRatingCache { get; private set; }
         public TmdbRatingService? TmdbRatings { get; private set; }
+        public TmdbThumbService? TmdbThumbs { get; private set; }
         public ServerRatingLimitService? RatingLimits { get; private set; }
         public SeasonalKeywordStoreService? SeasonalKeywords { get; private set; }
         public SeasonalSuggestionsCacheService? SeasonalSuggestions { get; private set; }
@@ -167,6 +168,7 @@ namespace Emby.Plugins.Moonfin
             var configManager = appHost.Resolve<IServerConfigurationManager>();
             TmdbRatingCache = new TmdbRatingCacheService(mdbLogger);
             TmdbRatings = new TmdbRatingService(TmdbRatingCache, configManager, mdbLogger);
+            TmdbThumbs = new TmdbThumbService(configManager, TmdbRatings);
             RatingLimits = new ServerRatingLimitService(appHost.Resolve<ILocalizationManager>(), configManager);
             var seasonalLogger = logManager.GetLogger("MoonfinSeasonal");
             SeasonalKeywords = new SeasonalKeywordStoreService(seasonalLogger);

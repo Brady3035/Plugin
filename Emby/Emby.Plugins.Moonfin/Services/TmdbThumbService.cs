@@ -1,0 +1,92 @@
+using System;
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Emby.Plugins.Moonfin.Api;
+using MediaBrowser.Controller.Configuration;
+
+namespace Emby.Plugins.Moonfin.Services
+{
+    /// <summary>
+    /// Picks the wide image a client shows for a movie or show the server doesn't have. It prefers
+    /// a backdrop in the metadata language, since those carry the title the way a library thumb
+    /// does, and falls back to the main backdrop.
+    /// </summary>
+    public class TmdbThumbService
+    {
+        private static readonly TimeSpan CacheTtl = TimeSpan.FromDays(7);
+
+        private readonly IServerConfigurationManager _configManager;
+        private readonly TmdbRatingService _ratings;
+        private readonly HttpClient _client = MoonfinHttp.CreateClient(TimeSpan.FromSeconds(15), "Moonfin/1.0");
+        private readonly ConcurrentDictionary<string, (string? Path, DateTimeOffset CachedAt)> _cache =
+            new ConcurrentDictionary<string, (string?, DateTimeOffset)>();
+
+        public TmdbThumbService(IServerConfigurationManager configManager, TmdbRatingService ratings)
+        {
+            _configManager = configManager;
+            _ratings = ratings;
+        }
+
+        /// <summary>
+        /// The TMDB image path for the title, or null when TMDB has no backdrop for it. An IMDb id
+        /// is only used when there is no TMDB id.
+        /// </summary>
+        public async Task<string?> GetPathAsync(string mediaType, long? tmdbId, string? imdbId, string apiKey, CancellationToken cancellationToken)
+        {
+            if (tmdbId == null && !string.IsNullOrWhiteSpace(imdbId))
+            {
+                var found = await _ratings.FindByImdbAsync(imdbId!, apiKey, cancellationToken).ConfigureAwait(false);
+                if (found == null) return null;
+
+                mediaType = found.Value.MediaType;
+                tmdbId = found.Value.TmdbId;
+            }
+
+            if (tmdbId == null) return null;
+
+            var key = mediaType + ":" + tmdbId;
+            if (_cache.TryGetValue(key, out var cached) && DateTimeOffset.UtcNow - cached.CachedAt < CacheTtl)
+                return cached.Path;
+
+            var language = SeasonalRowService.MetadataLanguage(_configManager.Configuration.PreferredMetadataLanguage);
+            var url = "https://api.themoviedb.org/3/" + mediaType + "/" + tmdbId + "?append_to_response=images&include_image_language=" + language + ",null";
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            MoonfinHttp.ApplyTmdbAuth(request, apiKey);
+
+            try
+            {
+                using var response = await _client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    _cache[key] = (null, DateTimeOffset.UtcNow);
+                    return null;
+                }
+
+                if (!response.IsSuccessStatusCode) return null;
+
+                using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
+                var path = PickPath(doc.RootElement, language);
+                _cache[key] = (path, DateTimeOffset.UtcNow);
+                return path;
+            }
+            catch (HttpRequestException)
+            {
+                return null;
+            }
+        }
+
+        internal static string? PickPath(JsonElement details, string language)
+        {
+            var titled = SeasonalRowService.TitledBackdrop(details, language);
+            if (titled != null) return titled;
+
+            return details.TryGetProperty("backdrop_path", out var backdrop) && backdrop.ValueKind == JsonValueKind.String
+                ? backdrop.GetString()
+                : null;
+        }
+    }
+}

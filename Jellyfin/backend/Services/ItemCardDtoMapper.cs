@@ -30,6 +30,10 @@ public class ItemCardDtoMapper
                 typeof(UserItemDataDto).IsAssignableFrom(m.ReturnType);
         });
 
+    // Every image a card can ask for. Without Thumb and Banner a row set to either falls back
+    // to the backdrop even when the library has the real art.
+    private static readonly ImageType[] CardImageTypes = [ImageType.Primary, ImageType.Thumb, ImageType.Banner, ImageType.Logo];
+
     private readonly IUserDataManager _userDataManager;
     private readonly ILogger<ItemCardDtoMapper> _logger;
 
@@ -42,16 +46,13 @@ public class ItemCardDtoMapper
     public object Map(BaseItem item, object? user)
     {
         var imageTags = new Dictionary<string, string>();
-        var imageInfo = item.GetImageInfo(ImageType.Primary, 0);
-        if (imageInfo != null)
+        foreach (var type in CardImageTypes)
         {
-            imageTags["Primary"] = GetTag(imageInfo);
-        }
-
-        var logoInfo = item.GetImageInfo(ImageType.Logo, 0);
-        if (logoInfo != null)
-        {
-            imageTags["Logo"] = GetTag(logoInfo);
+            var info = item.GetImageInfo(type, 0);
+            if (info != null)
+            {
+                imageTags[type.ToString()] = GetTag(info);
+            }
         }
 
         var backdropTags = item.GetImages(ImageType.Backdrop).Select(GetTag).ToList();

@@ -60,6 +60,18 @@ namespace Emby.Plugins.Moonfin.Api
         public int CompanyId { get; set; }
     }
 
+    [Route("/Moonfin/Tmdb/Thumb", "GET")]
+    [Authenticated]
+    public class GetTmdbThumbRequest : IReturn<object>
+    {
+        public string? Type { get; set; }
+        public long? TmdbId { get; set; }
+        public string? ImdbId { get; set; }
+
+        /// <summary>http for a client that can't follow a redirect from http to https, like a Roku on a plain http server.</summary>
+        public string? Scheme { get; set; }
+    }
+
     [Route("/Moonfin/Tmdb/NextEpisode", "GET")]
     [Authenticated]
     public class GetTmdbNextEpisodeRequest : IReturn<object>

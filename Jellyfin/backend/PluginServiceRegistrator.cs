@@ -37,6 +37,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<AnimeMarkerResolver>();
         serviceCollection.AddSingleton<TmdbRatingCacheService>();
         serviceCollection.AddSingleton<TmdbRatingService>();
+        serviceCollection.AddSingleton<TmdbThumbService>();
         serviceCollection.AddSingleton<ServerRatingLimitService>();
         serviceCollection.AddSingleton<ItemCardDtoMapper>();
         serviceCollection.AddSingleton<SeasonalKeywordStoreService>();

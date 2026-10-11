@@ -132,6 +132,7 @@ public class MoonfinController : ControllerBase
                 : null,
             MdblistAvailable = !string.IsNullOrWhiteSpace(config?.MdblistApiKey),
             TmdbAvailable = !string.IsNullOrWhiteSpace(config?.TmdbApiKey),
+            TmdbThumbsSupported = true,
             MessagesSupported = true,
             RecommendationsSupported = config?.RecommendationsProviderEnabled ?? true,
             DefaultSettings = config?.DefaultUserSettings
@@ -1540,6 +1541,13 @@ public class MoonfinPingResponse
 
     [JsonPropertyName("tmdbAvailable")]
     public bool? TmdbAvailable { get; set; }
+
+    /// <summary>
+    /// True when this plugin has the Tmdb/Thumb endpoint. Older plugins leave it out, so the app
+    /// keeps the backdrop Seerr gave it.
+    /// </summary>
+    [JsonPropertyName("tmdbThumbsSupported")]
+    public bool? TmdbThumbsSupported { get; set; }
 
     /// <summary>
     /// True when this plugin has the admin messages endpoints. Older plugins leave it out, so
