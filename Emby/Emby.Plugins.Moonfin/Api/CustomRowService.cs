@@ -120,9 +120,13 @@ namespace Emby.Plugins.Moonfin.Api
                     .ToDictionary(kv => kv.Key, kv => kv.Value);
             }
 
+            var language = NormalizeLanguage(request.Language);
+            var langKey = language == null ? null : Uri.EscapeDataString(language.ToLowerInvariant());
             var canonicalParams = JsonSerializer.Serialize(
                 new SortedDictionary<string, string>(parsedParams, StringComparer.Ordinal));
             var cacheKey = source + ":" + type + ":" + Sha256Hex(canonicalParams);
+            if (!string.IsNullOrEmpty(langKey))
+                cacheKey += ":" + langKey;
             if (await UsesPersonalKeyAsync(source, userId.Value).ConfigureAwait(false))
                 cacheKey += ":" + userId.Value.ToString("N");
 
@@ -143,16 +147,16 @@ namespace Emby.Plugins.Moonfin.Api
                 switch (source)
                 {
                     case "mdblist":
-                        items = await FetchMdbList(type, parsedParams, userId.Value, client).ConfigureAwait(false);
+                        items = await FetchMdbList(type, parsedParams, userId.Value, client, language).ConfigureAwait(false);
                         break;
                     case "tmdb":
-                        items = await FetchTmdb(type, parsedParams, userId.Value, client).ConfigureAwait(false);
+                        items = await FetchTmdb(type, parsedParams, userId.Value, client, language).ConfigureAwait(false);
                         break;
                     case "tmdb_chart":
-                        items = await FetchTmdbChart(type, userId.Value, client).ConfigureAwait(false);
+                        items = await FetchTmdbChart(type, userId.Value, client, language).ConfigureAwait(false);
                         break;
                     case "letterboxd":
-                        items = await FetchLetterboxd(type, parsedParams, userId.Value, client).ConfigureAwait(false);
+                        items = await FetchLetterboxd(type, parsedParams, userId.Value, client, language).ConfigureAwait(false);
                         break;
                     default:
                         return Json(400, new { error = "Unsupported custom row source: " + source });
@@ -177,7 +181,7 @@ namespace Emby.Plugins.Moonfin.Api
             }
         }
 
-        private async Task<List<CustomRowItem>> FetchMdbList(string type, Dictionary<string, string> paramsMap, Guid userId, HttpClient client)
+        private async Task<List<CustomRowItem>> FetchMdbList(string type, Dictionary<string, string> paramsMap, Guid userId, HttpClient client, string? language)
         {
             var apiKey = await ResolveMdblistKey(userId).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(apiKey))
@@ -189,8 +193,6 @@ namespace Emby.Plugins.Moonfin.Api
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(listname))
                 throw new ArgumentException("MDBList requires both username and listname parameters.");
 
-            var baseUrl = $"https://api.mdblist.com/lists/{Uri.EscapeDataString(username!)}/{Uri.EscapeDataString(listname!)}/items?apikey={Uri.EscapeDataString(apiKey!)}&limit={MdbListPageSize}&append_to_response=poster";
-
             var items = new List<CustomRowItem>();
             string? cursor = null;
 
@@ -198,7 +200,7 @@ namespace Emby.Plugins.Moonfin.Api
             // continuation signal the MDBList API guarantees.
             while (items.Count < MdbListMaxItems)
             {
-                var url = cursor == null ? baseUrl : baseUrl + "&cursor=" + Uri.EscapeDataString(cursor);
+                var url = BuildMdbListUrl(username!, listname!, apiKey!, language, cursor);
 
                 using var response = await client.GetAsync(url).ConfigureAwait(false);
                 if ((int)response.StatusCode == 429)
@@ -259,8 +261,8 @@ namespace Emby.Plugins.Moonfin.Api
                     {
                         var isShow = rowItem.Type == "Series";
                         var tmdbUrl = isShow
-                            ? $"https://api.themoviedb.org/3/tv/{rowItem.Id}"
-                            : $"https://api.themoviedb.org/3/movie/{rowItem.Id}";
+                            ? BuildTmdbTvDetailUrl(rowItem.Id!.Value.ToString(), language)
+                            : BuildTmdbMovieDetailUrl(rowItem.Id!.Value.ToString(), language);
 
                         using var req = new HttpRequestMessage(HttpMethod.Get, tmdbUrl);
                         MoonfinHttp.ApplyTmdbAuth(req, tmdbKey!);
@@ -346,7 +348,7 @@ namespace Emby.Plugins.Moonfin.Api
             }
         }
 
-        private async Task<List<CustomRowItem>> FetchTmdb(string type, Dictionary<string, string> paramsMap, Guid userId, HttpClient client)
+        private async Task<List<CustomRowItem>> FetchTmdb(string type, Dictionary<string, string> paramsMap, Guid userId, HttpClient client, string? language)
         {
             var apiKey = await ResolveTmdbKey(userId).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(apiKey))
@@ -358,8 +360,8 @@ namespace Emby.Plugins.Moonfin.Api
 
             var isCollection = type == "movie_collection";
             var url = isCollection
-                ? $"https://api.themoviedb.org/3/collection/{Uri.EscapeDataString(listId!)}"
-                : $"https://api.themoviedb.org/3/list/{Uri.EscapeDataString(listId!)}";
+                ? BuildTmdbCollectionUrl(listId!, language)
+                : BuildTmdbListUrl(listId!, language);
 
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             MoonfinHttp.ApplyTmdbAuth(request, apiKey!);
@@ -449,14 +451,14 @@ namespace Emby.Plugins.Moonfin.Api
             return items;
         }
 
-        private async Task<List<CustomRowItem>> FetchTmdbChart(string type, Guid userId, HttpClient client)
+        private async Task<List<CustomRowItem>> FetchTmdbChart(string type, Guid userId, HttpClient client, string? language)
         {
             var apiKey = await ResolveTmdbKey(userId).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(apiKey))
                 throw new InvalidOperationException("TMDB API Key is not configured.");
 
             // type is the API path, e.g. movie/popular, trending/movie/day, etc.
-            var url = $"https://api.themoviedb.org/3/{type}";
+            var url = BuildTmdbChartUrl(type, language);
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             MoonfinHttp.ApplyTmdbAuth(request, apiKey!);
 
@@ -514,7 +516,7 @@ namespace Emby.Plugins.Moonfin.Api
             return items;
         }
 
-        private async Task<List<CustomRowItem>> FetchLetterboxd(string type, Dictionary<string, string> paramsMap, Guid userId, HttpClient client)
+        private async Task<List<CustomRowItem>> FetchLetterboxd(string type, Dictionary<string, string> paramsMap, Guid userId, HttpClient client, string? language)
         {
             paramsMap.TryGetValue("user", out var username);
 
@@ -575,7 +577,7 @@ namespace Emby.Plugins.Moonfin.Api
                     await tmdbSemaphore.WaitAsync().ConfigureAwait(false);
                     try
                     {
-                        var tmdbUrl = $"https://api.themoviedb.org/3/movie/{pItem.TmdbId}";
+                        var tmdbUrl = BuildTmdbMovieDetailUrl(pItem.TmdbId!, language);
                         using var req = new HttpRequestMessage(HttpMethod.Get, tmdbUrl);
                         MoonfinHttp.ApplyTmdbAuth(req, tmdbKey!);
                         using var resp = await client.SendAsync(req).ConfigureAwait(false);
@@ -734,6 +736,100 @@ namespace Emby.Plugins.Moonfin.Api
             var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
             client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             return client;
+        }
+
+        // A plain BCP 47 tag the clients send, such as fr, pt_BR, zh-Hant-TW or es-419.
+        private static readonly Regex LanguageTagRegex =
+            new Regex(@"^([A-Za-z]{2,3})(?:-([A-Za-z]{4}))?(?:-([A-Za-z]{2}|[0-9]{3}))?$", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Turns a client language tag into the language or language-REGION form MDBList and TMDB take,
+        /// or null when it isn't a plain tag, so a made-up value can't open new cache entries.
+        /// </summary>
+        public static string? NormalizeLanguage(string? language)
+        {
+            if (string.IsNullOrWhiteSpace(language)) return null;
+            var match = LanguageTagRegex.Match(language.Trim().Replace('_', '-'));
+            if (!match.Success) return null;
+
+            var lang = match.Groups[1].Value.ToLowerInvariant();
+            var script = match.Groups[2].Value;
+            var region = match.Groups[3].Value.ToUpperInvariant();
+
+            // TMDB has no numeric regions. Its Latin American Spanish is es-MX.
+            if (region.Length == 3) region = lang == "es" && region == "419" ? "MX" : string.Empty;
+
+            // TMDB tells the Chinese scripts apart by region alone.
+            if (region.Length == 0 && lang == "zh" && script.Length > 0)
+            {
+                region = script.Equals("Hant", StringComparison.OrdinalIgnoreCase) ? "TW" : "CN";
+            }
+
+            return region.Length == 0 ? lang : $"{lang}-{region}";
+        }
+
+        internal static string BuildMdbListUrl(string username, string listname, string apiKey, string? language, string? cursor = null)
+        {
+            var url = $"https://api.mdblist.com/lists/{Uri.EscapeDataString(username)}/{Uri.EscapeDataString(listname)}/items?apikey={Uri.EscapeDataString(apiKey)}&limit={MdbListPageSize}&append_to_response=poster";
+            if (!string.IsNullOrWhiteSpace(language))
+            {
+                url += $"&lang={Uri.EscapeDataString(language)}";
+            }
+            if (!string.IsNullOrWhiteSpace(cursor))
+            {
+                url += $"&cursor={Uri.EscapeDataString(cursor)}";
+            }
+            return url;
+        }
+
+        internal static string BuildTmdbCollectionUrl(string listId, string? language)
+        {
+            var url = $"https://api.themoviedb.org/3/collection/{Uri.EscapeDataString(listId)}";
+            if (!string.IsNullOrWhiteSpace(language))
+            {
+                url += $"?language={Uri.EscapeDataString(language)}";
+            }
+            return url;
+        }
+
+        internal static string BuildTmdbListUrl(string listId, string? language)
+        {
+            var url = $"https://api.themoviedb.org/3/list/{Uri.EscapeDataString(listId)}";
+            if (!string.IsNullOrWhiteSpace(language))
+            {
+                url += $"?language={Uri.EscapeDataString(language)}";
+            }
+            return url;
+        }
+
+        internal static string BuildTmdbChartUrl(string type, string? language)
+        {
+            var url = $"https://api.themoviedb.org/3/{type}";
+            if (!string.IsNullOrWhiteSpace(language))
+            {
+                url += (url.Contains('?') ? "&" : "?") + $"language={Uri.EscapeDataString(language)}";
+            }
+            return url;
+        }
+
+        internal static string BuildTmdbMovieDetailUrl(string tmdbId, string? language)
+        {
+            var url = $"https://api.themoviedb.org/3/movie/{Uri.EscapeDataString(tmdbId)}";
+            if (!string.IsNullOrWhiteSpace(language))
+            {
+                url += $"?language={Uri.EscapeDataString(language)}";
+            }
+            return url;
+        }
+
+        internal static string BuildTmdbTvDetailUrl(string tmdbId, string? language)
+        {
+            var url = $"https://api.themoviedb.org/3/tv/{Uri.EscapeDataString(tmdbId)}";
+            if (!string.IsNullOrWhiteSpace(language))
+            {
+                url += $"?language={Uri.EscapeDataString(language)}";
+            }
+            return url;
         }
 
         private static string Sha256Hex(string text)
