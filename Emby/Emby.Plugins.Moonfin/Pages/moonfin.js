@@ -1097,6 +1097,81 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         return parts.length > 0 ? parts.join(',') : null;
     }
 
+    var HOME_ROW_IMAGE_TYPE_OPTIONS = '<option value="">Not set (user decides)</option>'
+        + '<option value="poster">Poster</option>'
+        + '<option value="thumb">Thumbnail</option>'
+        + '<option value="banner">Banner</option>';
+
+    // Continue Watching has its own setting above, and Library Buttons has no artwork to pick.
+    var HOME_ROW_IMAGE_TYPE_SKIPPED = { resume: true, librarybuttons: true };
+
+    // HOME_SECTION_DEFINITIONS leaves these rows out, but the clients still show them on Emby.
+    var HOME_ROW_IMAGE_TYPE_EXTRA_ROWS = [
+        { type: 'sinceyouwatched1', label: 'Since You Watched 1' },
+        { type: 'sinceyouwatched2', label: 'Since You Watched 2' },
+        { type: 'sinceyouwatched3', label: 'Since You Watched 3' },
+        { type: 'sinceyouwatched4', label: 'Since You Watched 4' },
+        { type: 'sinceyouwatched5', label: 'Since You Watched 5' },
+        { type: 'rewatch', label: 'Rewatch' },
+        { type: 'imdb_top_250_movies', label: 'IMDB Top 250 Movies' },
+        { type: 'imdb_top_250_tv_shows', label: 'IMDB Top 250 Shows' },
+        { type: 'imdb_most_popular_movies', label: 'IMDB Most Popular Movies' },
+        { type: 'imdb_most_popular_tv_shows', label: 'IMDB Most Popular Shows' },
+        { type: 'imdb_lowest_rated_movies', label: 'IMDB Lowest Rated Movies' },
+        { type: 'imdb_top_english_movies', label: 'IMDB Top English Movies' },
+        { type: 'tmdb_popular_movies', label: 'TMDB Popular Movies' },
+        { type: 'tmdb_top_rated_movies', label: 'TMDB Top Rated Movies' },
+        { type: 'tmdb_now_playing_movies', label: 'TMDB Now Playing Movies' },
+        { type: 'tmdb_upcoming_movies', label: 'TMDB Upcoming Movies' },
+        { type: 'tmdb_popular_tv', label: 'TMDB Popular TV' },
+        { type: 'tmdb_top_rated_tv', label: 'TMDB Top Rated TV' },
+        { type: 'tmdb_airing_today_tv', label: 'TMDB Airing Today TV' },
+        { type: 'tmdb_on_the_air_tv', label: 'TMDB On The Air TV' },
+        { type: 'tmdb_trending_movie_daily', label: 'TMDB Trending Movies (Daily)' },
+        { type: 'tmdb_trending_movie_weekly', label: 'TMDB Trending Movies (Weekly)' },
+        { type: 'tmdb_trending_tv_daily', label: 'TMDB Trending TV (Daily)' },
+        { type: 'tmdb_trending_tv_weekly', label: 'TMDB Trending TV (Weekly)' },
+        { type: 'tmdb_trending_all_weekly', label: 'TMDB Trending All (Weekly)' },
+        { type: 'radarr_calendar', label: 'Radarr Upcoming' },
+        { type: 'sonarr_calendar', label: 'Sonarr Upcoming' }
+    ];
+
+    function loadHomeRowImageTypes(view, raw) {
+        var stored = {};
+        String(raw || '').split(',').forEach(function (part) {
+            var pair = part.split(':');
+            if (pair.length !== 2) return;
+            var name = pair[0].trim().toLowerCase();
+            if (name) stored[name] = pair[1].trim().toLowerCase();
+        });
+        var container = view.querySelector('#DefaultHomeRowImageTypes');
+        if (!container) return;
+        if (!container.dataset.filled) {
+            container.dataset.filled = 'true';
+            var html = '';
+            HOME_SECTION_DEFINITIONS.concat(HOME_ROW_IMAGE_TYPE_EXTRA_ROWS).forEach(function (row) {
+                if (HOME_ROW_IMAGE_TYPE_SKIPPED[row.type]) return;
+                var id = 'DefaultHomeRowImageType_' + row.type;
+                html += '<div class="inputContainer">'
+                    + '<label class="inputLabel inputLabelUnfocused" for="' + esc(id) + '">' + esc(row.label) + '</label>'
+                    + '<select id="' + esc(id) + '" is="emby-select" data-row="' + esc(row.type) + '">' + HOME_ROW_IMAGE_TYPE_OPTIONS + '</select>'
+                    + '</div>';
+            });
+            container.innerHTML = html;
+        }
+        container.querySelectorAll('select[data-row]').forEach(function (el) {
+            el.value = stored[el.dataset.row] || '';
+        });
+    }
+
+    function getHomeRowImageTypesValue(view) {
+        var parts = [];
+        view.querySelectorAll('#DefaultHomeRowImageTypes select[data-row]').forEach(function (el) {
+            if (el.value) parts.push(el.dataset.row + ':' + el.value);
+        });
+        return parts.length > 0 ? parts.join(',') : null;
+    }
+
     var SEERR_DISCOVERY_ROWS = [
         { id: 'shortcuts', label: 'Seerr Browse' },
         { id: 'recent_requests', label: 'Recent Requests' },
@@ -2159,6 +2234,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             bindNullableRangeInput(view, '#DefaultModernHomeRowsPadding', 'px');
             setNullableRangeInput(view, '#DefaultModernHomeRowsPadding', defaults.modernHomeRowsPadding, 'px');
             setSelectValue(view, '#DefaultHomeImageTypeContinueWatching', defaults.homeImageTypeContinueWatching, 'Configured image type');
+            loadHomeRowImageTypes(view, defaults.homeRowImageTypes);
             setSelectValue(view, '#DefaultPosterSize', defaults.posterSize, 'Configured size');
             setNullableBoolSelect(view, '#DefaultDisplayFavoritesRows', defaults.displayFavoritesRows);
             fillSortSelect(view, '#DefaultFavoritesRowSortBy', false);
@@ -2476,6 +2552,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             d.modernHomeRowsPadding = getNullableRangeInput(view, '#DefaultModernHomeRowsPadding');
             d.posterSize = view.querySelector('#DefaultPosterSize').value || null;
             d.homeImageTypeContinueWatching = view.querySelector('#DefaultHomeImageTypeContinueWatching').value || null;
+            d.homeRowImageTypes = getHomeRowImageTypesValue(view);
             d.displayFavoritesRows = getNullableBoolSelect(view, '#DefaultDisplayFavoritesRows');
             d.favoritesRowSortBy = view.querySelector('#DefaultFavoritesRowSortBy').value || null;
             d.displayCollectionsRows = getNullableBoolSelect(view, '#DefaultDisplayCollectionsRows');

@@ -79,6 +79,9 @@ namespace Emby.Plugins.Moonfin.Models
         [JsonPropertyName("fullScreenRows")] public bool? FullScreenRows { get; set; }
         [JsonPropertyName("homeRowsImageType")] public string? HomeRowsImageType { get; set; }
         [JsonPropertyName("homeImageTypeContinueWatching")] public string? HomeImageTypeContinueWatching { get; set; }
+        // Row:type pairs like "genres:thumb,nextup:poster". It's a string because plugin
+        // configuration is saved as XML, which can't hold a map.
+        [JsonPropertyName("homeRowImageTypes")] public string? HomeRowImageTypes { get; set; }
         [JsonPropertyName("homeImageUseSeriesImage")] public bool? HomeImageUseSeriesImage { get; set; }
         [JsonPropertyName("posterSize")] public string? PosterSize { get; set; }
         [JsonPropertyName("detailsScreenBlur")] public string? DetailsScreenBlur { get; set; }

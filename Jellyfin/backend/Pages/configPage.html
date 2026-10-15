@@ -2379,6 +2379,9 @@
                                     <option value="banner">Banner</option>
                                 </select>
                             </div>
+                            <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Per-Row Image Types</h4>
+                            <div class="fieldDescription" style="margin-bottom:0.75em;">The artwork each home row uses with the Classic row type. Only applies while Override Row Image Type is off. Continue Watching has its own setting above. A row left unset is up to the user.</div>
+                            <div id="DefaultHomeRowImageTypes" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); column-gap:1.5em;"></div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultHomeImageUseSeriesImage">Display Series Thumbnails</label>
                                 <select id="DefaultHomeImageUseSeriesImage" is="emby-select">
@@ -4748,6 +4751,50 @@
                 return parts.length > 0 ? parts.join(',') : null;
             }
 
+            var HOME_ROW_IMAGE_TYPE_OPTIONS = '<option value="">Not set (user decides)</option>'
+                + '<option value="poster">Poster</option>'
+                + '<option value="thumb">Thumbnail</option>'
+                + '<option value="banner">Banner</option>';
+
+            // Continue Watching has its own setting above, and Library Buttons has no artwork to pick.
+            var HOME_ROW_IMAGE_TYPE_SKIPPED = { resume: true, librarybuttons: true };
+
+            function loadHomeRowImageTypes(raw) {
+                var stored = {};
+                String(raw || '').split(',').forEach(function(part) {
+                    var pair = part.split(':');
+                    if (pair.length !== 2) return;
+                    var name = pair[0].trim().toLowerCase();
+                    if (name) stored[name] = pair[1].trim().toLowerCase();
+                });
+                var container = document.querySelector('#DefaultHomeRowImageTypes');
+                if (!container) return;
+                if (!container.dataset.filled) {
+                    container.dataset.filled = 'true';
+                    var html = '';
+                    HOME_SECTION_DEFINITIONS.forEach(function(row) {
+                        if (HOME_ROW_IMAGE_TYPE_SKIPPED[row.type]) return;
+                        var id = 'DefaultHomeRowImageType_' + row.type;
+                        html += '<div class="inputContainer">'
+                            + '<label class="inputLabel inputLabelUnfocused" for="' + esc(id) + '">' + esc(row.label) + '</label>'
+                            + '<select id="' + esc(id) + '" is="emby-select" data-row="' + esc(row.type) + '">' + HOME_ROW_IMAGE_TYPE_OPTIONS + '</select>'
+                            + '</div>';
+                    });
+                    container.innerHTML = html;
+                }
+                container.querySelectorAll('select[data-row]').forEach(function(el) {
+                    el.value = stored[el.dataset.row] || '';
+                });
+            }
+
+            function getHomeRowImageTypesValue() {
+                var parts = [];
+                document.querySelectorAll('#DefaultHomeRowImageTypes select[data-row]').forEach(function(el) {
+                    if (el.value) parts.push(el.dataset.row + ':' + el.value);
+                });
+                return parts.length > 0 ? parts.join(',') : null;
+            }
+
             var SEERR_DISCOVERY_ROWS = [
                 { id: 'shortcuts', label: 'Seerr Browse' },
                 { id: 'recent_requests', label: 'Recent Requests' },
@@ -6590,6 +6637,7 @@
                     bindNullableRangeInput('#DefaultModernHomeRowsPadding', 'px');
                     setNullableRangeInput('#DefaultModernHomeRowsPadding', defaults.modernHomeRowsPadding, 'px');
                     setSelectValue('#DefaultHomeImageTypeContinueWatching', defaults.homeImageTypeContinueWatching, 'Configured image type');
+                    loadHomeRowImageTypes(defaults.homeRowImageTypes);
                     setSelectValue('#DefaultPosterSize', defaults.posterSize, 'Configured size');
                     setNullableBoolSelect('#DefaultDisplayFavoritesRows', defaults.displayFavoritesRows);
                     fillSortSelect('#DefaultFavoritesRowSortBy', false);
@@ -7450,6 +7498,7 @@
                         config.DefaultUserSettings.modernHomeRowsPadding = getNullableRangeInput('#DefaultModernHomeRowsPadding');
                         config.DefaultUserSettings.posterSize = document.querySelector('#DefaultPosterSize').value || null;
                         config.DefaultUserSettings.homeImageTypeContinueWatching = document.querySelector('#DefaultHomeImageTypeContinueWatching').value || null;
+                        config.DefaultUserSettings.homeRowImageTypes = getHomeRowImageTypesValue();
                         config.DefaultUserSettings.displayFavoritesRows = getNullableBoolSelect('#DefaultDisplayFavoritesRows');
                         config.DefaultUserSettings.favoritesRowSortBy = document.querySelector('#DefaultFavoritesRowSortBy').value || null;
                         config.DefaultUserSettings.displayCollectionsRows = getNullableBoolSelect('#DefaultDisplayCollectionsRows');
