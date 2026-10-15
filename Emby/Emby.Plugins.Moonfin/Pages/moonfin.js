@@ -1280,6 +1280,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { type: 'latestmedia', label: 'Recently Added Media' },
         { type: 'recentlyreleased', label: 'Recently Released' },
         { type: 'livetv', label: 'Live TV' },
+        { type: 'onnow', label: 'On Now' },
         { type: 'librarybuttons', label: 'Library Buttons' },
         { type: 'resumeaudio', label: 'Resume Audio' },
         { type: 'resumebook', label: 'Resume Books' },
