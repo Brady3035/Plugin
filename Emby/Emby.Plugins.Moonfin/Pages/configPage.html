@@ -2557,6 +2557,16 @@
                             </div>
                             <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Library Pages</h4>
                             <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultLibraryStyle">Library style</label>
+                                <select id="DefaultLibraryStyle" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="classic">Classic</option>
+                                    <option value="modern">Modern</option>
+                                    <option value="docked">Docked</option>
+                                </select>
+                                <div class="fieldDescription">Default layout for the controls at the top of library pages. Keep Not set to let users choose.</div>
+                            </div>
+                            <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultGroupItemsIntoCollections">Group Items into Collections</label>
                                 <select id="DefaultGroupItemsIntoCollections" is="emby-select">
                                     <option value="">Not set (user decides)</option>

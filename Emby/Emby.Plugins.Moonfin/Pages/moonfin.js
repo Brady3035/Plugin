@@ -2355,6 +2355,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             setSelectValue(view, '#DefaultSinceYouWatchedSource', defaults.sinceYouWatchedSource, 'Configured source');
             setSelectValue(view, '#DefaultSinceYouWatchedSourceType', defaults.sinceYouWatchedSourceType, 'Configured content');
             setSelectValue(view, '#DefaultSinceYouWatchedSourceItem', defaults.sinceYouWatchedSourceItem, 'Configured source');
+            setSelectValue(view, '#DefaultLibraryStyle', defaults.libraryStyle, 'Configured style');
             setSelectValue(view, '#DefaultLibraryPosterSize', defaults.libraryPosterSize, 'Configured size');
             setSelectValue(view, '#DefaultPlaylistPosterSize', defaults.playlistPosterSize, 'Configured size');
             setSelectValue(view, '#DefaultFavoritesViewStyle', defaults.favoritesViewStyle, 'Configured view');
@@ -2671,6 +2672,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             d.sinceYouWatchedSource = view.querySelector('#DefaultSinceYouWatchedSource').value || null;
             d.sinceYouWatchedSourceType = view.querySelector('#DefaultSinceYouWatchedSourceType').value || null;
             d.sinceYouWatchedSourceItem = view.querySelector('#DefaultSinceYouWatchedSourceItem').value || null;
+            d.libraryStyle = view.querySelector('#DefaultLibraryStyle').value || null;
             d.libraryPosterSize = view.querySelector('#DefaultLibraryPosterSize').value || null;
             d.playlistPosterSize = view.querySelector('#DefaultPlaylistPosterSize').value || null;
             d.favoritesViewStyle = view.querySelector('#DefaultFavoritesViewStyle').value || null;
