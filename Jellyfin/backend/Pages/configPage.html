@@ -2708,7 +2708,7 @@
                             </div>
                             <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Library Pages</h4>
                             <div class="inputContainer">
-                                <label class="inputLabel inputLabelUnfocused" for="DefaultLibraryStyle">Main library style</label>
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultLibraryStyle">Video library style</label>
                                 <select id="DefaultLibraryStyle" is="emby-select">
                                     <option value="">Not set (user decides)</option>
                                     <option value="classic">Classic</option>
@@ -2726,6 +2726,16 @@
                                     <option value="bookstore">Bookstore</option>
                                 </select>
                                 <div class="fieldDescription">Default layout for book and audiobook libraries. Keep Not set to let users choose.</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultMusicLibraryStyle">Music library style</label>
+                                <select id="DefaultMusicLibraryStyle" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="classic">Classic</option>
+                                    <option value="quickAccess">Quick Access</option>
+                                    <option value="immersive">Immersive</option>
+                                </select>
+                                <div class="fieldDescription">Default layout for music libraries. Keep Not set to let users choose.</div>
                             </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultGroupItemsIntoCollections">Group Items into Collections</label>
@@ -6812,6 +6822,7 @@
                     setSelectValue('#DefaultSinceYouWatchedSourceItem', defaults.sinceYouWatchedSourceItem, 'Configured source');
                     setSelectValue('#DefaultLibraryStyle', defaults.libraryStyle, 'Configured style');
                     setSelectValue('#DefaultBookLibraryStyle', defaults.bookLibraryStyle, 'Configured style');
+                    setSelectValue('#DefaultMusicLibraryStyle', defaults.musicLibraryStyle, 'Configured style');
                     setSelectValue('#DefaultLibraryPosterSize', defaults.libraryPosterSize, 'Configured size');
                     setSelectValue('#DefaultPlaylistPosterSize', defaults.playlistPosterSize, 'Configured size');
                     setSelectValue('#DefaultFavoritesViewStyle', defaults.favoritesViewStyle, 'Configured view');
@@ -7651,6 +7662,7 @@
                         config.DefaultUserSettings.sinceYouWatchedSourceItem = document.querySelector('#DefaultSinceYouWatchedSourceItem').value || null;
                         config.DefaultUserSettings.libraryStyle = document.querySelector('#DefaultLibraryStyle').value || null;
                         config.DefaultUserSettings.bookLibraryStyle = document.querySelector('#DefaultBookLibraryStyle').value || null;
+                        config.DefaultUserSettings.musicLibraryStyle = document.querySelector('#DefaultMusicLibraryStyle').value || null;
                         config.DefaultUserSettings.libraryPosterSize = document.querySelector('#DefaultLibraryPosterSize').value || null;
                         config.DefaultUserSettings.playlistPosterSize = document.querySelector('#DefaultPlaylistPosterSize').value || null;
                         config.DefaultUserSettings.favoritesViewStyle = document.querySelector('#DefaultFavoritesViewStyle').value || null;

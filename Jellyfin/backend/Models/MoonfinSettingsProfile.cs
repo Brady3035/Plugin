@@ -108,6 +108,9 @@ public class MoonfinSettingsProfile
     [JsonPropertyName("bookLibraryStyle")]
     public string? BookLibraryStyle { get; set; }
 
+    [JsonPropertyName("musicLibraryStyle")]
+    public string? MusicLibraryStyle { get; set; }
+
     [JsonPropertyName("detailExpandedTabs")]
     public bool? DetailExpandedTabs { get; set; }
 
