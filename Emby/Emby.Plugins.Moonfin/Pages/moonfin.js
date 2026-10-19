@@ -1105,37 +1105,6 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
     // Continue Watching has its own setting above, and Library Buttons has no artwork to pick.
     var HOME_ROW_IMAGE_TYPE_SKIPPED = { resume: true, librarybuttons: true };
 
-    // HOME_SECTION_DEFINITIONS leaves these rows out, but the clients still show them on Emby.
-    var HOME_ROW_IMAGE_TYPE_EXTRA_ROWS = [
-        { type: 'sinceyouwatched1', label: 'Since You Watched 1' },
-        { type: 'sinceyouwatched2', label: 'Since You Watched 2' },
-        { type: 'sinceyouwatched3', label: 'Since You Watched 3' },
-        { type: 'sinceyouwatched4', label: 'Since You Watched 4' },
-        { type: 'sinceyouwatched5', label: 'Since You Watched 5' },
-        { type: 'rewatch', label: 'Rewatch' },
-        { type: 'imdb_top_250_movies', label: 'IMDB Top 250 Movies' },
-        { type: 'imdb_top_250_tv_shows', label: 'IMDB Top 250 Shows' },
-        { type: 'imdb_most_popular_movies', label: 'IMDB Most Popular Movies' },
-        { type: 'imdb_most_popular_tv_shows', label: 'IMDB Most Popular Shows' },
-        { type: 'imdb_lowest_rated_movies', label: 'IMDB Lowest Rated Movies' },
-        { type: 'imdb_top_english_movies', label: 'IMDB Top English Movies' },
-        { type: 'tmdb_popular_movies', label: 'TMDB Popular Movies' },
-        { type: 'tmdb_top_rated_movies', label: 'TMDB Top Rated Movies' },
-        { type: 'tmdb_now_playing_movies', label: 'TMDB Now Playing Movies' },
-        { type: 'tmdb_upcoming_movies', label: 'TMDB Upcoming Movies' },
-        { type: 'tmdb_popular_tv', label: 'TMDB Popular TV' },
-        { type: 'tmdb_top_rated_tv', label: 'TMDB Top Rated TV' },
-        { type: 'tmdb_airing_today_tv', label: 'TMDB Airing Today TV' },
-        { type: 'tmdb_on_the_air_tv', label: 'TMDB On The Air TV' },
-        { type: 'tmdb_trending_movie_daily', label: 'TMDB Trending Movies (Daily)' },
-        { type: 'tmdb_trending_movie_weekly', label: 'TMDB Trending Movies (Weekly)' },
-        { type: 'tmdb_trending_tv_daily', label: 'TMDB Trending TV (Daily)' },
-        { type: 'tmdb_trending_tv_weekly', label: 'TMDB Trending TV (Weekly)' },
-        { type: 'tmdb_trending_all_weekly', label: 'TMDB Trending All (Weekly)' },
-        { type: 'radarr_calendar', label: 'Radarr Upcoming' },
-        { type: 'sonarr_calendar', label: 'Sonarr Upcoming' }
-    ];
-
     function loadHomeRowImageTypes(view, raw) {
         var stored = {};
         String(raw || '').split(',').forEach(function (part) {
@@ -1149,7 +1118,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         if (!container.dataset.filled) {
             container.dataset.filled = 'true';
             var html = '';
-            HOME_SECTION_DEFINITIONS.concat(HOME_ROW_IMAGE_TYPE_EXTRA_ROWS).forEach(function (row) {
+            HOME_SECTION_DEFINITIONS.forEach(function (row) {
                 if (HOME_ROW_IMAGE_TYPE_SKIPPED[row.type]) return;
                 var id = 'DefaultHomeRowImageType_' + row.type;
                 html += '<div class="inputContainer">'
@@ -1295,7 +1264,18 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { type: 'favoritealbums', label: 'Favorite Albums' },
         { type: 'favoritesongs', label: 'Favorite Songs' },
         { type: 'genres', label: 'Genres' },
+        { type: 'studios', label: 'Studios' },
         { type: 'playlists', label: 'Playlists' },
+        { type: 'audioartists', label: 'Artists' },
+        { type: 'audioalbums', label: 'Albums' },
+        { type: 'audioplaylists', label: 'Audio Playlists' },
+        { type: 'sinceyouwatched1', label: 'Since You Watched 1' },
+        { type: 'sinceyouwatched2', label: 'Since You Watched 2' },
+        { type: 'sinceyouwatched3', label: 'Since You Watched 3' },
+        { type: 'sinceyouwatched4', label: 'Since You Watched 4' },
+        { type: 'sinceyouwatched5', label: 'Since You Watched 5' },
+        { type: 'rewatch', label: 'Rewatch' },
+        { type: 'seasonal', label: 'Seasonal' },
         { type: 'seerr_shortcuts', label: 'Seerr Browse' },
         { type: 'seerr_recent_requests', label: 'Seerr Recent Requests' },
         { type: 'seerr_recently_added', label: 'Seerr Recently Added' },
@@ -1308,7 +1288,28 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { type: 'seerr_studios', label: 'Seerr Studios' },
         { type: 'seerr_series_genres', label: 'Seerr Series Genres' },
         { type: 'seerr_networks', label: 'Seerr Networks' },
-        { type: 'seerr_watchlist', label: 'Seerr Watchlist' }
+        { type: 'seerr_watchlist', label: 'Seerr Watchlist' },
+        { type: 'imdb_top_250_movies', label: 'IMDB Top 250 Movies' },
+        { type: 'imdb_top_250_tv_shows', label: 'IMDB Top 250 Shows' },
+        { type: 'imdb_most_popular_movies', label: 'IMDB Most Popular Movies' },
+        { type: 'imdb_most_popular_tv_shows', label: 'IMDB Most Popular Shows' },
+        { type: 'imdb_lowest_rated_movies', label: 'IMDB Lowest Rated Movies' },
+        { type: 'imdb_top_english_movies', label: 'IMDB Top English Movies' },
+        { type: 'tmdb_popular_movies', label: 'TMDB Popular Movies' },
+        { type: 'tmdb_top_rated_movies', label: 'TMDB Top Rated Movies' },
+        { type: 'tmdb_now_playing_movies', label: 'TMDB Now Playing Movies' },
+        { type: 'tmdb_upcoming_movies', label: 'TMDB Upcoming Movies' },
+        { type: 'tmdb_popular_tv', label: 'TMDB Popular TV' },
+        { type: 'tmdb_top_rated_tv', label: 'TMDB Top Rated TV' },
+        { type: 'tmdb_airing_today_tv', label: 'TMDB Airing Today TV' },
+        { type: 'tmdb_on_the_air_tv', label: 'TMDB On The Air TV' },
+        { type: 'tmdb_trending_movie_daily', label: 'TMDB Trending Movies (Daily)' },
+        { type: 'tmdb_trending_movie_weekly', label: 'TMDB Trending Movies (Weekly)' },
+        { type: 'tmdb_trending_tv_daily', label: 'TMDB Trending TV (Daily)' },
+        { type: 'tmdb_trending_tv_weekly', label: 'TMDB Trending TV (Weekly)' },
+        { type: 'tmdb_trending_all_weekly', label: 'TMDB Trending All (Weekly)' },
+        { type: 'radarr_calendar', label: 'Radarr Upcoming' },
+        { type: 'sonarr_calendar', label: 'Sonarr Upcoming' }
     ];
 
     var HOME_LAYOUT_TABS = [
@@ -1316,7 +1317,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { id: 'collections', label: 'Collections' },
         { id: 'playlists', label: 'Playlists' },
         { id: 'genres', label: 'Genres' },
-        { id: 'seerr', label: 'Seerr' }
+        { id: 'seerr', label: 'Seerr' },
+        { id: 'external', label: 'External Lists' }
     ];
 
     var HOME_LAYOUT_SEERR_TYPES = {
@@ -1332,11 +1334,17 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         seerr_studios: true,
         seerr_series_genres: true,
         seerr_networks: true,
-        seerr_watchlist: true
+        seerr_watchlist: true,
+        radarr_calendar: true,
+        sonarr_calendar: true
     };
 
     function isSeerrHomeSectionType(type) {
         return !!HOME_LAYOUT_SEERR_TYPES[type];
+    }
+
+    function isExternalHomeSectionType(type) {
+        return /^(imdb|tmdb)_/.test(type);
     }
 
     function getHomeLayoutState(view) {
@@ -1346,7 +1354,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
                 selectedIndex: null,
                 activeTab: 'builtin',
                 search: '',
-                available: { builtin: [], collections: [], playlists: [], genres: [], seerr: [] }
+                available: { builtin: [], collections: [], playlists: [], genres: [], seerr: [], external: [] }
             };
         }
         return view.__moonfinHomeLayout;
@@ -1368,7 +1376,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
     function homeSectionMeta(section) {
         if (!section) return 'Basics';
         if (section.kind !== 'pluginDynamic') {
-            return isSeerrHomeSectionType(section.type) ? 'Seerr' : 'Basics';
+            return isSeerrHomeSectionType(section.type) ? 'Seerr' : (isExternalHomeSectionType(section.type) ? 'External Lists' : 'Basics');
         }
         if (section.pluginSource === 'collections') return 'Collection';
         if (section.pluginSource === 'playlists') return 'Playlist';
@@ -1380,6 +1388,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
     function homeSectionBadgeClass(section) {
         if (!section || section.kind !== 'pluginDynamic') {
             if (section && isSeerrHomeSectionType(section.type)) return 'homeLayoutBadge-seerr';
+            if (section && isExternalHomeSectionType(section.type)) return 'homeLayoutBadge-external';
             return 'homeLayoutBadge-builtin';
         }
         if (section.pluginSource === 'collections') return 'homeLayoutBadge-collections';
@@ -1489,8 +1498,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             key: 'builtin:' + definition.type,
             tab: 'builtin',
             label: definition.label,
-            meta: isSeerrHomeSectionType(definition.type) ? 'Seerr' : 'Basics',
-            badgeClass: isSeerrHomeSectionType(definition.type) ? 'homeLayoutBadge-seerr' : 'homeLayoutBadge-builtin',
+            meta: homeSectionMeta({ kind: 'builtin', type: definition.type }),
             section: {
                 kind: 'builtin',
                 type: definition.type,
@@ -1506,7 +1514,6 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             tab: tab,
             label: label || 'Untitled',
             meta: meta,
-            badgeClass: 'homeLayoutBadge-' + (source || 'dynamic'),
             section: {
                 kind: 'pluginDynamic',
                 type: 'none',
@@ -1523,10 +1530,13 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
 
     function initializeHomeLayoutAvailableRows(state) {
         state.available.builtin = HOME_SECTION_DEFINITIONS
-            .filter(function (definition) { return !isSeerrHomeSectionType(definition.type); })
+            .filter(function (definition) { return !isSeerrHomeSectionType(definition.type) && !isExternalHomeSectionType(definition.type); })
             .map(createBuiltinCandidate);
         state.available.seerr = HOME_SECTION_DEFINITIONS
             .filter(function (definition) { return isSeerrHomeSectionType(definition.type); })
+            .map(createBuiltinCandidate);
+        state.available.external = HOME_SECTION_DEFINITIONS
+            .filter(function (definition) { return isExternalHomeSectionType(definition.type); })
             .map(createBuiltinCandidate);
     }
 
