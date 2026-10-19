@@ -222,6 +222,10 @@
             display: none !important;
         }
 
+        #MoonfinConfigPage:not(.moonfin-searching) .moonfin-hidden-by-parent {
+            display: none !important;
+        }
+
         @media (max-width: 800px) {
             #MoonfinConfigPage .moonfinAdminShell {
                 flex-direction: column;
@@ -995,6 +999,17 @@
                                 The icon is always auto-detected regardless of this setting.
                             </div>
                         </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="PublicServerUrl">Public Server URL (Optional)</label>
+                            <input type="url" id="PublicServerUrl" is="emby-input" placeholder="https://emby.example.com" />
+                            <div class="fieldDescription">
+                                <strong>The address Seerr uses to reach this Emby server</strong> for request
+                                notifications (the webhook Seerr calls back). Set this when Seerr and Emby run in
+                                separate containers or hosts, since the server otherwise can only guess a local address
+                                that Seerr may not be able to reach. Use the base URL, for example
+                                <code>http://192.168.1.10:8096</code> or <code>https://emby.example.com</code>.
+                            </div>
+                        </div>
                         <div style="background-color: rgba(0, 164, 220, 0.1); border: 1px solid rgba(0, 164, 220, 0.3); border-radius: 10px; padding: 1em 1.5em; margin: 1em 0;">
                             <strong>SSO Proxy:</strong> When Seerr is enabled, Moonfin provides single sign-on.
                             Users authenticate once with their Emby credentials, and the session is stored server-side.
@@ -1027,6 +1042,23 @@
                             <div class="fieldDescription">
                                 Drops every cached rating so they refetch from MDBList. Use this if ratings look
                                 wrong or are missing after changing the key or updating the plugin.
+                            </div>
+                        </div>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input type="checkbox" id="MdblistOfficialListsEnabled" is="emby-checkbox" />
+                                <span>Sync MDBList official lists</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Nightly task that caches MDBList's official charts (e.g. IMDb Top 250) so clients can
+                                show them as home rows without their own key.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="MdblistOfficialListsMaxItems">Max items per official list</label>
+                            <input type="number" id="MdblistOfficialListsMaxItems" is="emby-input" min="10" max="1000" step="10" />
+                            <div class="fieldDescription">
+                                Cap on items cached per official list (default 250).
                             </div>
                         </div>
                         <div class="checkboxContainer">
@@ -1064,6 +1096,13 @@
                             <div class="fieldDescription">
                                 Pre-warms the studio (production company) logo cache from TMDB on a schedule so clients can
                                 show studio logos on the details screen. Uses the server-wide TMDB key above.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="StudioLogosMaxAgeDays">Studio logo refresh age (days)</label>
+                            <input type="number" id="StudioLogosMaxAgeDays" is="emby-input" min="1" max="365" step="1" />
+                            <div class="fieldDescription">
+                                Logos older than this are re-fetched (default 30).
                             </div>
                         </div>
                     </div>
@@ -2229,9 +2268,11 @@
                                     <option value="banner">Banner</option>
                                 </select>
                             </div>
-                            <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Per-Row Image Types</h4>
-                            <div class="fieldDescription" style="margin-bottom:0.75em;">The artwork each home row uses with the Classic row type. Only applies while Override Row Image Type is off. Continue Watching has its own setting above. A row left unset is up to the user.</div>
-                            <div id="DefaultHomeRowImageTypes" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); column-gap:1.5em;"></div>
+                            <div id="DefaultHomeRowImageTypesSection">
+                                <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Per-Row Image Types</h4>
+                                <div class="fieldDescription" style="margin-bottom:0.75em;">The artwork each home row uses with the Classic row type. Only applies while Override Row Image Type is off. Continue Watching has its own setting above. A row left unset is up to the user.</div>
+                                <div id="DefaultHomeRowImageTypes" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); column-gap:1.5em;"></div>
+                            </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultHomeImageUseSeriesImage">Display Series Thumbnails</label>
                                 <select id="DefaultHomeImageUseSeriesImage" is="emby-select">
@@ -3162,7 +3203,8 @@
                         </div>
 
                         <div class="defaultsSubtabPanel" data-subtab="integrations">
-                            <h4 style="margin: 1em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Seerr</h4>
+                            <div id="DefaultSeerrOffNote" class="fieldDescription">Turn on Seerr under Integrations to set these defaults.</div>
+                            <h4 id="DefaultSeerrHeading" style="margin: 1em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Seerr</h4>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultSeerrBlockNsfw">Seerr Block NSFW</label>
                                 <select id="DefaultSeerrBlockNsfw" is="emby-select">

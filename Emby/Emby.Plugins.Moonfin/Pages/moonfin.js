@@ -458,6 +458,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         selectTab(validSaved ? saved : 'settingsSync');
 
         initializeSettingsSearch(view);
+        view.addEventListener('change', function () { applyFieldDependencies(view); });
     }
 
     function updateSyncStatus(view) {
@@ -496,6 +497,86 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
                 var text = (field.textContent || '').toLowerCase();
                 field.classList.toggle('moonfin-hidden-by-search', text.indexOf(query) === -1);
             });
+        });
+    }
+
+    // A rule hides its fields while every parent is set to one of its off values, which are
+    // 'false' unless the rule lists others. "Not set" leaves the choice to users, so it never
+    // hides anything. A hidden parent counts as off and hides its own fields too, so a rule
+    // has to come after the rule that hides its parent.
+    var FIELD_DEPENDENCIES = [
+        { parent: 'SeerrEnabled', fields: ['SeerrUrl', 'SeerrDisplayName', 'PublicServerUrl', 'DefaultShowSeerrButton', 'DefaultSeerrHeading', 'DefaultSeerrBlockNsfw', 'DefaultSeerrShowMissingCollectionItems', 'DefaultShowSeerrAvailabilityBadges', 'DefaultSeerrDiscoveryList', 'DefaultEnableRadarrCalendar', 'DefaultEnableSonarrCalendar'] },
+        { parent: 'SeerrEnabled', off: ['true'], fields: ['DefaultSeerrOffNote'] },
+        { parent: 'DefaultEnableRadarrCalendar', fields: ['DefaultRadarrCalendarShowCinema', 'DefaultRadarrCalendarShowDigital', 'DefaultRadarrCalendarShowPhysical', 'DefaultRadarrCalendarShowDate', 'DefaultMergeRadarrSonarrCalendars'] },
+        { parent: 'DefaultEnableSonarrCalendar', fields: ['DefaultSonarrCalendarShowDate', 'DefaultSonarrCalendarShowEpisodeInfo', 'DefaultMergeRadarrSonarrCalendars'] },
+        { parent: 'MdblistOfficialListsEnabled', fields: ['MdblistOfficialListsMaxItems'] },
+        { parent: 'GamesEnabled', fields: ['GameCoresStatus', 'GameCoresFile', 'GameLibraryPicker'] },
+        { parent: 'DefaultNavbarPosition', off: ['top', 'left'], fields: ['DefaultBottomNavbarStyle', 'DefaultBottomNavbarTab1'] },
+        { parent: 'DefaultNavbarPosition', off: ['bottom'], fields: ['DefaultNavbarAlwaysExpanded'] },
+        { parent: 'DefaultShowShuffleButton', fields: ['DefaultShuffleContentType'] },
+        { parent: 'DefaultSeasonalSurprise', off: ['none'], fields: ['DefaultSeasonalDensity'] },
+        { parent: 'DefaultLoadingAnimationImage', off: ['none'], fields: ['DefaultLoadingAnimationPosition', 'DefaultLoadingAnimationSize', 'DefaultLoadingAnimationSpeed', 'DefaultShowLoadingAnimationText'] },
+        { parent: 'DefaultScreensaverComponent', off: ['none'], fields: ['DefaultScreensaverMovement', 'DefaultScreensaverSize'] },
+        { parent: 'DefaultScreensaverMovement', off: ['slow', 'moderate', 'fast', 'ultra'], fields: ['DefaultScreensaverPosition'] },
+        { parent: 'DefaultScreensaverBackdrop', off: ['black', 'moonfin', 'calm', 'neonPulse', 'aurora'], fields: ['DefaultScreensaverContentType', 'DefaultScreensaverLibraryPicker', 'DefaultScreensaverCollectionPicker', 'DefaultScreensaverGenrePicker'] },
+        { parent: 'DefaultDisplayAudioRows', fields: ['DefaultAudioRowsSortBy', 'DefaultAudioRowsSortOrder'] },
+        { parent: 'DefaultDisplayCollectionsRows', fields: ['DefaultCollectionsRowSortBy', 'DefaultCollectionsRowSortOrder', 'DefaultCollectionsRowShowEpisodes'] },
+        { parent: 'DefaultDisplayFavoritesRows', fields: ['DefaultFavoritesRowSortBy', 'DefaultFavoritesRowSortOrder'] },
+        { parent: 'DefaultDisplayGenresRows', fields: ['DefaultGenresRowSortBy', 'DefaultGenresRowSortOrder', 'DefaultGenresRowItemFilter'] },
+        { parent: 'DefaultDisplayPlaylistsRows', fields: ['DefaultPlaylistsRowSortBy', 'DefaultPlaylistsRowSortOrder', 'DefaultPlaylistsRowShowEpisodes'] },
+        { parent: 'DefaultDisplayRewatchRow', fields: ['DefaultRewatchSortBy', 'DefaultRewatchIncludeMovies', 'DefaultRewatchIncludeShows', 'DefaultRewatchIncludeCollections'] },
+        { parent: 'DefaultDisplaySinceYouWatchedRows', fields: ['DefaultSinceYouWatchedSource', 'DefaultSinceYouWatchedSourceType', 'DefaultSinceYouWatchedSourceItem', 'DefaultSinceYouWatched1Enabled', 'DefaultSinceYouWatched2Enabled', 'DefaultSinceYouWatched3Enabled', 'DefaultSinceYouWatched4Enabled', 'DefaultSinceYouWatched5Enabled'] },
+        { parent: 'DefaultSinceYouWatchedSource', off: ['online'], fields: ['DefaultSinceYouWatchedIncludeWatched'] },
+        { parent: 'DefaultDisplayStudiosRows', fields: ['DefaultStudiosRowSortBy', 'DefaultStudiosRowSortOrder'] },
+        { parent: 'DefaultMediaBarMode', off: ['off'], fields: ['DefaultMediaBarContentType', 'DefaultMediaBarItemCount', 'DefaultMediaBarSourceType', 'DefaultCollectionPickerSection', 'DefaultLibraryPickerSection', 'DefaultGenrePicker', 'DefaultMediaBarAutoAdvance', 'DefaultMediaBarOpacity', 'DefaultMediaBarOverlayColor', 'DefaultMediaBarTrailerPreview'] },
+        { parent: 'DefaultMediaBarAutoAdvance', fields: ['DefaultMediaBarIntervalMs'] },
+        { parent: 'DefaultMediaBarTrailerPreview', fields: ['DefaultMediaBarTrailerAudio', 'DefaultMediaBarTrailerCaptions'] },
+        { parent: 'DefaultHomeRowsStyle', off: ['v1'], fields: ['DefaultModernCardsOnMyMediaRow', 'DefaultModernHomeRowsPadding'] },
+        { parent: 'DefaultHomeRowsStyle', off: ['v2'], fields: ['DefaultClassicHomeRowsPadding', 'DefaultHomeRowInfoOverlay', 'DefaultHomeImageTypeContinueWatching', 'DefaultHomeRowsImageTypeOverride'] },
+        { parent: 'DefaultHomeRowsImageTypeOverride', fields: ['DefaultHomeRowsImageType'] },
+        { parent: 'DefaultHomeRowsImageTypeOverride', off: ['true'], fields: ['DefaultHomeRowImageTypesSection'] },
+        { parent: 'DefaultEpisodePreviewEnabled', fields: ['DefaultPreviewAudioEnabled'] },
+        { parent: 'DefaultSeasonalRowEnabled', fields: ['DefaultSeasonalRowCountry', 'DefaultSeasonalRowHolidays'] },
+        { parent: 'DefaultDetailScreenStyle', off: ['modern', 'spotlight', 'nouveau', 'minimalist'], fields: ['DefaultDetailUseSeriesThumbnails'] },
+        { parent: 'DefaultDetailScreenStyle', off: ['classic', 'spotlight', 'nouveau', 'minimalist'], fields: ['DefaultDetailExpandedTabs'] },
+        { parent: 'DefaultThemeMusicEnabled', fields: ['DefaultThemeMusicVolume', 'DefaultThemeMusicOnHomeRows', 'DefaultThemeMusicLoop'] },
+        { parent: 'DefaultSubtitleMode', off: ['none'], fields: ['DefaultDefaultSubtitleLanguage', 'DefaultFallbackSubtitleLanguage', 'DefaultPreferSdhSubtitles', 'DefaultPreferTextSubtitles', 'DefaultPreferExternalSubtitles'] },
+        { parent: 'DefaultSegmentActionOutro', off: ['doNothing', 'skip'], fields: ['DefaultReplaceSkipOutroWithNextUp'] },
+        { parent: ['DefaultSegmentActionIntro', 'DefaultSegmentActionRecap', 'DefaultSegmentActionPreview', 'DefaultSegmentActionCommercial', 'DefaultSegmentActionOutro'], off: ['doNothing', 'skip'], fields: ['DefaultMediaSegmentAutoHide'] },
+        { parent: 'DefaultCinemaModeEnabled', fields: ['DefaultCinemaModeEpisodesEnabled'] }
+    ];
+
+    // The whole row a field sits in. A checkbox inside a grouped list hides with its group.
+    function dependentFieldBlock(el) {
+        var block = el.closest('.inputContainer, .checkboxContainer') || el;
+        return (block.parentElement && block.parentElement.closest('.inputContainer')) || block;
+    }
+
+    function isDependencyParentOff(el, offValues, hiddenBlocks) {
+        if (hiddenBlocks.indexOf(dependentFieldBlock(el)) !== -1) return true;
+        var value = el.type === 'checkbox' ? String(el.checked) : el.value;
+        return offValues.indexOf(value) !== -1;
+    }
+
+    function applyFieldDependencies(view) {
+        var hiddenBlocks = [];
+        FIELD_DEPENDENCIES.forEach(function (rule) {
+            var off = [].concat(rule.parent).every(function (id) {
+                var el = view.querySelector('#' + id);
+                return !!el && isDependencyParentOff(el, rule.off || ['false'], hiddenBlocks);
+            });
+            if (!off) return;
+            rule.fields.forEach(function (id) {
+                var el = view.querySelector('#' + id);
+                var block = el && dependentFieldBlock(el);
+                if (block && hiddenBlocks.indexOf(block) === -1) hiddenBlocks.push(block);
+            });
+        });
+        view.querySelectorAll('.moonfin-hidden-by-parent').forEach(function (block) {
+            if (hiddenBlocks.indexOf(block) === -1) block.classList.remove('moonfin-hidden-by-parent');
+        });
+        hiddenBlocks.forEach(function (block) {
+            block.classList.add('moonfin-hidden-by-parent');
         });
     }
 
@@ -2109,10 +2190,14 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             view.querySelector('#SeerrEnabled').checked = config.SeerrEnabled;
             view.querySelector('#SeerrUrl').value = config.SeerrUrl || '';
             view.querySelector('#SeerrDisplayName').value = config.SeerrDisplayName || '';
+            view.querySelector('#PublicServerUrl').value = config.PublicServerUrl || '';
             view.querySelector('#MdblistApiKey').value = config.MdblistApiKey || '';
+            view.querySelector('#MdblistOfficialListsEnabled').checked = config.MdblistOfficialListsEnabled !== false;
+            view.querySelector('#MdblistOfficialListsMaxItems').value = config.MdblistOfficialListsMaxItems || 250;
             view.querySelector('#TmdbApiKey').value = config.TmdbApiKey || '';
             view.querySelector('#ImdbListsEnabled').checked = config.ImdbListsEnabled !== false;
             view.querySelector('#StudioLogosEnabled').checked = config.StudioLogosEnabled !== false;
+            view.querySelector('#StudioLogosMaxAgeDays').value = config.StudioLogosMaxAgeDays || 30;
             view.querySelector('#FcmServiceAccountJson').value = config.FcmServiceAccountJson || '';
             view.querySelector('#FcmServiceAccountPath').value = config.FcmServiceAccountPath || '';
             view.querySelector('#PushRelayUrl').value = config.PushRelayUrl || '';
@@ -2398,6 +2483,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
                 sourceSelect.addEventListener('change', togglePickerVisibility);
             }
             togglePickerVisibility();
+            applyFieldDependencies(view);
 
             loading.hide();
         }).catch(reportConfigError);
@@ -2410,10 +2496,14 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             config.SeerrEnabled = view.querySelector('#SeerrEnabled').checked;
             config.SeerrUrl = view.querySelector('#SeerrUrl').value || null;
             config.SeerrDisplayName = view.querySelector('#SeerrDisplayName').value || null;
+            config.PublicServerUrl = view.querySelector('#PublicServerUrl').value || null;
             config.MdblistApiKey = (view.querySelector('#MdblistApiKey').value || '').trim() || null;
+            config.MdblistOfficialListsEnabled = view.querySelector('#MdblistOfficialListsEnabled').checked;
+            config.MdblistOfficialListsMaxItems = parseInt(view.querySelector('#MdblistOfficialListsMaxItems').value, 10) || 250;
             config.TmdbApiKey = (view.querySelector('#TmdbApiKey').value || '').trim() || null;
             config.ImdbListsEnabled = view.querySelector('#ImdbListsEnabled').checked;
             config.StudioLogosEnabled = view.querySelector('#StudioLogosEnabled').checked;
+            config.StudioLogosMaxAgeDays = parseInt(view.querySelector('#StudioLogosMaxAgeDays').value, 10) || 30;
             config.FcmServiceAccountJson = view.querySelector('#FcmServiceAccountJson').value || null;
             config.FcmServiceAccountPath = view.querySelector('#FcmServiceAccountPath').value || null;
             config.PushRelayUrl = (view.querySelector('#PushRelayUrl').value || '').trim()
