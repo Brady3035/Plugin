@@ -226,6 +226,46 @@
             display: none !important;
         }
 
+        #MoonfinConfigPage.moonfin-searching .defaultsSubtabPanel {
+            display: block;
+        }
+
+        #MoonfinConfigPage.moonfin-searching .defaultsSubnavBar {
+            display: none;
+        }
+
+        #MoonfinConfigPage .moonfinCategoryToggle {
+            display: flex;
+            align-items: center;
+            gap: 0.6em;
+            width: 100%;
+            padding: 0.25em 0;
+            border: 0;
+            background: none;
+            color: inherit;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        #MoonfinConfigPage .moonfinCategoryToggle::before {
+            content: '';
+            width: 0.4em;
+            height: 0.4em;
+            border-right: 2px solid currentColor;
+            border-bottom: 2px solid currentColor;
+            transform: rotate(45deg);
+            transition: transform 0.15s;
+        }
+
+        #MoonfinConfigPage:not(.moonfin-searching) .moonfinCategory.is-collapsed .moonfinCategoryToggle::before {
+            transform: rotate(-45deg);
+        }
+
+        #MoonfinConfigPage:not(.moonfin-searching) .moonfinCategory.is-collapsed > .moonfinCategoryBody {
+            display: none;
+        }
+
         @media (max-width: 800px) {
             #MoonfinConfigPage .moonfinAdminShell {
                 flex-direction: column;

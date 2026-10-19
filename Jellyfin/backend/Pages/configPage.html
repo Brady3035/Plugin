@@ -354,6 +354,46 @@
                 display: none !important;
             }
 
+            #MoonfinConfigPage.moonfin-searching .defaultsSubtabPanel {
+                display: block;
+            }
+
+            #MoonfinConfigPage.moonfin-searching .defaultsSubnavBar {
+                display: none;
+            }
+
+            #MoonfinConfigPage .moonfinCategoryToggle {
+                display: flex;
+                align-items: center;
+                gap: 0.6em;
+                width: 100%;
+                padding: 0.25em 0;
+                border: 0;
+                background: none;
+                color: inherit;
+                font: inherit;
+                text-align: left;
+                cursor: pointer;
+            }
+
+            #MoonfinConfigPage .moonfinCategoryToggle::before {
+                content: '';
+                width: 0.4em;
+                height: 0.4em;
+                border-right: 2px solid currentColor;
+                border-bottom: 2px solid currentColor;
+                transform: rotate(45deg);
+                transition: transform 0.15s;
+            }
+
+            #MoonfinConfigPage:not(.moonfin-searching) .moonfinCategory.is-collapsed .moonfinCategoryToggle::before {
+                transform: rotate(-45deg);
+            }
+
+            #MoonfinConfigPage:not(.moonfin-searching) .moonfinCategory.is-collapsed > .moonfinCategoryBody {
+                display: none;
+            }
+
             @media (max-width: 800px) {
                 #MoonfinConfigPage .moonfinAdminShell {
                     flex-direction: column;
@@ -3872,6 +3912,41 @@
                 });
             }
 
+            // Each heading in a User Defaults subtab folds the settings under it, up to the next
+            // heading. A subtab with only one category starts open.
+            function initializeDefaultsCategories(page) {
+                page.querySelectorAll('.defaultsSubtabPanel').forEach(function(panel) {
+                    var headings = panel.querySelectorAll(':scope > h4');
+                    var startOpen = headings.length === 1;
+                    headings.forEach(function(heading) {
+                        var category = document.createElement('div');
+                        category.className = 'moonfinCategory' + (startOpen ? '' : ' is-collapsed');
+                        var body = document.createElement('div');
+                        body.className = 'moonfinCategoryBody';
+                        while (heading.nextSibling && heading.nextSibling.tagName !== 'H4') {
+                            body.appendChild(heading.nextSibling);
+                        }
+
+                        var toggle = document.createElement('button');
+                        toggle.type = 'button';
+                        toggle.className = 'moonfinCategoryToggle';
+                        toggle.setAttribute('aria-expanded', String(startOpen));
+                        while (heading.firstChild) {
+                            toggle.appendChild(heading.firstChild);
+                        }
+                        heading.appendChild(toggle);
+                        toggle.addEventListener('click', function() {
+                            var collapsed = category.classList.toggle('is-collapsed');
+                            toggle.setAttribute('aria-expanded', String(!collapsed));
+                        });
+
+                        panel.insertBefore(category, heading);
+                        category.appendChild(heading);
+                        category.appendChild(body);
+                    });
+                });
+            }
+
             function initializeAdminTabs(root) {
                 var page = root || document.querySelector('#MoonfinConfigPage');
                 if (!page || page.dataset.tabsInitialized === 'true') {
@@ -3909,6 +3984,7 @@
                 });
 
                 bindDefaultSettingsSubTabs(page);
+                initializeDefaultsCategories(page);
 
                 Array.prototype.slice.call(page.querySelectorAll('[data-open-tab]')).forEach(function(button) {
                     button.addEventListener('click', function() {

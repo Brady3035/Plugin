@@ -457,8 +457,44 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         var validSaved = saved && panels.some(function (p) { return p.getAttribute('data-tab') === saved; });
         selectTab(validSaved ? saved : 'settingsSync');
 
+        initializeDefaultsCategories(view);
         initializeSettingsSearch(view);
         view.addEventListener('change', function () { applyFieldDependencies(view); });
+    }
+
+    // Each heading in a User Defaults subtab folds the settings under it, up to the next
+    // heading. A subtab with only one category starts open.
+    function initializeDefaultsCategories(view) {
+        view.querySelectorAll('.defaultsSubtabPanel').forEach(function (panel) {
+            var headings = panel.querySelectorAll(':scope > h4');
+            var startOpen = headings.length === 1;
+            headings.forEach(function (heading) {
+                var category = document.createElement('div');
+                category.className = 'moonfinCategory' + (startOpen ? '' : ' is-collapsed');
+                var body = document.createElement('div');
+                body.className = 'moonfinCategoryBody';
+                while (heading.nextSibling && heading.nextSibling.tagName !== 'H4') {
+                    body.appendChild(heading.nextSibling);
+                }
+
+                var toggle = document.createElement('button');
+                toggle.type = 'button';
+                toggle.className = 'moonfinCategoryToggle';
+                toggle.setAttribute('aria-expanded', String(startOpen));
+                while (heading.firstChild) {
+                    toggle.appendChild(heading.firstChild);
+                }
+                heading.appendChild(toggle);
+                toggle.addEventListener('click', function () {
+                    var collapsed = category.classList.toggle('is-collapsed');
+                    toggle.setAttribute('aria-expanded', String(!collapsed));
+                });
+
+                panel.insertBefore(category, heading);
+                category.appendChild(heading);
+                category.appendChild(body);
+            });
+        });
     }
 
     function updateSyncStatus(view) {
