@@ -566,7 +566,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { parent: 'DefaultDisplayStudiosRows', fields: ['DefaultStudiosRowSortBy', 'DefaultStudiosRowSortOrder'] },
         { parent: 'DefaultMediaBarMode', off: ['off'], fields: ['DefaultMediaBarContentType', 'DefaultMediaBarItemCount', 'DefaultMediaBarSourceType', 'DefaultCollectionPickerSection', 'DefaultLibraryPickerSection', 'DefaultGenrePicker', 'DefaultMediaBarAutoAdvance', 'DefaultMediaBarOpacity', 'DefaultMediaBarOverlayColor', 'DefaultMediaBarTrailerPreview'] },
         { parent: 'DefaultMediaBarAutoAdvance', fields: ['DefaultMediaBarIntervalMs'] },
-        { parent: 'DefaultMediaBarTrailerPreview', fields: ['DefaultMediaBarTrailerAudio', 'DefaultMediaBarTrailerCaptions'] },
+        { parent: 'DefaultMediaBarTrailerPreview', fields: ['DefaultMediaBarTrailerAudio', 'DefaultTrailerVolume', 'DefaultMediaBarTrailerCaptions'] },
         { parent: 'DefaultHomeRowsStyle', off: ['v1'], fields: ['DefaultModernCardsOnMyMediaRow', 'DefaultModernHomeRowsPadding'] },
         { parent: 'DefaultHomeRowsStyle', off: ['v2'], fields: ['DefaultClassicHomeRowsPadding', 'DefaultHomeRowInfoOverlay', 'DefaultHomeImageTypeContinueWatching', 'DefaultHomeRowsImageTypeOverride'] },
         { parent: 'DefaultHomeRowsImageTypeOverride', fields: ['DefaultHomeRowsImageType'] },
@@ -2317,9 +2317,13 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             setSelectValue(view, '#DefaultMediaBarIntervalMs', defaults.mediaBarIntervalMs, 'Configured interval');
             setNullableBoolSelect(view, '#DefaultMediaBarTrailerPreview', defaults.mediaBarTrailerPreview);
             setNullableBoolSelect(view, '#DefaultMediaBarTrailerAudio', defaults.mediaBarTrailerAudio);
+            bindNullableRangeInput(view, '#DefaultTrailerVolume', '%');
+            setNullableRangeInput(view, '#DefaultTrailerVolume', defaults.trailerVolume, '%');
             setNullableBoolSelect(view, '#DefaultMediaBarTrailerCaptions', defaults.mediaBarTrailerCaptions);
             setNullableBoolSelect(view, '#DefaultEpisodePreviewEnabled', defaults.episodePreviewEnabled);
             setNullableBoolSelect(view, '#DefaultPreviewAudioEnabled', defaults.previewAudioEnabled);
+            bindNullableRangeInput(view, '#DefaultPreviewVolume', '%');
+            setNullableRangeInput(view, '#DefaultPreviewVolume', defaults.previewVolume, '%');
             setSelectValue(view, '#DefaultSeasonalSurprise', defaults.seasonalSurprise, 'Configured surprise');
             setSelectValue(view, '#DefaultSeasonalDensity', defaults.seasonalDensity, 'Configured density');
             setNullableBoolSelect(view, '#DefaultSeasonalRowEnabled', defaults.seasonalRowEnabled);
@@ -2638,9 +2642,11 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             d.mediaBarIntervalMs = getNullableIntInput(view, '#DefaultMediaBarIntervalMs');
             d.mediaBarTrailerPreview = getNullableBoolSelect(view, '#DefaultMediaBarTrailerPreview');
             d.mediaBarTrailerAudio = getNullableBoolSelect(view, '#DefaultMediaBarTrailerAudio');
+            d.trailerVolume = getNullableRangeInput(view, '#DefaultTrailerVolume');
             d.mediaBarTrailerCaptions = getNullableBoolSelect(view, '#DefaultMediaBarTrailerCaptions');
             d.episodePreviewEnabled = getNullableBoolSelect(view, '#DefaultEpisodePreviewEnabled');
             d.previewAudioEnabled = getNullableBoolSelect(view, '#DefaultPreviewAudioEnabled');
+            d.previewVolume = getNullableRangeInput(view, '#DefaultPreviewVolume');
             d.seasonalSurprise = view.querySelector('#DefaultSeasonalSurprise').value || null;
             d.seasonalDensity = view.querySelector('#DefaultSeasonalDensity').value || null;
             d.seasonalRowEnabled = getNullableBoolSelect(view, '#DefaultSeasonalRowEnabled');
