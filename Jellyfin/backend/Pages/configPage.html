@@ -1660,8 +1660,16 @@
                                 </select>
                             </div>
                             <div class="inputContainer">
-                                <label class="inputLabel inputLabelUnfocused" for="DefaultBackdropEnabled">Background Backdrops</label>
-                                <select id="DefaultBackdropEnabled" is="emby-select">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultHomeBackdropEnabled">Home Screen Backdrop</label>
+                                <select id="DefaultHomeBackdropEnabled" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultDetailsBackdropEnabled">Details Screen Backdrop</label>
+                                <select id="DefaultDetailsBackdropEnabled" is="emby-select">
                                     <option value="">Not set (user decides)</option>
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
@@ -6793,7 +6801,8 @@
                     setSelectValue('#DefaultClockBehavior', defaults.clockBehavior, 'Configured clock');
                     setNullableBoolSelect('#DefaultUse24HourClock', defaults.use24HourClock);
                     setSelectValue('#DefaultDesktopUiScale', defaults.desktopUiScale, 'Configured scale');
-                    setNullableBoolSelect('#DefaultBackdropEnabled', defaults.backdropEnabled);
+                    setNullableBoolSelect('#DefaultHomeBackdropEnabled', defaults.homeBackdropEnabled);
+                    setNullableBoolSelect('#DefaultDetailsBackdropEnabled', defaults.detailsBackdropEnabled);
                     bindNullableRangeInput('#DefaultBrowsingBlur');
                     setNullableRangeInput('#DefaultBrowsingBlur', defaults.browsingBlur);
                     bindNullableRangeInput('#DefaultDetailsScreenBlur');
@@ -7594,7 +7603,8 @@
                         config.DefaultUserSettings.clockBehavior = document.querySelector('#DefaultClockBehavior').value || null;
                         config.DefaultUserSettings.use24HourClock = getNullableBoolSelect('#DefaultUse24HourClock');
                         config.DefaultUserSettings.desktopUiScale = document.querySelector('#DefaultDesktopUiScale').value || null;
-                        config.DefaultUserSettings.backdropEnabled = getNullableBoolSelect('#DefaultBackdropEnabled');
+                        config.DefaultUserSettings.homeBackdropEnabled = getNullableBoolSelect('#DefaultHomeBackdropEnabled');
+                        config.DefaultUserSettings.detailsBackdropEnabled = getNullableBoolSelect('#DefaultDetailsBackdropEnabled');
                         config.DefaultUserSettings.showBookDiscoverTab = getNullableBoolSelect('#DefaultShowBookDiscoverTab');
                         config.DefaultUserSettings.browsingBlur = getNullableRangeInputAsText('#DefaultBrowsingBlur');
                         config.DefaultUserSettings.detailsScreenBlur = getNullableRangeInputAsText('#DefaultDetailsScreenBlur');

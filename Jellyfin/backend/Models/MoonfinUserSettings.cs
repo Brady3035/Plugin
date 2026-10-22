@@ -134,8 +134,6 @@ public class MoonfinUserSettings
 
     [JsonPropertyName("seasonalSurprise")]
     public string? SeasonalSurprise { get; set; }
-    [JsonPropertyName("backdropEnabled")]
-    public bool? BackdropEnabled { get; set; }
     [JsonPropertyName("homeRowsImageTypeOverride")]
     public bool? HomeRowsImageTypeOverride { get; set; }
     [JsonPropertyName("homeRowsImageType")]

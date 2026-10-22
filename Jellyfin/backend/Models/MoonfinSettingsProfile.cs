@@ -233,8 +233,11 @@ public class MoonfinSettingsProfile
     [JsonPropertyName("seasonalRowHiddenHolidays")]
     public List<string>? SeasonalRowHiddenHolidays { get; set; }
 
-    [JsonPropertyName("backdropEnabled")]
-    public bool? BackdropEnabled { get; set; }
+    [JsonPropertyName("homeBackdropEnabled")]
+    public bool? HomeBackdropEnabled { get; set; }
+
+    [JsonPropertyName("detailsBackdropEnabled")]
+    public bool? DetailsBackdropEnabled { get; set; }
 
     [JsonPropertyName("homeRowsImageTypeOverride")]
     public bool? HomeRowsImageTypeOverride { get; set; }

@@ -624,7 +624,6 @@ public class MoonfinSettingsService
         settings.MediaBarLibraryIds = null;
         settings.MediaBarExcludedGenres = null;
         settings.SeasonalSurprise = null;
-        settings.BackdropEnabled = null;
         settings.HomeRowsImageTypeOverride = null;
         settings.HomeRowsImageType = null;
         settings.DetailsScreenBlur = null;

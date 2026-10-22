@@ -1545,8 +1545,16 @@
                                 </select>
                             </div>
                             <div class="inputContainer">
-                                <label class="inputLabel inputLabelUnfocused" for="DefaultBackdropEnabled">Background Backdrops</label>
-                                <select id="DefaultBackdropEnabled" is="emby-select">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultHomeBackdropEnabled">Home Screen Backdrop</label>
+                                <select id="DefaultHomeBackdropEnabled" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultDetailsBackdropEnabled">Details Screen Backdrop</label>
+                                <select id="DefaultDetailsBackdropEnabled" is="emby-select">
                                     <option value="">Not set (user decides)</option>
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>

@@ -2266,7 +2266,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             setSelectValue(view, '#DefaultClockBehavior', defaults.clockBehavior, 'Configured clock');
             setNullableBoolSelect(view, '#DefaultUse24HourClock', defaults.use24HourClock);
             setSelectValue(view, '#DefaultDesktopUiScale', defaults.desktopUiScale, 'Configured scale');
-            setNullableBoolSelect(view, '#DefaultBackdropEnabled', defaults.backdropEnabled);
+            setNullableBoolSelect(view, '#DefaultHomeBackdropEnabled', defaults.homeBackdropEnabled);
+            setNullableBoolSelect(view, '#DefaultDetailsBackdropEnabled', defaults.detailsBackdropEnabled);
             setNullableBoolSelect(view, '#DefaultShowBookDiscoverTab', defaults.showBookDiscoverTab);
             bindNullableRangeInput(view, '#DefaultBrowsingBlur');
             setNullableRangeInput(view, '#DefaultBrowsingBlur', defaults.browsingBlur);
@@ -2585,7 +2586,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             d.clockBehavior = view.querySelector('#DefaultClockBehavior').value || null;
             d.use24HourClock = getNullableBoolSelect(view, '#DefaultUse24HourClock');
             d.desktopUiScale = view.querySelector('#DefaultDesktopUiScale').value || null;
-            d.backdropEnabled = getNullableBoolSelect(view, '#DefaultBackdropEnabled');
+            d.homeBackdropEnabled = getNullableBoolSelect(view, '#DefaultHomeBackdropEnabled');
+            d.detailsBackdropEnabled = getNullableBoolSelect(view, '#DefaultDetailsBackdropEnabled');
             d.showBookDiscoverTab = getNullableBoolSelect(view, '#DefaultShowBookDiscoverTab');
             d.browsingBlur = getNullableRangeInputAsText(view, '#DefaultBrowsingBlur');
             d.detailsScreenBlur = getNullableRangeInputAsText(view, '#DefaultDetailsScreenBlur');
