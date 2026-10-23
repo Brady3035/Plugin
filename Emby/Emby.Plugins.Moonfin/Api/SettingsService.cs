@@ -83,6 +83,9 @@ namespace Emby.Plugins.Moonfin.Api
                 tmdbAvailable = !string.IsNullOrWhiteSpace(config?.TmdbApiKey),
                 // Older plugins leave this out, so the app keeps the backdrop Seerr gave it.
                 tmdbThumbsSupported = true,
+                // Older plugins leave this out, so the app shows only the IMDb and TMDB person links
+                // it can build itself.
+                tmdbPersonLinksSupported = true,
                 // Older plugins leave this out, which the app reads as false and hides the
                 // messages button.
                 messagesSupported = true,

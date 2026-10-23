@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moonfin.Server.Services;
+using Moonfin.Tmdb;
 
 namespace Moonfin.Server.Api;
 
@@ -32,6 +33,7 @@ public class TmdbController : ControllerBase
     // Cache: key = "tmdbId" => (response, timestamp)
     private static readonly ConcurrentDictionary<string, (TmdbNextEpisodeResponse Response, DateTimeOffset CachedAt)> _nextEpisodeCache = new();
     private static readonly TimeSpan NextEpisodeCacheTtl = TimeSpan.FromHours(6);
+    private static readonly ConcurrentDictionary<string, (TmdbPersonLinksResponse Response, DateTimeOffset CachedAt)> _personLinksCache = new();
 
     private static TimeSpan StudioCacheMaxAge =>
         TimeSpan.FromDays(MoonfinPlugin.Instance?.Configuration?.StudioLogosMaxAgeDays ?? 30);
@@ -363,6 +365,102 @@ public class TmdbController : ControllerBase
     }
 
     /// <summary>
+    /// A person's IMDb id, official site and social accounts as TMDB lists them, for the links
+    /// on the person page.
+    /// </summary>
+    /// <param name="tmdbId">TMDB person ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpGet("PersonLinks")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<TmdbPersonLinksResponse>> GetPersonLinks(
+        [FromQuery] string tmdbId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(tmdbId))
+        {
+            return BadRequest(new { Error = "Missing required parameter: tmdbId" });
+        }
+
+        var apiKey = await GetUserApiKey();
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return Ok(new TmdbPersonLinksResponse
+            {
+                Success = false,
+                Error = "No TMDB API key configured. Add your key in Moonfin Settings, or ask your server admin to set a server-wide key."
+            });
+        }
+
+        var cacheKey = tmdbId.Trim();
+        if (_personLinksCache.TryGetValue(cacheKey, out var cached) && DateTimeOffset.UtcNow - cached.CachedAt < CacheTtl)
+        {
+            return Ok(cached.Response);
+        }
+
+        try
+        {
+            var url = $"https://api.themoviedb.org/3/person/{Uri.EscapeDataString(cacheKey)}?append_to_response=external_ids";
+            var client = CreateClient();
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            ApplyAuth(request, apiKey);
+
+            using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+
+            if ((int)response.StatusCode == 429)
+            {
+                return Ok(new TmdbPersonLinksResponse
+                {
+                    Success = false,
+                    Error = "TMDB rate limit reached. Try again later."
+                });
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return Ok(new TmdbPersonLinksResponse
+                {
+                    Success = false,
+                    Error = $"TMDB returned status {(int)response.StatusCode}"
+                });
+            }
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            var links = TmdbPersonLinks.Parse(doc.RootElement);
+
+            var result = new TmdbPersonLinksResponse
+            {
+                Success = true,
+                ImdbId = links.ImdbId,
+                Homepage = links.Homepage,
+                Instagram = links.Instagram,
+                Twitter = links.Twitter,
+                Facebook = links.Facebook,
+                TikTok = links.TikTok,
+                YouTube = links.YouTube
+            };
+
+            _personLinksCache[cacheKey] = (result, DateTimeOffset.UtcNow);
+            return Ok(result);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Ok(new TmdbPersonLinksResponse
+            {
+                Success = false,
+                Error = $"Failed to fetch from TMDB: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
     /// Returns the TMDB production companies (studios) for a movie or show, serving
     /// from the server-side cache and filling it from TMDB on a miss. Each company
     /// reports whether a logo is available via <c>StudioImage/{companyId}</c>.
@@ -626,6 +724,40 @@ public class TmdbNextEpisodeResponse
 
     [JsonPropertyName("name")]
     public string? Name { get; set; }
+}
+
+/// <summary>
+/// A person's links returned to the client. Each account is a handle or id, null when TMDB
+/// has none.
+/// </summary>
+public class TmdbPersonLinksResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    [JsonPropertyName("imdbId")]
+    public string? ImdbId { get; set; }
+
+    [JsonPropertyName("homepage")]
+    public string? Homepage { get; set; }
+
+    [JsonPropertyName("instagram")]
+    public string? Instagram { get; set; }
+
+    [JsonPropertyName("twitter")]
+    public string? Twitter { get; set; }
+
+    [JsonPropertyName("facebook")]
+    public string? Facebook { get; set; }
+
+    [JsonPropertyName("tiktok")]
+    public string? TikTok { get; set; }
+
+    [JsonPropertyName("youtube")]
+    public string? YouTube { get; set; }
 }
 
 // ===== Raw TMDB API Models =====

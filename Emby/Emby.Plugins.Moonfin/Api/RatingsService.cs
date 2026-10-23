@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Emby.Plugins.Moonfin.Services;
+using Moonfin.Tmdb;
 using MediaBrowser.Common;
 using MediaBrowser.Controller.Net;
 using MediaBrowser.Model.Services;
@@ -22,6 +23,7 @@ namespace Emby.Plugins.Moonfin.Api
         private static readonly ConcurrentDictionary<string, (object Response, DateTimeOffset CachedAt)> _tmdbEpisodeCache = new ConcurrentDictionary<string, (object, DateTimeOffset)>();
         private static readonly ConcurrentDictionary<string, (object Response, DateTimeOffset CachedAt)> _tmdbNextEpisodeCache = new ConcurrentDictionary<string, (object, DateTimeOffset)>();
         private static readonly TimeSpan TmdbNextEpisodeCacheTtl = TimeSpan.FromHours(6);
+        private static readonly ConcurrentDictionary<string, (object Response, DateTimeOffset CachedAt)> _tmdbPersonLinksCache = new ConcurrentDictionary<string, (object, DateTimeOffset)>();
 
         // Remember failed upstream lookups briefly so a burst of requests during a bad-key
         // or rate-limit spell doesn't hammer api.mdblist.com.
@@ -396,6 +398,54 @@ namespace Emby.Plugins.Moonfin.Api
                     name = nextEp?.Name
                 };
                 _tmdbNextEpisodeCache[cacheKey] = (result, DateTimeOffset.UtcNow);
+                return Json(result);
+            }
+            catch (Exception ex) when (!(ex is OperationCanceledException))
+            {
+                return Json(new { success = false, error = "Failed to fetch from TMDB: " + ex.Message });
+            }
+        }
+
+        public async Task<object?> Get(GetTmdbPersonLinksRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.TmdbId))
+                return Json(400, new { success = false, error = "Missing required parameter: tmdbId" });
+
+            var apiKey = await GetUserTmdbApiKey().ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(apiKey))
+                return Json(new { success = false, error = "No TMDB API key configured." });
+
+            var cacheKey = request.TmdbId.Trim();
+            if (_tmdbPersonLinksCache.TryGetValue(cacheKey, out var cached) && DateTimeOffset.UtcNow - cached.CachedAt < TmdbCacheTtl)
+                return Json(cached.Response);
+
+            try
+            {
+                var url = $"https://api.themoviedb.org/3/person/{Uri.EscapeDataString(cacheKey)}?append_to_response=external_ids";
+                using var client = CreateTmdbClient();
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                MoonfinHttp.ApplyTmdbAuth(req, apiKey!);
+                using var response = await client.SendAsync(req).ConfigureAwait(false);
+
+                if ((int)response.StatusCode == 429) return Json(new { success = false, error = "TMDB rate limit reached." });
+                if (!response.IsSuccessStatusCode) return Json(new { success = false, error = $"TMDB returned status {(int)response.StatusCode}" });
+
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                using var doc = JsonDocument.Parse(json);
+                var links = TmdbPersonLinks.Parse(doc.RootElement);
+
+                var result = new
+                {
+                    success = true,
+                    imdbId = links.ImdbId,
+                    homepage = links.Homepage,
+                    instagram = links.Instagram,
+                    twitter = links.Twitter,
+                    facebook = links.Facebook,
+                    tiktok = links.TikTok,
+                    youtube = links.YouTube
+                };
+                _tmdbPersonLinksCache[cacheKey] = (result, DateTimeOffset.UtcNow);
                 return Json(result);
             }
             catch (Exception ex) when (!(ex is OperationCanceledException))

@@ -78,4 +78,11 @@ namespace Emby.Plugins.Moonfin.Api
     {
         public string? TmdbId { get; set; }
     }
+
+    [Route("/Moonfin/Tmdb/PersonLinks", "GET")]
+    [Authenticated]
+    public class GetTmdbPersonLinksRequest : IReturn<object>
+    {
+        public string? TmdbId { get; set; }
+    }
 }

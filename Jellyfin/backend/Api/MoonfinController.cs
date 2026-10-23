@@ -133,6 +133,7 @@ public class MoonfinController : ControllerBase
             MdblistAvailable = !string.IsNullOrWhiteSpace(config?.MdblistApiKey),
             TmdbAvailable = !string.IsNullOrWhiteSpace(config?.TmdbApiKey),
             TmdbThumbsSupported = true,
+            TmdbPersonLinksSupported = true,
             MessagesSupported = true,
             RecommendationsSupported = config?.RecommendationsProviderEnabled ?? true,
             DefaultSettings = config?.DefaultUserSettings
@@ -1548,6 +1549,13 @@ public class MoonfinPingResponse
     /// </summary>
     [JsonPropertyName("tmdbThumbsSupported")]
     public bool? TmdbThumbsSupported { get; set; }
+
+    /// <summary>
+    /// True when this plugin has the Tmdb/PersonLinks endpoint. Older plugins leave it out, so
+    /// the app shows only the IMDb and TMDB links it can build itself.
+    /// </summary>
+    [JsonPropertyName("tmdbPersonLinksSupported")]
+    public bool? TmdbPersonLinksSupported { get; set; }
 
     /// <summary>
     /// True when this plugin has the admin messages endpoints. Older plugins leave it out, so
