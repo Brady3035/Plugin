@@ -993,7 +993,41 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { id: 'seerrAvailability', label: 'Seerr Availability' }
     ];
 
-    function loadButtonPicker(view, selector, buttons, order, hidden) {
+    // The app's Details screen section ids, which are what the hidden lists store.
+    var DETAIL_SECTIONS = [
+        { id: 'logo', label: 'Logo' },
+        { id: 'tagline', label: 'Tagline' },
+        { id: 'poster', label: 'Poster' },
+        { id: 'versionBadge', label: 'Version badge' },
+        { id: 'upNext', label: 'Next Up' },
+        { id: 'lyrics', label: 'Lyrics' },
+        { id: 'cast', label: 'Cast' },
+        { id: 'crew', label: 'Directors & writers' },
+        { id: 'studios', label: 'Studios' },
+        { id: 'chapters', label: 'Chapters' },
+        { id: 'extras', label: 'Extras' },
+        { id: 'collections', label: 'Collections' },
+        { id: 'moreLikeThis', label: 'More Like This' },
+        { id: 'moreEpisodes', label: 'More episodes' },
+        { id: 'mediaInfo', label: 'Media info' },
+        { id: 'seerrGenresTags', label: 'Seerr: Genres & tags' },
+        { id: 'seerrStats', label: 'Seerr: Stats' },
+        { id: 'seerrRecommendations', label: 'Seerr: Recommendations' },
+        { id: 'seerrSimilar', label: 'Seerr: Similar titles' },
+        { id: 'seerrCollection', label: 'Seerr: Collection banner' },
+        { id: 'seerrPersonAppearances', label: 'Seerr: Appearances' },
+        { id: 'seerrPersonCrew', label: 'Seerr: Crew credits' },
+        { id: 'biography', label: 'Person pages: Biography' },
+        { id: 'birthplace', label: 'Person pages: Birthplace' },
+        { id: 'personLinks', label: 'Person pages: Links (phones and desktops only)' },
+        { id: 'guestAppearances', label: 'Person pages: Guest appearances' },
+        { id: 'musicVideos', label: 'Person pages: Music videos' },
+        { id: 'playlistOrder', label: 'Collection pages: Playlist order' },
+        { id: 'bookGenres', label: 'Book genres' },
+        { id: 'photoExif', label: 'Photo details' }
+    ];
+
+    function loadButtonPicker(view, selector, buttons, order, hidden, fixedOrder) {
         var container = view.querySelector(selector);
         if (!container) return;
         var hiddenSet = {};
@@ -1052,8 +1086,9 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
                     ? '<input type="checkbox"' + (item.checked ? ' checked' : '') + ' style="accent-color:#00a4dc;width:16px;height:16px;flex-shrink:0;">'
                     : '<span title="Always shown" style="width:16px;height:16px;flex-shrink:0;text-align:center;color:rgba(128,128,128,0.35);">&#x2713;</span>') +
                 '<span style="flex:1;font-size:0.9em;color:rgba(128,128,128,0.9);">' + esc(item.label) + '</span>' +
-                '<button type="button" class="detailButtonMoveBtn" data-dir="up" style="background:none;border:1px solid rgba(128,128,128,0.2);border-radius:3px;color:rgba(128,128,128,0.7);padding:1px 6px;cursor:pointer;font-size:0.85em;">&#x2191;</button>' +
-                '<button type="button" class="detailButtonMoveBtn" data-dir="down" style="background:none;border:1px solid rgba(128,128,128,0.2);border-radius:3px;color:rgba(128,128,128,0.7);padding:1px 6px;cursor:pointer;font-size:0.85em;">&#x2193;</button>';
+                (fixedOrder ? '' :
+                    '<button type="button" class="detailButtonMoveBtn" data-dir="up" style="background:none;border:1px solid rgba(128,128,128,0.2);border-radius:3px;color:rgba(128,128,128,0.7);padding:1px 6px;cursor:pointer;font-size:0.85em;">&#x2191;</button>' +
+                    '<button type="button" class="detailButtonMoveBtn" data-dir="down" style="background:none;border:1px solid rgba(128,128,128,0.2);border-radius:3px;color:rgba(128,128,128,0.7);padding:1px 6px;cursor:pointer;font-size:0.85em;">&#x2193;</button>');
             container.appendChild(row);
         });
 
@@ -1064,7 +1099,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             container.addEventListener('click', function (e) {
                 if (e.target.closest('.detailButtonClearBtn')) {
                     // Back to not set, so the push stops carrying a layout at all.
-                    loadButtonPicker(view, selector, buttons, null, null);
+                    loadButtonPicker(view, selector, buttons, null, null, fixedOrder);
                     return;
                 }
 
@@ -2262,6 +2297,9 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             loadButtonPicker(view, '#DefaultDetailButtonsList', DETAIL_BUTTONS,
                 defaults.detailButtonOrderTv || defaults.detailButtonOrderMobile || defaults.detailButtonOrderDesktop || null,
                 defaults.hiddenDetailButtonsTv || defaults.hiddenDetailButtonsMobile || defaults.hiddenDetailButtonsDesktop || null);
+            loadButtonPicker(view, '#DefaultDetailSectionsList', DETAIL_SECTIONS, null,
+                defaults.hiddenDetailSectionsTv || defaults.hiddenDetailSectionsMobile || defaults.hiddenDetailSectionsDesktop || null,
+                true);
             setSelectValue(view, '#DefaultFocusColor', defaults.focusColor, 'Configured color');
             setSelectValue(view, '#DefaultClockBehavior', defaults.clockBehavior, 'Configured clock');
             setNullableBoolSelect(view, '#DefaultUse24HourClock', defaults.use24HourClock);
@@ -2582,6 +2620,10 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             d.hiddenDetailButtonsTv = btnVal.hidden;
             d.hiddenDetailButtonsMobile = btnVal.hidden;
             d.hiddenDetailButtonsDesktop = btnVal.hidden;
+            var sectionVal = getButtonPickerValue(view, '#DefaultDetailSectionsList');
+            d.hiddenDetailSectionsTv = sectionVal.hidden;
+            d.hiddenDetailSectionsMobile = sectionVal.hidden;
+            d.hiddenDetailSectionsDesktop = sectionVal.hidden;
             d.focusColor = view.querySelector('#DefaultFocusColor').value || null;
             d.clockBehavior = view.querySelector('#DefaultClockBehavior').value || null;
             d.use24HourClock = getNullableBoolSelect(view, '#DefaultUse24HourClock');

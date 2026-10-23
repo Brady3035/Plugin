@@ -3016,6 +3016,12 @@
                                 <div class="fieldDescription">Check which metadata items to show on detail pages and use the arrows to set their order.</div>
                                 <div id="DefaultDetailMetadataList" style="max-height:260px;overflow-y:auto;border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:6px;margin-top:6px;"></div>
                             </div>
+                            <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Sections</h4>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused">Default Sections</label>
+                                <div class="fieldDescription">Uncheck the sections to hide on detail pages.</div>
+                                <div id="DefaultDetailSectionsList" style="max-height:260px;overflow-y:auto;border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:6px;margin-top:6px;"></div>
+                            </div>
                             <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Content</h4>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultDetailExpandedTabs">Expanded Tabs</label>
@@ -4765,7 +4771,41 @@
                 { id: 'seerrAvailability', label: 'Seerr Availability' }
             ];
 
-            function loadButtonPicker(selector, buttons, order, hidden) {
+            // The app's Details screen section ids, which are what the hidden lists store.
+            var DETAIL_SECTIONS = [
+                { id: 'logo', label: 'Logo' },
+                { id: 'tagline', label: 'Tagline' },
+                { id: 'poster', label: 'Poster' },
+                { id: 'versionBadge', label: 'Version badge' },
+                { id: 'upNext', label: 'Next Up' },
+                { id: 'lyrics', label: 'Lyrics' },
+                { id: 'cast', label: 'Cast' },
+                { id: 'crew', label: 'Directors & writers' },
+                { id: 'studios', label: 'Studios' },
+                { id: 'chapters', label: 'Chapters' },
+                { id: 'extras', label: 'Extras' },
+                { id: 'collections', label: 'Collections' },
+                { id: 'moreLikeThis', label: 'More Like This' },
+                { id: 'moreEpisodes', label: 'More episodes' },
+                { id: 'mediaInfo', label: 'Media info' },
+                { id: 'seerrGenresTags', label: 'Seerr: Genres & tags' },
+                { id: 'seerrStats', label: 'Seerr: Stats' },
+                { id: 'seerrRecommendations', label: 'Seerr: Recommendations' },
+                { id: 'seerrSimilar', label: 'Seerr: Similar titles' },
+                { id: 'seerrCollection', label: 'Seerr: Collection banner' },
+                { id: 'seerrPersonAppearances', label: 'Seerr: Appearances' },
+                { id: 'seerrPersonCrew', label: 'Seerr: Crew credits' },
+                { id: 'biography', label: 'Person pages: Biography' },
+                { id: 'birthplace', label: 'Person pages: Birthplace' },
+                { id: 'personLinks', label: 'Person pages: Links (phones and desktops only)' },
+                { id: 'guestAppearances', label: 'Person pages: Guest appearances' },
+                { id: 'musicVideos', label: 'Person pages: Music videos' },
+                { id: 'playlistOrder', label: 'Collection pages: Playlist order' },
+                { id: 'bookGenres', label: 'Book genres' },
+                { id: 'photoExif', label: 'Photo details' }
+            ];
+
+            function loadButtonPicker(selector, buttons, order, hidden, fixedOrder) {
                 var container = document.querySelector(selector);
                 if (!container) return;
                 var hiddenSet = {};
@@ -4824,8 +4864,9 @@
                             ? '<input type="checkbox"' + (item.checked ? ' checked' : '') + ' style="accent-color:#00a4dc;width:16px;height:16px;flex-shrink:0;">'
                             : '<span title="Always shown" style="width:16px;height:16px;flex-shrink:0;text-align:center;color:rgba(255,255,255,0.35);">&#x2713;</span>')
                         + '<span style="flex:1;font-size:0.9em;color:rgba(255,255,255,0.9);">' + esc(item.label) + '</span>'
-                        + '<button type="button" class="detailButtonMoveBtn" data-dir="up" style="background:none;border:1px solid rgba(255,255,255,0.2);border-radius:3px;color:rgba(255,255,255,0.7);padding:1px 6px;cursor:pointer;font-size:0.85em;">&#x2191;</button>'
-                        + '<button type="button" class="detailButtonMoveBtn" data-dir="down" style="background:none;border:1px solid rgba(255,255,255,0.2);border-radius:3px;color:rgba(255,255,255,0.7);padding:1px 6px;cursor:pointer;font-size:0.85em;">&#x2193;</button>';
+                        + (fixedOrder ? '' :
+                            '<button type="button" class="detailButtonMoveBtn" data-dir="up" style="background:none;border:1px solid rgba(255,255,255,0.2);border-radius:3px;color:rgba(255,255,255,0.7);padding:1px 6px;cursor:pointer;font-size:0.85em;">&#x2191;</button>'
+                            + '<button type="button" class="detailButtonMoveBtn" data-dir="down" style="background:none;border:1px solid rgba(255,255,255,0.2);border-radius:3px;color:rgba(255,255,255,0.7);padding:1px 6px;cursor:pointer;font-size:0.85em;">&#x2193;</button>');
                     container.appendChild(row);
                 });
 
@@ -4836,7 +4877,7 @@
                     container.addEventListener('click', function(e) {
                         if (e.target.closest('.detailButtonClearBtn')) {
                             // Back to not set, so the push stops carrying a layout at all.
-                            loadButtonPicker(selector, buttons, null, null);
+                            loadButtonPicker(selector, buttons, null, null, fixedOrder);
                             return;
                         }
 
@@ -6797,6 +6838,9 @@
                     loadButtonPicker('#DefaultDetailButtonsList', DETAIL_BUTTONS,
                         defaults.detailButtonOrderTv || defaults.detailButtonOrderMobile || defaults.detailButtonOrderDesktop || null,
                         defaults.hiddenDetailButtonsTv || defaults.hiddenDetailButtonsMobile || defaults.hiddenDetailButtonsDesktop || null);
+                    loadButtonPicker('#DefaultDetailSectionsList', DETAIL_SECTIONS, null,
+                        defaults.hiddenDetailSectionsTv || defaults.hiddenDetailSectionsMobile || defaults.hiddenDetailSectionsDesktop || null,
+                        true);
                     setSelectValue('#DefaultFocusColor', defaults.focusColor, 'Configured color');
                     setSelectValue('#DefaultClockBehavior', defaults.clockBehavior, 'Configured clock');
                     setNullableBoolSelect('#DefaultUse24HourClock', defaults.use24HourClock);
@@ -7599,6 +7643,10 @@
                         config.DefaultUserSettings.hiddenDetailButtonsTv = btnVal.hidden;
                         config.DefaultUserSettings.hiddenDetailButtonsMobile = btnVal.hidden;
                         config.DefaultUserSettings.hiddenDetailButtonsDesktop = btnVal.hidden;
+                        var sectionVal = getButtonPickerValue('#DefaultDetailSectionsList');
+                        config.DefaultUserSettings.hiddenDetailSectionsTv = sectionVal.hidden;
+                        config.DefaultUserSettings.hiddenDetailSectionsMobile = sectionVal.hidden;
+                        config.DefaultUserSettings.hiddenDetailSectionsDesktop = sectionVal.hidden;
                         config.DefaultUserSettings.focusColor = document.querySelector('#DefaultFocusColor').value || null;
                         config.DefaultUserSettings.clockBehavior = document.querySelector('#DefaultClockBehavior').value || null;
                         config.DefaultUserSettings.use24HourClock = getNullableBoolSelect('#DefaultUse24HourClock');
