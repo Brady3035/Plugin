@@ -1012,6 +1012,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { id: 'mediaInfo', label: 'Media info' },
         { id: 'seerrGenresTags', label: 'Seerr: Genres & tags' },
         { id: 'seerrStats', label: 'Seerr: Stats' },
+        { id: 'seerrStreaming', label: 'Seerr: Streaming services' },
         { id: 'seerrRecommendations', label: 'Seerr: Recommendations' },
         { id: 'seerrSimilar', label: 'Seerr: Similar titles' },
         { id: 'seerrCollection', label: 'Seerr: Collection banner' },
