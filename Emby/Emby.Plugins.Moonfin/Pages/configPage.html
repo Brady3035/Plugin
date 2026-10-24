@@ -1686,6 +1686,15 @@
                                 </select>
                             </div>
                             <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultShowSyncPlayButton">Show SyncPlay Button</label>
+                                <select id="DefaultShowSyncPlayButton" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <div class="fieldDescription">Only shows while SyncPlay is on under Playback.</div>
+                            </div>
+                            <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultEnableFolderView">Enable Folder View</label>
                                 <select id="DefaultEnableFolderView" is="emby-select">
                                     <option value="">Not set (user decides)</option>
@@ -3543,6 +3552,16 @@
                                     <option value="long_">After 5 episodes</option>
                                     <option value="veryLong">After 8 episodes</option>
                                 </select>
+                            </div>
+                            <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">SyncPlay</h4>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultSyncPlayEnabled">Enable SyncPlay</label>
+                                <select id="DefaultSyncPlayEnabled" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <div class="fieldDescription">Group watching. The SyncPlay button under Navigation only shows while this is on.</div>
                             </div>
                         </div>
 

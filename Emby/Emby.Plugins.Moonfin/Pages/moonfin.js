@@ -2529,6 +2529,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             setNullableBoolSelect(view, '#DefaultShowGenresButton', defaults.showGenresButton);
             setNullableBoolSelect(view, '#DefaultShowFavoritesButton', defaults.showFavoritesButton);
             setNullableBoolSelect(view, '#DefaultShowLibrariesInToolbar', defaults.showLibrariesInToolbar);
+            setNullableBoolSelect(view, '#DefaultShowSyncPlayButton', defaults.showSyncPlayButton);
+            setNullableBoolSelect(view, '#DefaultSyncPlayEnabled', defaults.syncPlayEnabled);
 
             setNullableBoolSelect(view, '#DefaultMdblistEnabled', defaults.mdblistEnabled);
             setNullableBoolSelect(view, '#DefaultTmdbEpisodeRatingsEnabled', defaults.tmdbEpisodeRatingsEnabled);
@@ -2892,6 +2894,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             d.showGenresButton = getNullableBoolSelect(view, '#DefaultShowGenresButton');
             d.showFavoritesButton = getNullableBoolSelect(view, '#DefaultShowFavoritesButton');
             d.showLibrariesInToolbar = getNullableBoolSelect(view, '#DefaultShowLibrariesInToolbar');
+            d.showSyncPlayButton = getNullableBoolSelect(view, '#DefaultShowSyncPlayButton');
+            d.syncPlayEnabled = getNullableBoolSelect(view, '#DefaultSyncPlayEnabled');
 
             d.mdblistEnabled = getNullableBoolSelect(view, '#DefaultMdblistEnabled');
             d.tmdbEpisodeRatingsEnabled = getNullableBoolSelect(view, '#DefaultTmdbEpisodeRatingsEnabled');
