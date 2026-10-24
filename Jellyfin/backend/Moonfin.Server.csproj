@@ -56,6 +56,7 @@
     <Compile Include="../../shared/Seerr/*.cs" Link="Seerr/%(Filename)%(Extension)" />
     <Compile Include="../../shared/Tmdb/*.cs" Link="Tmdb/%(Filename)%(Extension)" />
     <Compile Include="../../shared/Anime/*.cs" Link="Anime/%(Filename)%(Extension)" />
+    <Compile Include="../../shared/Romm/*.cs" Link="Romm/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../../shared/Seasonal/seasonal-holidays.json" LogicalName="Moonfin.Seasonal.holidays.json" />
   </ItemGroup>
 

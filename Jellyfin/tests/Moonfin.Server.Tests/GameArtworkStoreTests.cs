@@ -21,6 +21,61 @@ public class GameArtworkStoreTests : IDisposable
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"moonfin-artwork-store-tests-{Guid.NewGuid():N}");
 
+    private const string RommCoverUrl = "http://romm.test:8080/assets/romm/resources/roms/9/11/cover/big.png?ts=1";
+
+    [Fact]
+    public async Task ARommCoverIsUsedBeforeAnyLibretroName()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.SetResponse(RommCoverUrl, HttpStatusCode.OK, new ByteArrayContent(new byte[] { 0x89, 0x50, 0x4E, 0x47 }));
+        var store = CreateStore(handler);
+
+        var result = await LookupRommAsync(store);
+
+        Assert.Equal(GameArtworkLookupOutcome.Found, result.Outcome);
+        Assert.Equal(new[] { RommCoverUrl }, handler.Requested);
+    }
+
+    [Fact]
+    public async Task AMissingRommCoverFallsBackToLibretro()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.SetResponse(RommCoverUrl, HttpStatusCode.NotFound, new ByteArrayContent(Array.Empty<byte>()));
+        handler.SetResponse(ThumbUrl(RomFileName), HttpStatusCode.OK, new ByteArrayContent(new byte[] { 0x89, 0x50, 0x4E, 0x47 }));
+        var store = CreateStore(handler);
+
+        var result = await LookupRommAsync(store);
+
+        Assert.Equal(GameArtworkLookupOutcome.Found, result.Outcome);
+        Assert.Equal(new[] { RommCoverUrl, ThumbUrl(RomFileName) }, handler.Requested);
+    }
+
+    [Fact]
+    public async Task ARommOutageIsRetriedRatherThanRecordedMissing()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.SetResponse(RommCoverUrl, HttpStatusCode.ServiceUnavailable, new ByteArrayContent(Array.Empty<byte>()));
+        handler.SetResponse(ThumbUrl(RomFileName), HttpStatusCode.NotFound, new ByteArrayContent(Array.Empty<byte>()));
+        var store = CreateStore(handler);
+
+        var result = await LookupRommAsync(store);
+
+        Assert.Equal(GameArtworkLookupOutcome.TransientFailure, result.Outcome);
+    }
+
+    // A RomM game passes its served file name where a folder game passes a path, since nothing
+    // of it is on this server's disk.
+    private Task<GameArtworkLookupResult> LookupRommAsync(GameArtworkStore store) =>
+        store.LookupThumbAsync(
+            core: "segaMS",
+            coreWasDefaulted: false,
+            systemName: "sms",
+            romPath: RomFileName,
+            title: null,
+            kind: GameThumbService.ThumbKind.Boxart,
+            cancellationToken: CancellationToken.None,
+            remoteUrl: RommCoverUrl);
+
     [Fact]
     public async Task Download_RejectsABodyWhoseDeclaredLengthExceedsTheCap()
     {

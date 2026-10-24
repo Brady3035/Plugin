@@ -84,11 +84,21 @@ namespace Emby.Plugins.Moonfin.Services
         }
 
         /// <summary>
-        /// The cached file for a game's art, downloading it first when needed. Null when the core has
-        /// no libretro platform, the name has no art upstream, or the download failed.
+        /// The cached file for a game's art, downloading it first when needed. A RomM game passes
+        /// its own art's URL, tried before the libretro name. Null when nothing has art for it or
+        /// every download failed.
         /// </summary>
-        public async Task<string?> GetThumbPathAsync(string core, string romFileName, ThumbKind kind)
+        public async Task<string?> GetThumbPathAsync(string core, string romFileName, ThumbKind kind, string? remoteUrl = null)
         {
+            if (!string.IsNullOrEmpty(remoteUrl))
+            {
+                var remote = await GetCachedAsync(remoteUrl!, "url-" + Sha1Hex(remoteUrl!), kind, remoteUrl!).ConfigureAwait(false);
+                if (remote != null)
+                {
+                    return remote;
+                }
+            }
+
             if (string.IsNullOrEmpty(core) || !CoreToPlatform.TryGetValue(core, out var platform))
             {
                 return null;
@@ -100,7 +110,11 @@ namespace Emby.Plugins.Moonfin.Services
                 return null;
             }
 
-            var cacheKey = CacheKey(platform, kind, name);
+            return await GetCachedAsync(BuildUrl(platform, kind, name), CacheKey(platform, kind, name), kind, name).ConfigureAwait(false);
+        }
+
+        private async Task<string?> GetCachedAsync(string url, string cacheKey, ThumbKind kind, string name)
+        {
             if (_misses.ContainsKey(cacheKey))
             {
                 return null;
@@ -117,7 +131,7 @@ namespace Emby.Plugins.Moonfin.Services
             // holding the Lazy rather than the task is what keeps that to a single download.
             var lazy = _inFlight.GetOrAdd(
                 cacheKey,
-                _ => new Lazy<Task<string?>>(() => DownloadAsync(platform, kind, name, cacheKey, localPath)));
+                _ => new Lazy<Task<string?>>(() => DownloadAsync(url, kind, name, cacheKey, localPath)));
             try
             {
                 return await lazy.Value.ConfigureAwait(false);
@@ -129,9 +143,8 @@ namespace Emby.Plugins.Moonfin.Services
             }
         }
 
-        private async Task<string?> DownloadAsync(string platform, ThumbKind kind, string name, string cacheKey, string localPath)
+        private async Task<string?> DownloadAsync(string url, ThumbKind kind, string name, string cacheKey, string localPath)
         {
-            var url = BuildUrl(platform, kind, name);
             try
             {
                 using var client = MoonfinHttp.CreateClient(TimeSpan.FromSeconds(30), "Moonfin/1.0");
@@ -209,7 +222,11 @@ namespace Emby.Plugins.Moonfin.Services
         // systems.
         private static string CacheKey(string platform, ThumbKind kind, string name)
         {
-            var raw = platform + "|" + FolderFor(kind) + "|" + name;
+            return Sha1Hex(platform + "|" + FolderFor(kind) + "|" + name);
+        }
+
+        private static string Sha1Hex(string raw)
+        {
             using var sha = SHA1.Create();
             var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(raw));
             var builder = new StringBuilder(hash.Length * 2);

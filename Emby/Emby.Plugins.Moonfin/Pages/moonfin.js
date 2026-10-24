@@ -549,7 +549,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { parent: 'AnimeMarkersEnabled', fields: ['AnimeMarkerRecapLookup', 'AnimeMarkerShowFiller', 'AnimeMarkerMaxAgeDays'] },
         { parent: 'AnimeAudioMarkersEnabled', fields: ['AnimeAudioMarkersMovies', 'AnimeAudioSeparateDualAudio'] },
         { parent: ['AnimeMarkersEnabled', 'AnimeAudioMarkersEnabled'], fields: ['AnimeMarkerLibraryPicker', 'AnimeAudioTrustSelectedLibraries', 'AnimeMarkerPlacement', 'AnimeMarkerDiagBtn', 'AnimeMarkerPreviewName', 'AnimeMarkerVerboseLogging', 'AnimeMarkerLogBtn'] },
-        { parent: 'GamesEnabled', fields: ['GameCoresStatus', 'GameCoresFile', 'GameLibraryPicker'] },
+        { parent: 'GamesEnabled', fields: ['GameCoresStatus', 'GameCoresFile', 'GameLibraryPicker', 'GamesRommUrl', 'GamesRommToken', 'GamesRommLibraryId', 'GamesRommTestBtn'] },
         { parent: 'DefaultNavbarPosition', off: ['top', 'left'], fields: ['DefaultBottomNavbarStyle', 'DefaultBottomNavbarTab1'] },
         { parent: 'DefaultNavbarPosition', off: ['bottom'], fields: ['DefaultNavbarAlwaysExpanded'] },
         { parent: 'DefaultShowShuffleButton', fields: ['DefaultShuffleContentType'] },
@@ -623,6 +623,53 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
 
     function loadGameLibraryPicker(view, selectedIds) {
         loadLibraryPicker(view, '#GameLibraryPicker', 'gameLibraryCb', selectedIds);
+    }
+
+    function loadRommLibraryPicker(view, selectedId) {
+        var select = view.querySelector('#GamesRommLibraryId');
+        if (!select) return;
+        ApiClient.getUserViews(ApiClient.getCurrentUserId()).then(function (result) {
+            var html = '<option value="">None</option>';
+            (result.Items || []).forEach(function (item) {
+                html += '<option value="' + esc(item.Id) + '">' + esc(item.Name || 'Untitled') + '</option>';
+            });
+            select.innerHTML = html;
+            select.value = selectedId;
+        });
+    }
+
+    function initRommTest(view) {
+        var button = view.querySelector('#GamesRommTestBtn');
+        if (!button || button.dataset.wired === '1') return;
+        button.dataset.wired = '1';
+        button.addEventListener('click', function () {
+            var statusEl = view.querySelector('#GamesRommStatus');
+            var serverUrl = ApiClient.serverAddress ? ApiClient.serverAddress() : '';
+            var headers = moonfinAuthHeaders();
+            headers['Content-Type'] = 'application/json';
+            statusEl.textContent = 'Checking...';
+            button.disabled = true;
+            fetch(serverUrl + '/Moonfin/Games/Romm/Test', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    url: view.querySelector('#GamesRommUrl').value.trim(),
+                    token: view.querySelector('#GamesRommToken').value.trim()
+                })
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (result) {
+                    if (!result.ok) {
+                        statusEl.textContent = result.error || 'The test failed.';
+                        return;
+                    }
+                    statusEl.textContent = 'Connected to RomM' + (result.version ? ' ' + result.version : '') + '. ' +
+                        result.supportedPlatformCount + ' of its ' + result.platformCount + ' platforms play in Moonfin, with ' +
+                        result.supportedRomCount + ' games between them.';
+                })
+                .catch(function () { statusEl.textContent = 'The test failed.'; })
+                .finally(function () { button.disabled = false; });
+        });
     }
 
     function loadLibraryPicker(view, pickerSelector, checkboxClass, selectedIds) {
@@ -2304,6 +2351,10 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             view.querySelector('#GamesEnabled').checked = config.GamesEnabled === true;
             loadGameLibraryPicker(view, config.GameLibraryIds || []);
             initGameCores(view, view.__moonfinState);
+            view.querySelector('#GamesRommUrl').value = config.GamesRommUrl || '';
+            view.querySelector('#GamesRommToken').value = config.GamesRommToken || '';
+            loadRommLibraryPicker(view, config.GamesRommLibraryId || '');
+            initRommTest(view);
 
             var defaults = camelKeysDeep(config.DefaultUserSettings) || {};
             setSelectValue(view, '#DefaultInterfaceStyle', defaults.interfaceStyle, 'Configured style');
@@ -2638,6 +2689,9 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             config.GamesEnabled = view.querySelector('#GamesEnabled').checked;
             config.GameLibraryIds = Array.prototype.slice.call(view.querySelectorAll('.gameLibraryCb:checked'))
                 .map(function (cb) { return cb.getAttribute('data-id'); });
+            config.GamesRommUrl = view.querySelector('#GamesRommUrl').value.trim() || null;
+            config.GamesRommToken = view.querySelector('#GamesRommToken').value.trim() || null;
+            config.GamesRommLibraryId = view.querySelector('#GamesRommLibraryId').value || null;
 
             var d = camelKeysDeep(config.DefaultUserSettings) || {};
             d.interfaceStyle = view.querySelector('#DefaultInterfaceStyle').value || null;

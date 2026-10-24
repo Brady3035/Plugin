@@ -100,7 +100,8 @@ internal sealed class GameArtworkStore
         string? title,
         GameThumbService.ThumbKind kind,
         CancellationToken cancellationToken,
-        TimeSpan? budget = null)
+        TimeSpan? budget = null,
+        string? remoteUrl = null)
     {
         var effectiveBudget = budget ?? InteractiveRequestBudget;
         using var budgetCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -108,7 +109,7 @@ internal sealed class GameArtworkStore
 
         try
         {
-            return await GetThumbPathCoreAsync(core, coreWasDefaulted, systemName, romPath, title, kind, budgetCts.Token)
+            return await GetThumbPathCoreAsync(core, coreWasDefaulted, systemName, romPath, title, kind, remoteUrl, budgetCts.Token)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -128,8 +129,29 @@ internal sealed class GameArtworkStore
         string romPath,
         string? title,
         GameThumbService.ThumbKind kind,
+        string? remoteUrl,
         CancellationToken cancellationToken)
     {
+        var sawTransientFailure = false;
+        TimeSpan? retryDelay = null;
+
+        // A RomM game names its own art. It is tried before the libretro names and doesn't
+        // count against their probe budget.
+        if (!string.IsNullOrEmpty(remoteUrl))
+        {
+            var remote = await GetThumbPathForUrlAsync(remoteUrl, kind, cancellationToken).ConfigureAwait(false);
+            if (remote.Outcome == GameArtworkLookupOutcome.Found)
+            {
+                return remote;
+            }
+
+            if (remote.Outcome == GameArtworkLookupOutcome.TransientFailure)
+            {
+                sawTransientFailure = true;
+                retryDelay = remote.RetryDelay;
+            }
+        }
+
         RdbService.TryGetPlatform(core, out var primaryPlatform);
         var fuzzyDirectoryCores = GamesService.FuzzySuggestCores(systemName, MaxFuzzyDirectorySuggestions);
         var candidatePlatforms = RdbService.GetCandidatePlatforms(core, coreWasDefaulted, fuzzyDirectoryCores);
@@ -184,8 +206,6 @@ internal sealed class GameArtworkStore
         }
 
         var probesRemaining = MaxTotalProbesPerRequest;
-        var sawTransientFailure = false;
-        TimeSpan? retryDelay = null;
         foreach (var (name, platform) in candidates.Distinct())
         {
             if (probesRemaining <= 0)
@@ -226,13 +246,26 @@ internal sealed class GameArtworkStore
         return GameArtworkLookupResult.Missing();
     }
 
-    private async Task<GameArtworkLookupResult> GetThumbPathForNameAsync(
+    private Task<GameArtworkLookupResult> GetThumbPathForNameAsync(
         string platform,
         string name,
         GameThumbService.ThumbKind kind,
+        CancellationToken cancellationToken) =>
+        GetCachedArtworkAsync(BuildUrl(platform, kind, name), CacheKey(platform, kind, name), kind, name, cancellationToken);
+
+    private Task<GameArtworkLookupResult> GetThumbPathForUrlAsync(
+        string url,
+        GameThumbService.ThumbKind kind,
+        CancellationToken cancellationToken) =>
+        GetCachedArtworkAsync(url, UrlCacheKey(url), kind, url, cancellationToken);
+
+    private async Task<GameArtworkLookupResult> GetCachedArtworkAsync(
+        string url,
+        string cacheKey,
+        GameThumbService.ThumbKind kind,
+        string name,
         CancellationToken cancellationToken)
     {
-        var cacheKey = CacheKey(platform, kind, name);
         if (_misses.TryGetValue(cacheKey, out var missedAt) && DateTime.UtcNow - missedAt < MissTtl)
         {
             return GameArtworkLookupResult.Missing();
@@ -252,7 +285,7 @@ internal sealed class GameArtworkStore
         var lazy = _inFlight.GetOrAdd(
             cacheKey,
             _ => new Lazy<Task<GameArtworkLookupResult>>(
-                () => DownloadAsync(platform, kind, name, cacheKey, localPath, CancellationToken.None)));
+                () => DownloadAsync(url, kind, name, cacheKey, localPath, CancellationToken.None)));
 
         // Drop the entry when the *download* finishes, not when this awaiter stops waiting. An
         // awaiter that hits its budget leaves the transfer running; removing the entry here would
@@ -267,14 +300,13 @@ internal sealed class GameArtworkStore
     }
 
     private async Task<GameArtworkLookupResult> DownloadAsync(
-        string platform,
+        string url,
         GameThumbService.ThumbKind kind,
         string name,
         string cacheKey,
         string localPath,
         CancellationToken cancellationToken)
     {
-        var url = BuildUrl(platform, kind, name);
         try
         {
             // ProbeTimeout as a token, not just as HttpClient.Timeout: with ResponseHeadersRead the
@@ -491,4 +523,8 @@ internal sealed class GameArtworkStore
         var hash = SHA1.HashData(Encoding.UTF8.GetBytes(raw));
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
+
+    // Prefixed so a direct URL can never land on a libretro entry's file name.
+    private static string UrlCacheKey(string url) =>
+        "url-" + Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(url))).ToLowerInvariant();
 }

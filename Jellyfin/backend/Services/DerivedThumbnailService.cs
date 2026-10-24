@@ -174,10 +174,10 @@ internal sealed class DerivedThumbnailService
 
     /// <summary>
     /// True when the original declares more than <see cref="MaxDecodedPixels"/> pixels and must not
-    /// be decoded. Reads the PNG IHDR directly rather than asking the encoder: the dimensions have
-    /// to be known *before* anything hands the file to a decoder, and every original this service
-    /// sees comes from GameArtworkStore, which only ever fetches <c>.png</c>. Anything that is not
-    /// a well-formed PNG header is left alone -- the encoder rejects it cleanly on its own.
+    /// be decoded. Reads the header directly rather than asking the encoder: the dimensions have
+    /// to be known *before* anything hands the file to a decoder. Most originals are libretro PNGs,
+    /// but RomM serves JPEG and WebP art too, so those headers are read the same way. Anything it
+    /// doesn't recognize is left alone, since the encoder rejects it cleanly on its own.
     /// </summary>
     private async Task<bool> IsDecodeBombAsync(string originalPath)
     {
@@ -201,6 +201,11 @@ internal sealed class DerivedThumbnailService
         }
 
         var (width, height) = ArtworkImageDimensions.ReadPng(header);
+        if (width == 0 && height == 0 && ArtworkImageDimensions.TryRead(originalPath) is { } other)
+        {
+            (width, height) = (other.Width, other.Height);
+        }
+
         if (width * height <= MaxDecodedPixels)
         {
             return false;

@@ -92,6 +92,14 @@ namespace Emby.Plugins.Moonfin.Api
         public System.IO.Stream RequestStream { get; set; } = null!;
     }
 
+    [Route("/Moonfin/Games/Romm/Test", "POST")]
+    [Authenticated(Roles = "Admin")]
+    public class TestRommRequest : IReturn<object>
+    {
+        public string? Url { get; set; }
+        public string? Token { get; set; }
+    }
+
     [Route("/Moonfin/Games/Debug", "GET")]
     [Authenticated(Roles = "Admin")]
     public class GetGamesDebugRequest : IReturn<object> { }

@@ -1321,6 +1321,40 @@
                                 auto-detected.
                             </div>
                         </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="GamesRommUrl">RomM server</label>
+                            <input type="url" id="GamesRommUrl" is="emby-input" placeholder="http://192.168.1.20:8080" />
+                            <div class="fieldDescription">
+                                Play the games on a <a href="https://romm.app" target="_blank">RomM</a> server through one
+                                of your libraries. Jellyfin talks to RomM for the apps, so RomM only has to be reachable
+                                from this server, and the RomM token never leaves it. Leave this empty to turn RomM off.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="GamesRommToken">RomM client token</label>
+                            <input type="password" id="GamesRommToken" is="emby-input" placeholder="rmm_..." autocomplete="off" />
+                            <div class="fieldDescription">
+                                Create one in RomM's web interface under your profile's client tokens, with the
+                                <code>roms.read</code>, <code>platforms.read</code> and <code>firmware.read</code> scopes.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="GamesRommLibraryId">Library for RomM games</label>
+                            <select is="emby-select" id="GamesRommLibraryId">
+                                <option value="">None</option>
+                            </select>
+                            <div class="fieldDescription">
+                                The library whose games come from RomM instead of its folders. Any library works, so you
+                                can add a Mixed Content library pointed at an empty folder just for RomM. Jellyfin's
+                                library access settings decide who sees it.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                                <button type="button" id="GamesRommTestBtn" is="emby-button" class="raised">Test RomM connection</button>
+                                <span id="GamesRommStatus" style="font-size:0.9em;color:rgba(255,255,255,0.7);"></span>
+                            </div>
+                        </div>
                         <div class="fieldDescription">
                             Box art is fetched automatically from the keyless
                             <a href="https://thumbnails.libretro.com/" target="_blank">libretro thumbnail server</a>
@@ -4099,7 +4133,7 @@
                 { parent: 'AnimeMarkersEnabled', fields: ['AnimeMarkerRecapLookup', 'AnimeMarkerShowFiller', 'AnimeMarkerMaxAgeDays'] },
                 { parent: 'AnimeAudioMarkersEnabled', fields: ['AnimeAudioMarkersMovies', 'AnimeAudioSeparateDualAudio'] },
                 { parent: ['AnimeMarkersEnabled', 'AnimeAudioMarkersEnabled'], fields: ['AnimeMarkerLibraryPicker', 'AnimeAudioTrustSelectedLibraries', 'AnimeMarkerPlacement', 'AnimeMarkerDiagBtn', 'AnimeMarkerPreviewName', 'AnimeMarkerVerboseLogging', 'AnimeMarkerLogBtn'] },
-                { parent: 'GamesEnabled', fields: ['GameCoresStatus', 'GameCoresFile', 'GameLibraryPicker'] },
+                { parent: 'GamesEnabled', fields: ['GameCoresStatus', 'GameCoresFile', 'GameLibraryPicker', 'GamesRommUrl', 'GamesRommToken', 'GamesRommLibraryId', 'GamesRommTestBtn'] },
                 { parent: 'DefaultNavbarPosition', off: ['top', 'left'], fields: ['DefaultBottomNavbarStyle', 'DefaultBottomNavbarTab1'] },
                 { parent: 'DefaultNavbarPosition', off: ['bottom'], fields: ['DefaultNavbarAlwaysExpanded'] },
                 { parent: 'DefaultShowShuffleButton', fields: ['DefaultShuffleContentType'] },
@@ -6822,6 +6856,10 @@
                     document.querySelector('#GamesIsolateWebApp').checked = config.GamesIsolateWebApp === true;
                     loadGameLibraryPicker(config.GameLibraryIds || []);
                     initGameCores();
+                    document.querySelector('#GamesRommUrl').value = config.GamesRommUrl || '';
+                    document.querySelector('#GamesRommToken').value = config.GamesRommToken || '';
+                    loadRommLibraryPicker(config.GamesRommLibraryId || '');
+                    initRommTest();
 
                     var defaults = config.DefaultUserSettings || {};
                     setSelectValue('#DefaultInterfaceStyle', defaults.interfaceStyle, 'Configured style');
@@ -7265,6 +7303,53 @@
                     loadLibraryPicker('#GameLibraryPicker', 'gameLibraryCb', selectedIds);
                 }
 
+                function loadRommLibraryPicker(selectedId) {
+                    var select = document.querySelector('#GamesRommLibraryId');
+                    if (!select) return;
+                    ApiClient.getUserViews(ApiClient.getCurrentUserId()).then(function(result) {
+                        var html = '<option value="">None</option>';
+                        (result.Items || []).forEach(function(item) {
+                            html += '<option value="' + esc(item.Id) + '">' + esc(item.Name || 'Untitled') + '</option>';
+                        });
+                        select.innerHTML = html;
+                        select.value = selectedId;
+                    });
+                }
+
+                function initRommTest() {
+                    var button = document.querySelector('#GamesRommTestBtn');
+                    if (!button || button.dataset.wired === '1') return;
+                    button.dataset.wired = '1';
+                    button.addEventListener('click', function() {
+                        var statusEl = document.querySelector('#GamesRommStatus');
+                        var serverUrl = ApiClient.serverAddress ? ApiClient.serverAddress() : '';
+                        var headers = gameCoresHeaders();
+                        headers['Content-Type'] = 'application/json';
+                        statusEl.textContent = 'Checking...';
+                        button.disabled = true;
+                        fetch(serverUrl + '/Moonfin/Games/Romm/Test', {
+                            method: 'POST',
+                            headers: headers,
+                            body: JSON.stringify({
+                                url: document.querySelector('#GamesRommUrl').value.trim(),
+                                token: document.querySelector('#GamesRommToken').value.trim()
+                            })
+                        })
+                            .then(function(r) { return r.json(); })
+                            .then(function(result) {
+                                if (!result.ok) {
+                                    statusEl.textContent = result.error || 'The test failed.';
+                                    return;
+                                }
+                                statusEl.textContent = 'Connected to RomM' + (result.version ? ' ' + result.version : '') + '. ' +
+                                    result.supportedPlatformCount + ' of its ' + result.platformCount + ' platforms play in Moonfin, with ' +
+                                    result.supportedRomCount + ' games between them.';
+                            })
+                            .catch(function() { statusEl.textContent = 'The test failed.'; })
+                            .finally(function() { button.disabled = false; });
+                    });
+                }
+
                 function loadAnimeMarkerDiagnostics() {
                     var status = document.querySelector('#AnimeMarkerDiagStatus');
                     if (!status) return;
@@ -7620,6 +7705,9 @@
                         config.GameLibraryIds = Array.prototype.slice.call(
                             document.querySelectorAll('.gameLibraryCb:checked')
                         ).map(function (cb) { return cb.getAttribute('data-id'); });
+                        config.GamesRommUrl = document.querySelector('#GamesRommUrl').value.trim() || null;
+                        config.GamesRommToken = document.querySelector('#GamesRommToken').value.trim() || null;
+                        config.GamesRommLibraryId = document.querySelector('#GamesRommLibraryId').value || null;
 
                         config.DefaultUserSettings = config.DefaultUserSettings || {};
                         config.DefaultUserSettings.interfaceStyle = document.querySelector('#DefaultInterfaceStyle').value || null;

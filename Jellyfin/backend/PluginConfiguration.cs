@@ -330,6 +330,24 @@ public class PluginConfiguration : BasePluginConfiguration
     public List<string> GameLibraryIds { get; set; } = new();
 
     /// <summary>
+    /// Address of a RomM server whose games fill <see cref="GamesRommLibraryId"/>, for example
+    /// http://192.168.1.20:8080. The plugin talks to RomM itself, so apps never need to reach it.
+    /// </summary>
+    public string? GamesRommUrl { get; set; }
+
+    /// <summary>
+    /// A RomM client token with the roms.read, platforms.read and firmware.read scopes. It stays
+    /// on the server and is never sent to apps.
+    /// </summary>
+    public string? GamesRommToken { get; set; }
+
+    /// <summary>
+    /// The Jellyfin library (as the library picker reports its id) whose games come from RomM
+    /// instead of its folders. Any folder works, an empty one included.
+    /// </summary>
+    public string? GamesRommLibraryId { get; set; }
+
+    /// <summary>
     /// Serves the Moonfin Web app with COOP/COEP so it is cross-origin isolated, which is
     /// what a thread-requiring core (PSP) needs on the web client. The player already sends
     /// those headers for such a core, but the web client embeds it in an iframe, and an

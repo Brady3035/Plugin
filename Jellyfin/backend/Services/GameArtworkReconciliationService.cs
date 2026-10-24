@@ -116,6 +116,7 @@ public sealed class GameArtworkReconciliationService : IHostedService
         _taskManager = taskManager;
         _watchLibraryFileSystem = watchLibraryFileSystem;
         _workerStopGrace = workerStopGraceForTests ?? WorkerStopGrace;
+        _games.RemoteInventoryChanged += () => QueueReconciliation("RomM library changed");
     }
 
     /// <summary>
@@ -907,6 +908,12 @@ public sealed class GameArtworkReconciliationService : IHostedService
 
             foreach (var library in _games.GetGameLibraries())
             {
+                // Pruning against a RomM library that hasn't answered yet would delete its art.
+                if (!_games.IsLibraryInventoryReady(library.Id))
+                {
+                    continue;
+                }
+
                 var reconciledSystems = new List<(GameSystem System, List<ArtworkCandidate> All, List<ArtworkCandidate> Boxart)>();
                 foreach (var system in _games.GetSystems(library.Id))
                 {
@@ -1123,7 +1130,7 @@ public sealed class GameArtworkReconciliationService : IHostedService
                     GameArtworkLookupResult? metadataPending = null;
                     foreach (var core in work.Candidate.Source.Cores)
                     {
-                        var lookup = await _thumbs.LookupThumbAsync(core, work.Candidate.Source.CoreWasDefaulted, work.Candidate.Source.SystemName, work.Candidate.Source.RomPath, work.Candidate.Source.Title, work.Candidate.Kind, cancellationToken).ConfigureAwait(false);
+                        var lookup = await _thumbs.LookupThumbAsync(core, work.Candidate.Source.CoreWasDefaulted, work.Candidate.Source.SystemName, work.Candidate.Source.RomPath, work.Candidate.Source.Title, work.Candidate.Kind, cancellationToken, work.Candidate.Source.Remote?.UrlFor(work.Candidate.Kind)).ConfigureAwait(false);
                         if (lookup.Outcome == GameArtworkLookupOutcome.Found)
                         {
                             original = lookup.Path;
@@ -1597,6 +1604,12 @@ public sealed class GameArtworkReconciliationService : IHostedService
         GameThumbSource source,
         GameThumbService.ThumbKind kind)
     {
+        if (source.Remote is { } remote)
+        {
+            var remoteKey = ArtworkCatalogKey.Create(library.Id, remote.CatalogPath, remote.Fingerprint, KindName(kind));
+            return new ArtworkCandidate(gameId, source.SystemName, kind, source, remoteKey, null);
+        }
+
         var root = library.Locations.Where(path => GamePathResolver.IsWithinRoot(path, source.RomPath)).OrderByDescending(path => path.Length).FirstOrDefault();
         if (root == null)
         {

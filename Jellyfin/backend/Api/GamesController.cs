@@ -1,7 +1,10 @@
+using System.Net;
 using System.Net.Mime;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Moonfin.Romm;
 using Moonfin.Server.Models;
 using Moonfin.Server.Services;
 
@@ -33,19 +36,22 @@ public class GamesController : ControllerBase
     private readonly GameArtworkReconciliationService _artwork;
     private readonly GameArtworkDeliveryLimiter _artworkDeliveryLimiter;
     private readonly ArcadeCompatibilityService _arcadeCompatibility;
+    private readonly RommSource _romm;
 
     public GamesController(
         GamesService gamesService,
         CoresService coresService,
         GameArtworkReconciliationService artwork,
         GameArtworkDeliveryLimiter artworkDeliveryLimiter,
-        ArcadeCompatibilityService arcadeCompatibility)
+        ArcadeCompatibilityService arcadeCompatibility,
+        RommSource romm)
     {
         _gamesService = gamesService;
         _coresService = coresService;
         _artwork = artwork;
         _artworkDeliveryLimiter = artworkDeliveryLimiter;
         _arcadeCompatibility = arcadeCompatibility;
+        _romm = romm;
     }
 
     /// <summary>Diagnostic dump for troubleshooting library detection (admin only).</summary>
@@ -570,14 +576,20 @@ public class GamesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
-    public IActionResult GetRom(
+    public async Task<IActionResult> GetRom(
         [FromRoute] string libraryId,
         [FromRoute] string token,
+        CancellationToken cancellationToken,
         [FromRoute] string? fileName = null)
     {
         if (!GamesEnabled())
         {
             return NotFound();
+        }
+
+        if (_romm.Owns(libraryId))
+        {
+            return await ServeRommRomAsync(token, cancellationToken).ConfigureAwait(false);
         }
 
         // The optional filename gives filename-sensitive emulators (MAME) the original archive
@@ -806,11 +818,23 @@ public class GamesController : ControllerBase
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetBios([FromRoute] string libraryId, [FromRoute] string token)
+    public async Task<IActionResult> GetBios(
+        [FromRoute] string libraryId,
+        [FromRoute] string token,
+        CancellationToken cancellationToken)
     {
         if (!GamesEnabled())
         {
             return NotFound();
+        }
+
+        if (_romm.Owns(libraryId))
+        {
+            var firmware = _romm.FindFirmware(token);
+            var client = _romm.CreateClient();
+            return firmware == null || client == null
+                ? NotFound()
+                : await ProxyRommAsync((method, range) => client.SendFirmwareAsync(method, firmware, range, cancellationToken), cancellationToken).ConfigureAwait(false);
         }
 
         var path = _gamesService.ResolveFilePath(libraryId, token, allowBios: true);
@@ -929,10 +953,178 @@ public class GamesController : ControllerBase
         return new EmptyResult();
     }
 
+    /// <summary>Checks the address and token in the admin page form, so they can be tried before saving.</summary>
+    [HttpPost("Romm/Test")]
+    [Authorize(Policy = "RequiresElevation")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<RommTestResult>> TestRomm(
+        [FromBody] RommTestRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var baseUrl = RommClient.NormalizeBaseUrl(request?.Url);
+        var token = RommClient.NormalizeToken(request?.Token);
+        if (baseUrl == null)
+        {
+            return Ok(new RommTestResult { Error = "Enter the RomM address, like http://192.168.1.20:8080." });
+        }
+
+        if (token == null)
+        {
+            return Ok(new RommTestResult { Error = "Enter a RomM client token." });
+        }
+
+        try
+        {
+            var info = await _romm.ClientFor(baseUrl, token).CheckAsync(cancellationToken).ConfigureAwait(false);
+            return Ok(new RommTestResult
+            {
+                Ok = true,
+                Version = info.Version,
+                PlatformCount = info.PlatformCount,
+                SupportedPlatformCount = info.SupportedPlatformCount,
+                SupportedRomCount = info.SupportedRomCount,
+            });
+        }
+        catch (Exception ex) when (ex is JsonException or RommRequestException { StatusCode: StatusCodes.Status404NotFound })
+        {
+            return Ok(new RommTestResult { Error = "That address answered, but not like a RomM server." });
+        }
+        catch (RommRequestException ex)
+        {
+            return Ok(new RommTestResult { Error = ex.Message + "." });
+        }
+        catch (HttpRequestException)
+        {
+            return Ok(new RommTestResult { Error = "Couldn't reach RomM at that address." });
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return Ok(new RommTestResult { Error = "RomM didn't answer in time." });
+        }
+    }
+
+    private async Task<IActionResult> ServeRommRomAsync(string gameId, CancellationToken cancellationToken)
+    {
+        var game = _romm.FindGame(gameId);
+        var client = _romm.CreateClient();
+        if (game == null || client == null)
+        {
+            return NotFound();
+        }
+
+        if (!game.UnpackArchive)
+        {
+            return await ProxyRommAsync((method, range) => client.SendRomAsync(method, game, range, cancellationToken), cancellationToken).ConfigureAwait(false);
+        }
+
+        // A zipped ROM is unpacked here like one in a folder library, so the app gets the same
+        // raw bytes either way. RomM listed the archive's contents, so a HEAD needs no download.
+        if (HttpMethods.IsHead(Request.Method))
+        {
+            Response.ContentType = "application/octet-stream";
+            Response.ContentLength = game.ServedSizeBytes;
+            Response.Headers.AcceptRanges = "bytes";
+            return new EmptyResult();
+        }
+
+        var temp = Path.Combine(Path.GetTempPath(), $"moonfin-romm-{Guid.NewGuid():N}{Path.GetExtension(game.Rom.FileName)}");
+        try
+        {
+            var status = await client.DownloadRomAsync(game, temp, GamesService.MaxExtractedRomBytes, cancellationToken).ConfigureAwait(false);
+            if (status == HttpStatusCode.RequestEntityTooLarge)
+            {
+                return StatusCode(
+                    StatusCodes.Status413PayloadTooLarge,
+                    new { error = $"The archive exceeds the {GamesService.MaxExtractedRomBytes / (1024 * 1024)} MB limit for extracted ROMs." });
+            }
+
+            return status == HttpStatusCode.OK ? StreamExtractedRom(temp) : RommFailure(status);
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(StatusCodes.Status502BadGateway);
+        }
+        finally
+        {
+            try
+            {
+                System.IO.File.Delete(temp);
+            }
+            catch (IOException)
+            {
+                // A temp file left behind is cleared with the rest of the temp folder.
+            }
+        }
+    }
+
+    /// <summary>
+    /// Streams a RomM file to the app, passing a byte range through so a client can resume or
+    /// probe the size the same way it does against a file on disk.
+    /// </summary>
+    private async Task<IActionResult> ProxyRommAsync(
+        Func<HttpMethod, string?, Task<HttpResponseMessage>> send,
+        CancellationToken cancellationToken)
+    {
+        var head = HttpMethods.IsHead(Request.Method);
+        HttpResponseMessage upstream;
+        try
+        {
+            upstream = await send(head ? HttpMethod.Head : HttpMethod.Get, Request.Headers.Range.ToString()).ConfigureAwait(false);
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(StatusCodes.Status502BadGateway);
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return StatusCode(StatusCodes.Status504GatewayTimeout);
+        }
+
+        using (upstream)
+        {
+            if (upstream.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.PartialContent))
+            {
+                return RommFailure(upstream.StatusCode);
+            }
+
+            Response.StatusCode = (int)upstream.StatusCode;
+            Response.ContentType = "application/octet-stream";
+            Response.ContentLength = upstream.Content.Headers.ContentLength;
+            Response.Headers.AcceptRanges = "bytes";
+            if (upstream.Content.Headers.ContentRange != null)
+            {
+                Response.Headers.ContentRange = upstream.Content.Headers.ContentRange.ToString();
+            }
+
+            if (!head)
+            {
+                await upstream.Content.CopyToAsync(Response.Body, cancellationToken).ConfigureAwait(false);
+            }
+
+            return new EmptyResult();
+        }
+    }
+
+    private IActionResult RommFailure(HttpStatusCode status) => status switch
+    {
+        HttpStatusCode.NotFound => NotFound(),
+        HttpStatusCode.RequestedRangeNotSatisfiable => StatusCode(StatusCodes.Status416RangeNotSatisfiable),
+        _ => StatusCode(StatusCodes.Status502BadGateway),
+    };
+
     private static bool GamesEnabled()
     {
         return MoonfinPlugin.Instance?.Configuration?.GamesEnabled == true;
     }
+}
+
+public sealed class RommTestRequest
+{
+    public string? Url { get; set; }
+
+    public string? Token { get; set; }
 }
 
 /// <summary>Request body for a per-user arcade core override.</summary>

@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Emby.Plugins.Moonfin.Models;
 using MediaBrowser.Controller.Library;
+using Moonfin.Romm;
 using SharpCompress.Archives;
 
 namespace Emby.Plugins.Moonfin.Api
@@ -21,6 +22,7 @@ namespace Emby.Plugins.Moonfin.Api
     internal class GamesScanner
     {
         private readonly ILibraryManager _libraryManager;
+        private readonly RommSource? _romm;
 
         private static readonly Regex AutoDetectLibraryName =
             new Regex("game|rom|emulat", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -89,6 +91,13 @@ namespace Emby.Plugins.Moonfin.Api
 
         /// <summary>True when the path is a supported archive (.zip/.7z) rather than a raw ROM.</summary>
         public static bool IsArchive(string path) => ArchiveExtensions.Contains(Path.GetExtension(path));
+
+        // This port has no arcade sets, so RomM arcade platforms find nothing playable and stay hidden.
+        internal static readonly RommFileRules RommRules = new RommFileRules(
+            (core, name) => IsRomFile(name) && core != "arcade" && core != "mame",
+            IsArchive,
+            name => ExtensionToCore.ContainsKey(Path.GetExtension(name)),
+            (core, name) => false);
 
         /// <summary>
         /// Extracts the playable ROM from a .zip/.7z into memory so every client receives raw ROM bytes
@@ -195,9 +204,10 @@ namespace Emby.Plugins.Moonfin.Api
                 e => e.OpenEntryStream());
         }
 
-        public GamesScanner(ILibraryManager libraryManager)
+        public GamesScanner(ILibraryManager libraryManager, RommSource? romm = null)
         {
             _libraryManager = libraryManager;
+            _romm = romm;
         }
 
         public IReadOnlyList<GameLibrary> GetGameLibraries()
@@ -234,7 +244,7 @@ namespace Emby.Plugins.Moonfin.Api
                     result.Add(new GameLibrary { Id = cid, Name = folder.Name ?? "Games", Locations = locations });
                 }
 
-                return result;
+                return WithRommLibrary(result, folders);
             }
 
             // Auto-detect by name when nothing is explicitly configured.
@@ -246,7 +256,28 @@ namespace Emby.Plugins.Moonfin.Api
                 result.Add(new GameLibrary { Id = folder.ItemId ?? string.Empty, Name = folder.Name, Locations = locations });
             }
 
-            return result;
+            return WithRommLibrary(result, folders);
+        }
+
+        /// <summary>
+        /// Adds the RomM library, or takes over its folder entry, with no folders to scan: its games
+        /// come from RomM. It is left out when the library no longer exists on this server.
+        /// </summary>
+        private List<GameLibrary> WithRommLibrary(List<GameLibrary> libraries, IEnumerable<MediaBrowser.Model.Entities.VirtualFolderInfo> folders)
+        {
+            var libraryId = _romm?.Settings?.LibraryId;
+            if (libraryId == null) return libraries;
+
+            var existing = libraries.FindIndex(l => SameId(l.Id, libraryId));
+            var name = existing >= 0
+                ? libraries[existing].Name
+                : ResolveItemName(libraryId) ?? folders.FirstOrDefault(f => SameId(f.ItemId, libraryId))?.Name;
+            if (string.IsNullOrEmpty(name)) return libraries;
+
+            var romm = new GameLibrary { Id = libraryId, Name = name!, Locations = new List<string>() };
+            if (existing >= 0) libraries[existing] = romm;
+            else libraries.Add(romm);
+            return libraries;
         }
 
         private string? ResolveItemName(string cid)
@@ -277,12 +308,15 @@ namespace Emby.Plugins.Moonfin.Api
                     l.Id,
                     l.Name,
                     l.Locations
-                }).ToList()
+                }).ToList(),
+                romm = _romm?.Diagnostics()
             };
         }
 
         public IReadOnlyList<GameSystem> GetSystems(string libraryId)
         {
+            if (_romm?.Owns(libraryId) == true) return GetRommSystems();
+
             var library = GetGameLibraries().FirstOrDefault(l => SameId(l.Id, libraryId));
             if (library == null) return new List<GameSystem>();
 
@@ -312,6 +346,8 @@ namespace Emby.Plugins.Moonfin.Api
 
         public IReadOnlyList<GameSummary> GetGames(string libraryId, string? systemId)
         {
+            if (_romm?.Owns(libraryId) == true) return GetRommGames(systemId);
+
             var library = GetGameLibraries().FirstOrDefault(l => SameId(l.Id, libraryId));
             if (library == null) return new List<GameSummary>();
 
@@ -346,6 +382,8 @@ namespace Emby.Plugins.Moonfin.Api
 
         public GameDetail? GetGame(string libraryId, string gameId)
         {
+            if (_romm?.Owns(libraryId) == true) return GetRommGame(gameId);
+
             var library = GetGameLibraries().FirstOrDefault(l => SameId(l.Id, libraryId));
             if (library == null) return null;
 
@@ -410,8 +448,15 @@ namespace Emby.Plugins.Moonfin.Api
         /// also walks the system folder for its other fields, which is more work than an image
         /// request that arrives once per poster on screen needs.
         /// </summary>
-        public (string Core, string FileName)? ResolveThumbSource(string libraryId, string gameId)
+        /// <remarks>A RomM game also names its own cover and screenshot, tried before the libretro names.</remarks>
+        public (string Core, string FileName, string? BoxartUrl, string? SnapUrl)? ResolveThumbSource(string libraryId, string gameId)
         {
+            if (_romm?.Owns(libraryId) == true)
+            {
+                if (_romm.FindGameAndPlatform(gameId) is not (var game, var platform)) return null;
+                return (platform.Core, game.ServedName, _romm.AssetUrl(game.CoverPath), _romm.AssetUrl(game.ScreenshotPath));
+            }
+
             var library = GetGameLibraries().FirstOrDefault(l => SameId(l.Id, libraryId));
             if (library == null) return null;
 
@@ -421,7 +466,7 @@ namespace Emby.Plugins.Moonfin.Api
             var systemDir = FindSystemDir(library, romPath);
             var systemName = systemDir == null ? string.Empty : Path.GetFileName(systemDir);
             var core = ResolveSystemCore(systemName, new List<string> { romPath });
-            return (core, Path.GetFileName(romPath));
+            return (core, Path.GetFileName(romPath), null, null);
         }
 
         public string? ResolveFilePath(string libraryId, string token, bool allowBios)
@@ -436,6 +481,86 @@ namespace Emby.Plugins.Moonfin.Api
             if (!isRom && !allowBios) return null;
 
             return path;
+        }
+
+        private IReadOnlyList<GameSystem> GetRommSystems()
+        {
+            var snapshot = _romm!.Snapshot();
+            if (snapshot == null) return new List<GameSystem>();
+
+            var counts = snapshot.Games.GroupBy(g => g.PlatformId).ToDictionary(g => g.Key, g => g.Count());
+            return snapshot.Platforms
+                .Where(p => counts.ContainsKey(p.Id))
+                .Select(p => new GameSystem { Id = p.SystemId, Name = p.Name, Core = p.Core, GameCount = counts[p.Id] })
+                .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private IReadOnlyList<GameSummary> GetRommGames(string? systemId)
+        {
+            var snapshot = _romm!.Snapshot();
+            if (snapshot == null) return new List<GameSummary>();
+
+            var result = new List<GameSummary>();
+            foreach (var game in snapshot.Games)
+            {
+                var platform = snapshot.FindPlatform(game.PlatformId);
+                if (platform == null ||
+                    (!string.IsNullOrEmpty(systemId) && !string.Equals(platform.SystemId, systemId, StringComparison.OrdinalIgnoreCase))) continue;
+
+                result.Add(new GameSummary
+                {
+                    Id = RommSource.GameId(game),
+                    Title = game.Title,
+                    System = platform.SystemId,
+                    Core = platform.Core,
+                    FileName = game.ServedName
+                });
+            }
+
+            return result.OrderBy(g => g.Title, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        private GameDetail? GetRommGame(string gameId)
+        {
+            if (_romm!.FindGameAndPlatform(gameId) is not (var game, var platform)) return null;
+
+            var detail = new GameDetail
+            {
+                Id = gameId,
+                Title = game.Title,
+                System = platform.SystemId,
+                Core = platform.Core,
+                FileName = game.ServedName,
+                SizeBytes = game.ServedSizeBytes,
+                Bios = platform.Firmware
+                    .Select(f => new GameBios { Id = RommSource.FirmwareId(f), FileName = f.FileName, SizeBytes = f.SizeBytes })
+                    .ToList(),
+                Overview = game.Summary,
+                Genre = game.Genre,
+                Developer = game.Developer,
+                Publisher = game.Publisher,
+                Franchise = game.Franchise,
+                Region = game.Region,
+                Year = game.Year,
+                Players = game.Players,
+                Rating = game.Rating
+            };
+
+            // RomM's own metadata wins. LaunchBox fills what RomM left empty, matched by title.
+            var lb = GameLaunchBoxHelper.TryLookup(platform.Core, game.Title, game.ServedName);
+            if (lb != null)
+            {
+                detail.Overview ??= lb.Overview;
+                detail.Genre ??= lb.Genre;
+                detail.Developer ??= lb.Developer;
+                detail.Publisher ??= lb.Publisher;
+                detail.Year ??= lb.Year;
+                detail.Players ??= lb.Players;
+                detail.Rating ??= lb.Rating;
+            }
+
+            return detail;
         }
 
         // -- helpers ------------------------------------------------------------

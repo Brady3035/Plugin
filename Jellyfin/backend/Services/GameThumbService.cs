@@ -110,8 +110,9 @@ public class GameThumbService
         string romPath,
         string? title,
         ThumbKind kind,
-        CancellationToken cancellationToken = default) =>
-        _artworkStore.LookupThumbAsync(core, coreWasDefaulted, systemName, romPath, title, kind, cancellationToken, GameArtworkStore.PrewarmRequestBudget);
+        CancellationToken cancellationToken = default,
+        string? remoteUrl = null) =>
+        _artworkStore.LookupThumbAsync(core, coreWasDefaulted, systemName, romPath, title, kind, cancellationToken, GameArtworkStore.PrewarmRequestBudget, remoteUrl);
 
     /// <summary>
     /// Gets the cached size/format-optimized thumbnail derived from an already-acquired original.

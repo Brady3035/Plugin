@@ -183,6 +183,18 @@ namespace Emby.Plugins.Moonfin
         // Retro games (EmulatorJS) configuration.
         public bool GamesEnabled { get; set; } = false;
         public List<string> GameLibraryIds { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Address of a RomM server whose games fill <see cref="GamesRommLibraryId"/>. The plugin
+        /// talks to RomM itself, so apps never need to reach it.
+        /// </summary>
+        public string? GamesRommUrl { get; set; }
+
+        /// <summary>A RomM client token with roms.read, platforms.read and firmware.read. It never leaves the server.</summary>
+        public string? GamesRommToken { get; set; }
+
+        /// <summary>The library (as the library picker reports its id) whose games come from RomM instead of its folders.</summary>
+        public string? GamesRommLibraryId { get; set; }
         public string? GamesCoreDataUrl { get; set; }
         public string? GamesCoreZipUrl { get; set; }
         public bool GamesMetadataEnabled { get; set; } = true;

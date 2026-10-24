@@ -296,3 +296,25 @@ public class GameBios
     [JsonPropertyName("sizeBytes")]
     public long SizeBytes { get; set; }
 }
+
+public class RommTestResult
+{
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+
+    [JsonPropertyName("version")]
+    public string? Version { get; set; }
+
+    [JsonPropertyName("platformCount")]
+    public int PlatformCount { get; set; }
+
+    [JsonPropertyName("supportedPlatformCount")]
+    public int SupportedPlatformCount { get; set; }
+
+    [JsonPropertyName("supportedRomCount")]
+    public int SupportedRomCount { get; set; }
+
+    [JsonPropertyName("error")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Error { get; set; }
+}

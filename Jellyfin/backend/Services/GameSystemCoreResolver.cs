@@ -1,4 +1,5 @@
 using System.Text;
+using Moonfin.Romm;
 
 namespace Moonfin.Server.Services;
 
@@ -175,6 +176,13 @@ internal static class GameSystemCoreResolver
     internal static bool IsPlayableFileForCore(string core, string romPath) =>
         IsRomFile(romPath) && (!IsArcadeFamilyCore(core) ||
             string.Equals(Path.GetExtension(romPath), ".zip", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The same file rules, handed to the RomM reader so both library kinds agree.</summary>
+    internal static readonly RommFileRules RommRules = new(
+        IsPlayableFileForCore,
+        IsArchive,
+        IsKnownRomExtension,
+        ShouldPreserveArchiveForCore);
 
     private static bool TryFuzzyMatchSystemCore(string normalizedName, out string core)
     {

@@ -14,6 +14,7 @@ using MediaBrowser.Model.Globalization;
 using MediaBrowser.Model.Logging;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
+using Moonfin.Romm;
 
 namespace Emby.Plugins.Moonfin
 {
@@ -43,6 +44,9 @@ namespace Emby.Plugins.Moonfin
         public StudioLogoCacheService? StudioLogoCache { get; private set; }
         public StudioLogoFetchService? StudioLogoFetch { get; private set; }
         public GameThumbService? GameThumbs { get; private set; }
+
+        /// <summary>The RomM-backed game library. It holds RomM's inventory, so it lives as long as the server.</summary>
+        public RommSource? Romm { get; private set; }
         public NotificationStore? NotificationStore { get; private set; }
         public RelaySender? RelaySender { get; private set; }
         public FcmSender? FcmSender { get; private set; }
@@ -184,6 +188,16 @@ namespace Emby.Plugins.Moonfin
             StudioLogoCache = new StudioLogoCacheService(mdbLogger);
             StudioLogoFetch = new StudioLogoFetchService(StudioLogoCache, mdbLogger);
             GameThumbs = new GameThumbService(mdbLogger);
+            // One client for every RomM call. A ROM stream outlives the timeout, which only covers the headers.
+            var rommHttp = MoonfinHttp.CreateClient(TimeSpan.FromSeconds(100), "Moonfin/1.0");
+            Romm = new RommSource(
+                () =>
+                {
+                    var config = Instance?.Configuration;
+                    return config == null ? null : RommSettings.From(config.GamesRommUrl, config.GamesRommToken, config.GamesRommLibraryId);
+                },
+                () => rommHttp,
+                Api.GamesScanner.RommRules);
 
             var animeLogger = logManager.GetLogger("MoonfinAnimeMarkers");
             AnimeMarkerDiagnostics = new AnimeMarkerDiagnosticLog(animeLogger);

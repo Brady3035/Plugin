@@ -37,6 +37,7 @@
     <Compile Include="../../../shared/Seerr.Tests/*.cs" Link="Seerr/%(Filename)%(Extension)" />
     <Compile Include="../../../shared/Tmdb.Tests/*.cs" Link="Tmdb/%(Filename)%(Extension)" />
     <Compile Include="../../../shared/Anime.Tests/*.cs" Link="Anime/%(Filename)%(Extension)" />
+    <Compile Include="../../../shared/Romm.Tests/*.cs" Link="Romm/%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

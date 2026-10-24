@@ -1433,6 +1433,40 @@
                                 selected, libraries whose name contains "game", "rom", or "emulat" are auto-detected.
                             </div>
                         </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="GamesRommUrl">RomM server</label>
+                            <input type="url" id="GamesRommUrl" is="emby-input" placeholder="http://192.168.1.20:8080" />
+                            <div class="fieldDescription">
+                                Play the games on a <a href="https://romm.app" target="_blank">RomM</a> server through one
+                                of your libraries. Emby talks to RomM for the apps, so RomM only has to be reachable from
+                                this server, and the RomM token never leaves it. Leave this empty to turn RomM off.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="GamesRommToken">RomM client token</label>
+                            <input type="password" id="GamesRommToken" is="emby-input" placeholder="rmm_..." autocomplete="off" />
+                            <div class="fieldDescription">
+                                Create one in RomM's web interface under your profile's client tokens, with the
+                                <code>roms.read</code>, <code>platforms.read</code> and <code>firmware.read</code> scopes.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="GamesRommLibraryId">Library for RomM games</label>
+                            <select is="emby-select" id="GamesRommLibraryId">
+                                <option value="">None</option>
+                            </select>
+                            <div class="fieldDescription">
+                                The library whose games come from RomM instead of its folders. Any library works, so you
+                                can add a Mixed Content library pointed at an empty folder just for RomM. Emby's library
+                                access settings decide who sees it.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                                <button type="button" id="GamesRommTestBtn" is="emby-button" class="raised">Test RomM connection</button>
+                                <span id="GamesRommStatus" style="font-size:0.9em;opacity:0.7;"></span>
+                            </div>
+                        </div>
                         <div class="fieldDescription">
                             Box art is fetched automatically from the keyless
                             <a href="https://thumbnails.libretro.com/" target="_blank">libretro thumbnail server</a>

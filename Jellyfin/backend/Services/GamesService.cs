@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moonfin.Romm;
 using Moonfin.Server.Models;
 using SharpCompress.Archives;
 
@@ -29,6 +30,7 @@ public class GamesService
     private readonly ArcadeCoreOverrideService? _arcadeCoreOverrides;
     private readonly GameBackendOverrideService? _gameBackendOverrides;
     private readonly GamePathResolver _paths;
+    private readonly RommSource? _romm;
     private readonly ILogger<GamesService> _logger;
 
     private const string EmulatorJsBackend = "emulatorjs";
@@ -243,7 +245,8 @@ public class GamesService
         ArcadeCompatibilityService? arcadeCompatibility = null,
         ArcadeCoreOverrideService? arcadeCoreOverrides = null,
         GameBackendOverrideService? gameBackendOverrides = null,
-        ILogger<GamesService>? logger = null)
+        ILogger<GamesService>? logger = null,
+        RommSource? romm = null)
     {
         _libraryManager = libraryManager;
         _rdb = rdb;
@@ -251,6 +254,7 @@ public class GamesService
         _arcadeCompatibility = arcadeCompatibility;
         _arcadeCoreOverrides = arcadeCoreOverrides;
         _gameBackendOverrides = gameBackendOverrides;
+        _romm = romm;
         _paths = new GamePathResolver(GetGameLibraries);
         _logger = logger ?? NullLogger<GamesService>.Instance;
     }
@@ -277,7 +281,7 @@ public class GamesService
                 }
             }
 
-            return result;
+            return WithRommLibrary(result);
         }
 
         // Auto-detect by name when nothing is explicitly configured.
@@ -302,7 +306,88 @@ public class GamesService
             });
         }
 
-        return result;
+        return WithRommLibrary(result);
+    }
+
+    /// <summary>Raised when RomM's games change, so artwork can catch up.</summary>
+    public event Action? RemoteInventoryChanged
+    {
+        add
+        {
+            if (_romm != null)
+            {
+                _romm.Changed += value;
+            }
+        }
+
+        remove
+        {
+            if (_romm != null)
+            {
+                _romm.Changed -= value;
+            }
+        }
+    }
+
+    /// <summary>
+    /// False while a RomM library has never loaded. Background passes skip it until then, so
+    /// an unreachable RomM reads as "not yet known" rather than "has no games".
+    /// </summary>
+    public bool IsLibraryInventoryReady(string libraryId) =>
+        _romm == null || !_romm.Owns(libraryId) || _romm.IsReady();
+
+    /// <summary>
+    /// Adds the RomM library, or takes over its folder entry, with no folders to scan: its games
+    /// come from RomM. It is left out when the library no longer exists on this server.
+    /// </summary>
+    private List<GameLibrary> WithRommLibrary(List<GameLibrary> libraries)
+    {
+        var libraryId = _romm?.Settings?.LibraryId;
+        if (libraryId == null)
+        {
+            return libraries;
+        }
+
+        var existing = libraries.FindIndex(library => SameId(library.Id, libraryId));
+        var name = existing >= 0 ? libraries[existing].Name : ResolveLibraryName(libraryId);
+        if (name == null)
+        {
+            return libraries;
+        }
+
+        var romm = new GameLibrary { Id = libraryId, Name = name, Locations = new List<string>() };
+        if (existing >= 0)
+        {
+            libraries[existing] = romm;
+        }
+        else
+        {
+            libraries.Add(romm);
+        }
+
+        return libraries;
+    }
+
+    private string? ResolveLibraryName(string libraryId)
+    {
+        if (Guid.TryParse(libraryId, out var guid))
+        {
+            try
+            {
+                var name = _libraryManager.GetItemById(guid)?.Name;
+                if (!string.IsNullOrEmpty(name))
+                {
+                    return name;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Looking up the RomM library {LibraryId} by id failed", libraryId);
+            }
+        }
+
+        return _libraryManager.GetVirtualFolders()
+            .FirstOrDefault(folder => SameId(folder.ItemId, libraryId))?.Name;
     }
 
     private GameLibrary? ResolveConfiguredLibrary(string? cid)
@@ -365,13 +450,19 @@ public class GamesService
                 l.Id,
                 l.Name,
                 l.Locations
-            }).ToList()
+            }).ToList(),
+            romm = _romm?.Diagnostics()
         };
     }
 
     /// <summary>Lists the top-level system folders inside a game library.</summary>
     public IReadOnlyList<GameSystem> GetSystems(string libraryId)
     {
+        if (_romm?.Owns(libraryId) == true)
+        {
+            return GetRommSystems();
+        }
+
         var library = GetGameLibraries().FirstOrDefault(l =>
             SameId(l.Id, libraryId));
         if (library == null)
@@ -414,6 +505,11 @@ public class GamesService
     /// <summary>Lists the games inside a system folder (optionally a single system).</summary>
     public virtual IReadOnlyList<GameSummary> GetGames(string libraryId, string? systemId)
     {
+        if (_romm?.Owns(libraryId) == true)
+        {
+            return GetRommGames(systemId);
+        }
+
         var library = GetGameLibraries().FirstOrDefault(l =>
             SameId(l.Id, libraryId));
         if (library == null)
@@ -509,6 +605,11 @@ public class GamesService
         Guid? userId,
         CancellationToken cancellationToken)
     {
+        if (_romm?.Owns(libraryId) == true)
+        {
+            return await BuildRommDetailAsync(gameId, userId, cancellationToken).ConfigureAwait(false);
+        }
+
         var resolution = await ResolveGameAsync(libraryId, gameId, cancellationToken).ConfigureAwait(false);
         return resolution == null
             ? null
@@ -620,7 +721,8 @@ public class GamesService
         string? core,
         CancellationToken cancellationToken)
     {
-        if (_arcadeCompatibility == null || _arcadeCoreOverrides == null)
+        // Arcade compatibility hashes the local archive, which a RomM game doesn't have.
+        if (_arcadeCompatibility == null || _arcadeCoreOverrides == null || _romm?.Owns(libraryId) == true)
         {
             return null;
         }
@@ -666,6 +768,22 @@ public class GamesService
             throw new ArgumentException("The requested game backend is not available.", nameof(backend));
         }
 
+        if (_romm?.Owns(libraryId) == true)
+        {
+            var rommGame = _romm.FindGame(gameId);
+            if (rommGame == null)
+            {
+                return null;
+            }
+
+            await _gameBackendOverrides.SetAsync(
+                userId,
+                RommBackendPreferenceKey(rommGame),
+                string.IsNullOrWhiteSpace(backend) ? null : EmulatorJsBackend,
+                cancellationToken).ConfigureAwait(false);
+            return await BuildRommDetailAsync(gameId, userId, cancellationToken).ConfigureAwait(false);
+        }
+
         var resolution = await ResolveGameAsync(libraryId, gameId, cancellationToken).ConfigureAwait(false);
         if (resolution == null)
         {
@@ -708,6 +826,11 @@ public class GamesService
     /// </summary>
     public GameThumbSource? ResolveThumbSource(string libraryId, string gameId)
     {
+        if (_romm?.Owns(libraryId) == true)
+        {
+            return ResolveRommThumbSource(gameId);
+        }
+
         var resolved = _paths.ResolveGameFile(libraryId, gameId);
         if (resolved == null)
         {
@@ -736,6 +859,151 @@ public class GamesService
             resolved.RomPath,
             resolved.SystemName,
             coreWasDefaulted);
+    }
+
+    private IReadOnlyList<GameSystem> GetRommSystems()
+    {
+        var snapshot = _romm!.Snapshot();
+        if (snapshot == null)
+        {
+            return Array.Empty<GameSystem>();
+        }
+
+        var counts = snapshot.Games
+            .GroupBy(game => game.PlatformId)
+            .ToDictionary(group => group.Key, group => group.Count());
+        return snapshot.Platforms
+            .Where(platform => counts.ContainsKey(platform.Id))
+            .Select(platform => new GameSystem
+            {
+                Id = platform.SystemId,
+                Name = platform.Name,
+                Core = platform.Core,
+                GameCount = counts[platform.Id],
+            })
+            .OrderBy(system => system.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private IReadOnlyList<GameSummary> GetRommGames(string? systemId)
+    {
+        var snapshot = _romm!.Snapshot();
+        if (snapshot == null)
+        {
+            return Array.Empty<GameSummary>();
+        }
+
+        var result = new List<GameSummary>();
+        foreach (var game in snapshot.Games)
+        {
+            var platform = snapshot.FindPlatform(game.PlatformId);
+            if (platform == null ||
+                (!string.IsNullOrEmpty(systemId) && !string.Equals(platform.SystemId, systemId, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            result.Add(new GameSummary
+            {
+                Id = RommSource.GameId(game),
+                Title = game.Title,
+                System = platform.SystemId,
+                Core = platform.Core,
+                FileName = game.ServedName,
+            });
+        }
+
+        return result
+            .OrderBy(game => game.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task<GameDetail?> BuildRommDetailAsync(string gameId, Guid? userId, CancellationToken cancellationToken)
+    {
+        if (_romm!.FindGameAndPlatform(gameId) is not (var game, var platform))
+        {
+            return null;
+        }
+
+        var backendOverride = userId.HasValue && _gameBackendOverrides != null
+            ? await _gameBackendOverrides.GetAsync(userId.Value, RommBackendPreferenceKey(game), cancellationToken).ConfigureAwait(false)
+            : null;
+        if (!string.Equals(backendOverride, EmulatorJsBackend, StringComparison.Ordinal))
+        {
+            backendOverride = null;
+        }
+
+        var detail = new GameDetail
+        {
+            Id = gameId,
+            Title = game.Title,
+            System = platform.SystemId,
+            Core = platform.Core,
+            FileName = game.ServedName,
+            SizeBytes = game.ServedSizeBytes,
+            Bios = platform.Firmware
+                .Select(firmware => new GameBios
+                {
+                    Id = RommSource.FirmwareId(firmware),
+                    FileName = firmware.FileName,
+                    SizeBytes = firmware.SizeBytes,
+                })
+                .ToList(),
+            UserBackendOverride = backendOverride,
+            BackendOverrideSupported = _gameBackendOverrides != null,
+            Overview = game.Summary,
+            Genre = game.Genre,
+            Developer = game.Developer,
+            Publisher = game.Publisher,
+            Franchise = game.Franchise,
+            Region = game.Region,
+            Year = game.Year,
+            Players = game.Players,
+            Rating = game.Rating,
+        };
+
+        // RomM's own metadata wins. LaunchBox fills what RomM left empty, matched by title.
+        var lb = _launchBox?.TryLookup(platform.Core, game.Title, game.ServedName);
+        if (lb != null)
+        {
+            detail.Overview ??= lb.Overview;
+            detail.Genre ??= lb.Genre;
+            detail.Developer ??= lb.Developer;
+            detail.Publisher ??= lb.Publisher;
+            detail.Year ??= lb.Year;
+            detail.Players ??= lb.Players;
+            detail.Rating ??= lb.Rating;
+        }
+
+        return detail;
+    }
+
+    private string RommBackendPreferenceKey(RommGame game) =>
+        $"{_romm!.Settings?.LibraryId}:romm/{game.Id}";
+
+    private GameThumbSource? ResolveRommThumbSource(string gameId)
+    {
+        if (_romm!.FindGameAndPlatform(gameId) is not (var game, var platform))
+        {
+            return null;
+        }
+
+        IReadOnlyList<string> cores = IsArcadeFamilyCore(platform.Core)
+            ? new[] { platform.Core, ArcadeCompatibilityService.FbneoCore, ArcadeCompatibilityService.MameCore }
+                .Distinct(StringComparer.Ordinal)
+                .ToList()
+            : new[] { platform.Core };
+
+        // The served name stands in for a ROM path: the libretro fallback matches on it, and the
+        // RDB hash lookup finds no file and steps aside.
+        return new GameThumbSource(cores, game.Title, game.ServedName, platform.SystemId, false)
+        {
+            Remote = new RemoteGameArtwork(
+                $"romm/{game.Id}",
+                $"{game.Rom.Id}-{game.UpdatedAt}",
+                _romm.AssetUrl(game.CoverPath),
+                _romm.AssetUrl(game.ScreenshotPath)),
+        };
     }
 
     /// <summary>
@@ -1038,4 +1306,22 @@ public sealed record GameThumbSource(
     string Title,
     string RomPath,
     string SystemName,
-    bool CoreWasDefaulted);
+    bool CoreWasDefaulted)
+{
+    /// <summary>Set for a RomM game, which has no file on this server.</summary>
+    public RemoteGameArtwork? Remote { get; init; }
+}
+
+/// <summary>
+/// Where a RomM game's art comes from. The catalog keys it on the RomM ids and RomM's last
+/// change, standing in for the relative path and file stamp a folder library uses.
+/// </summary>
+public sealed record RemoteGameArtwork(string CatalogPath, string Fingerprint, string? BoxartUrl, string? SnapUrl)
+{
+    public string? UrlFor(GameThumbService.ThumbKind kind) => kind switch
+    {
+        GameThumbService.ThumbKind.Boxart => BoxartUrl,
+        GameThumbService.ThumbKind.Snap => SnapUrl,
+        _ => null,
+    };
+}

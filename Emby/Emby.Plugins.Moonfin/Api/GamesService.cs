@@ -1,6 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Net;
+using System.Net.Http;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Emby.Plugins.Moonfin.Models;
 using Emby.Plugins.Moonfin.Services;
@@ -9,6 +14,7 @@ using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
 using MediaBrowser.Model.IO;
 using MediaBrowser.Model.Services;
+using Moonfin.Romm;
 
 namespace Emby.Plugins.Moonfin.Api
 {
@@ -19,6 +25,7 @@ namespace Emby.Plugins.Moonfin.Api
     public class GamesService : IService, IRequiresRequest, IHasResultFactory
     {
         private const long MaxSaveBytes = 32 * 1024 * 1024;
+        private const long MaxRommArchiveBytes = 512L * 1024 * 1024;
         private static readonly Assembly _assembly = typeof(GamesService).Assembly;
 
         private readonly IAuthorizationContext _authContext;
@@ -41,8 +48,10 @@ namespace Emby.Plugins.Moonfin.Api
         private GamesScanner? Scanner()
         {
             var lm = PluginServices.LibraryManager;
-            return lm == null ? null : new GamesScanner(lm);
+            return lm == null ? null : new GamesScanner(lm, Plugin.Instance?.Romm);
         }
+
+        private static RommSource? Romm() => Plugin.Instance?.Romm;
 
         public object Get(GetGamesDebugRequest request)
         {
@@ -94,21 +103,30 @@ namespace Emby.Plugins.Moonfin.Api
             var source = scanner.ResolveThumbSource(request.LibraryId, request.GameId);
             if (source == null) return NotFound();
 
+            var kind = GameThumbService.ParseKind(request.Type);
+            var remoteUrl = kind == GameThumbService.ThumbKind.Boxart ? source.Value.BoxartUrl
+                : kind == GameThumbService.ThumbKind.Snap ? source.Value.SnapUrl
+                : null;
             var path = await thumbs
-                .GetThumbPathAsync(source.Value.Core, source.Value.FileName, GameThumbService.ParseKind(request.Type))
+                .GetThumbPathAsync(source.Value.Core, source.Value.FileName, kind, remoteUrl)
                 .ConfigureAwait(false);
             if (string.IsNullOrEmpty(path) || !File.Exists(path)) return NotFound();
 
-            // Art for a given ROM name never changes, so let clients keep it.
-            Request.Response.AddHeader("Cache-Control", "public,max-age=31536000,immutable");
+            // Art for a given ROM name never changes, so let clients keep it. RomM art can be
+            // replaced in RomM under the same game id, so that is only kept for an hour.
+            Request.Response.AddHeader(
+                "Cache-Control",
+                Romm()?.Owns(request.LibraryId) == true ? "public,max-age=3600" : "public,max-age=31536000,immutable");
             Request.Response.AddHeader("X-Content-Type-Options", "nosniff");
-            return ResultFactory.GetStaticFileResult(Request, path);
+            return await ResultFactory.GetStaticFileResult(Request, path).ConfigureAwait(false);
         }
 
-        public object Get(GetGameRomRequest request)
+        public async Task<object> Get(GetGameRomRequest request)
         {
             var scanner = Scanner();
             if (!GamesEnabled() || scanner == null) return NotFound();
+            var romm = Romm();
+            if (romm?.Owns(request.LibraryId) == true) return await ServeRommRomAsync(romm, request.Token).ConfigureAwait(false);
             var path = scanner.ResolveFilePath(request.LibraryId, request.Token, allowBios: false);
             if (string.IsNullOrEmpty(path) || !File.Exists(path)) return NotFound();
             if (GamesScanner.IsArchive(path))
@@ -120,23 +138,51 @@ namespace Emby.Plugins.Moonfin.Api
                 // Unpack the archive in memory so the client gets raw ROM bytes. The file on disk is untouched.
                 return ResultFactory.GetResult(Request, new MemoryStream(rom), "application/octet-stream", null);
             }
-            return ResultFactory.GetStaticFileResult(Request, path);
+            return await ResultFactory.GetStaticFileResult(Request, path).ConfigureAwait(false);
         }
 
-        public object Get(GetGameBiosRequest request)
+        public async Task<object> Get(GetGameBiosRequest request)
         {
             var scanner = Scanner();
             if (!GamesEnabled() || scanner == null) return NotFound();
+            var romm = Romm();
+            if (romm?.Owns(request.LibraryId) == true)
+            {
+                var firmware = romm.FindFirmware(request.Token);
+                var client = romm.CreateClient();
+                if (firmware == null || client == null) return NotFound();
+                return await ProxyRommAsync(range => client.SendFirmwareAsync(HttpMethod.Get, firmware, range, Request.CancellationToken)).ConfigureAwait(false);
+            }
+
             var path = scanner.ResolveFilePath(request.LibraryId, request.Token, allowBios: true);
             if (string.IsNullOrEmpty(path) || !File.Exists(path)) return NotFound();
-            return ResultFactory.GetStaticFileResult(Request, path);
+            return await ResultFactory.GetStaticFileResult(Request, path).ConfigureAwait(false);
         }
 
-        public object Head(HeadGameRomRequest request) =>
-            SizeOnly(request.LibraryId, request.Token, allowBios: false);
+        public object Head(HeadGameRomRequest request)
+        {
+            var romm = Romm();
+            if (GamesEnabled() && romm?.Owns(request.LibraryId) == true)
+            {
+                // RomM listed every size, unpacked archives included, so no request goes upstream.
+                var game = romm.FindGame(request.Token);
+                return game == null ? NotFound() : HeadResult(game.ServedSizeBytes);
+            }
 
-        public object Head(HeadGameBiosRequest request) =>
-            SizeOnly(request.LibraryId, request.Token, allowBios: true);
+            return SizeOnly(request.LibraryId, request.Token, allowBios: false);
+        }
+
+        public object Head(HeadGameBiosRequest request)
+        {
+            var romm = Romm();
+            if (GamesEnabled() && romm?.Owns(request.LibraryId) == true)
+            {
+                var firmware = romm.FindFirmware(request.Token);
+                return firmware == null ? NotFound() : HeadResult(firmware.SizeBytes);
+            }
+
+            return SizeOnly(request.LibraryId, request.Token, allowBios: true);
+        }
 
         // Answers with the length the matching GET would send and no body. An archived ROM is
         // measured from the archive index, since the GET serves the unpacked entry.
@@ -152,6 +198,11 @@ namespace Emby.Plugins.Moonfin.Api
                 : new FileInfo(path).Length;
             if (length == null) return NotFound();
 
+            return HeadResult(length.Value);
+        }
+
+        private object HeadResult(long length)
+        {
             return ResultFactory.GetStaticResult(Request, new StaticResultOptions
             {
                 ContentType = "application/octet-stream",
@@ -164,9 +215,145 @@ namespace Emby.Plugins.Moonfin.Api
                 {
                     Stream = Stream.Null,
                     Length = 0,
-                    TotalLength = length.Value,
+                    TotalLength = length,
                 }),
             });
+        }
+
+        public async Task<object> Post(TestRommRequest request)
+        {
+            var romm = Romm();
+            var baseUrl = RommClient.NormalizeBaseUrl(request.Url);
+            var token = RommClient.NormalizeToken(request.Token);
+            if (romm == null) return Json(new RommTestResult { Error = "The plugin is still starting." });
+            if (baseUrl == null) return Json(new RommTestResult { Error = "Enter the RomM address, like http://192.168.1.20:8080." });
+            if (token == null) return Json(new RommTestResult { Error = "Enter a RomM client token." });
+
+            try
+            {
+                var info = await romm.ClientFor(baseUrl, token).CheckAsync(Request.CancellationToken).ConfigureAwait(false);
+                return Json(new RommTestResult
+                {
+                    Ok = true,
+                    Version = info.Version,
+                    PlatformCount = info.PlatformCount,
+                    SupportedPlatformCount = info.SupportedPlatformCount,
+                    SupportedRomCount = info.SupportedRomCount,
+                });
+            }
+            catch (Exception ex) when (ex is JsonException || ex is RommRequestException { StatusCode: 404 })
+            {
+                return Json(new RommTestResult { Error = "That address answered, but not like a RomM server." });
+            }
+            catch (RommRequestException ex)
+            {
+                return Json(new RommTestResult { Error = ex.Message + "." });
+            }
+            catch (HttpRequestException)
+            {
+                return Json(new RommTestResult { Error = "Couldn't reach RomM at that address." });
+            }
+            catch (TaskCanceledException)
+            {
+                return Json(new RommTestResult { Error = "RomM didn't answer in time." });
+            }
+        }
+
+        private async Task<object> ServeRommRomAsync(RommSource romm, string gameId)
+        {
+            var game = romm.FindGame(gameId);
+            var client = romm.CreateClient();
+            if (game == null || client == null) return NotFound();
+
+            if (!game.UnpackArchive)
+            {
+                return await ProxyRommAsync(range => client.SendRomAsync(HttpMethod.Get, game, range, Request.CancellationToken)).ConfigureAwait(false);
+            }
+
+            // A zipped ROM is unpacked here like one in a folder library, so the app gets the same
+            // raw bytes either way.
+            var temp = Path.Combine(Path.GetTempPath(), $"moonfin-romm-{Guid.NewGuid():N}{Path.GetExtension(game.Rom.FileName)}");
+            try
+            {
+                var status = await client.DownloadRomAsync(game, temp, MaxRommArchiveBytes, Request.CancellationToken).ConfigureAwait(false);
+                if (status == HttpStatusCode.RequestEntityTooLarge)
+                {
+                    return Json(413, new { error = "The archive exceeds the " + (MaxRommArchiveBytes / (1024 * 1024)) + " MB limit for extracted ROMs." });
+                }
+
+                if (status != HttpStatusCode.OK) return RommFailure(status);
+
+                byte[]? rom;
+                try { rom = GamesScanner.ExtractRomFromArchive(temp); }
+                catch { return NotFound(); }
+                if (rom == null || rom.Length == 0) return NotFound();
+                return ResultFactory.GetResult(Request, new MemoryStream(rom), "application/octet-stream", null);
+            }
+            catch (HttpRequestException)
+            {
+                Request.Response.StatusCode = 502;
+                return null!;
+            }
+            finally
+            {
+                try { File.Delete(temp); }
+                catch (IOException)
+                {
+                    // A temp file left behind is cleared with the rest of the temp folder.
+                }
+            }
+        }
+
+        /// <summary>
+        /// Streams a RomM file to the app. A byte range is passed through so a client can resume or
+        /// probe the size the way it does against a file on disk.
+        /// </summary>
+        private async Task<object> ProxyRommAsync(Func<string?, Task<HttpResponseMessage>> send)
+        {
+            HttpResponseMessage upstream;
+            try
+            {
+                upstream = await send(Request.Headers?.Get("Range")).ConfigureAwait(false);
+            }
+            catch (HttpRequestException)
+            {
+                Request.Response.StatusCode = 502;
+                return null!;
+            }
+            catch (TaskCanceledException)
+            {
+                Request.Response.StatusCode = 504;
+                return null!;
+            }
+
+            if (upstream.StatusCode != HttpStatusCode.OK && upstream.StatusCode != HttpStatusCode.PartialContent)
+            {
+                using (upstream) return RommFailure(upstream.StatusCode);
+            }
+
+            var headers = new Dictionary<string, string> { ["Accept-Ranges"] = "bytes" };
+            if (upstream.Content.Headers.ContentLength is long length)
+            {
+                headers["Content-Length"] = length.ToString(CultureInfo.InvariantCulture);
+            }
+
+            if (upstream.Content.Headers.ContentRange != null)
+            {
+                headers["Content-Range"] = upstream.Content.Headers.ContentRange.ToString();
+            }
+
+            Request.Response.StatusCode = (int)upstream.StatusCode;
+            // Emby disposes the stream once it is written, which releases the RomM connection.
+            var stream = await upstream.Content.ReadAsStreamAsync().ConfigureAwait(false);
+            return ResultFactory.GetResult(Request, stream, "application/octet-stream", headers);
+        }
+
+        private object RommFailure(HttpStatusCode status)
+        {
+            Request.Response.StatusCode = status == HttpStatusCode.NotFound ? 404
+                : status == HttpStatusCode.RequestedRangeNotSatisfiable ? 416
+                : 502;
+            return null!;
         }
 
         public object Get(GetGameSaveRequest request)

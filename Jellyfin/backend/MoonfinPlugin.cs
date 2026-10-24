@@ -104,6 +104,7 @@ public class MoonfinPlugin : BasePlugin<PluginConfiguration>, IHasWebPages
         var previousUrl = Configuration.PublicServerUrl;
         var previousGamesEnabled = Configuration.GamesEnabled;
         var previousGameLibraryIds = Configuration.GameLibraryIds?.ToList() ?? new List<string>();
+        var previousRomm = RommSignature(Configuration);
         base.UpdateConfiguration(configuration);
 
         // Re-provision the Seerr webhook when the public URL changes, so the new URL is
@@ -127,6 +128,7 @@ public class MoonfinPlugin : BasePlugin<PluginConfiguration>, IHasWebPages
         // is a convenience re-sync rather than something correctness depends on.
         var newGameLibraryIds = Configuration.GameLibraryIds ?? new List<string>();
         if (previousGamesEnabled != Configuration.GamesEnabled ||
+            !string.Equals(previousRomm, RommSignature(Configuration), StringComparison.Ordinal) ||
             !previousGameLibraryIds.OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
                 .SequenceEqual(newGameLibraryIds.OrderBy(id => id, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase))
         {
@@ -143,6 +145,9 @@ public class MoonfinPlugin : BasePlugin<PluginConfiguration>, IHasWebPages
             }
         }
     }
+
+    private static string RommSignature(PluginConfiguration config) =>
+        config.GamesRommUrl + "\n" + config.GamesRommToken + "\n" + config.GamesRommLibraryId;
 
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()

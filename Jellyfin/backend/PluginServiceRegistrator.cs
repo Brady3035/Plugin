@@ -1,6 +1,7 @@
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using Moonfin.Romm;
 using Moonfin.Server.Services;
 
 namespace Moonfin.Server;
@@ -47,6 +48,16 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<CustomRowCacheService>();
         serviceCollection.AddSingleton<CustomRowFetchService>();
         serviceCollection.AddSingleton<CollectionOrderService>();
+        serviceCollection.AddSingleton(provider => new RommSource(
+            () =>
+            {
+                var config = MoonfinPlugin.Instance?.Configuration;
+                return config == null
+                    ? null
+                    : RommSettings.From(config.GamesRommUrl, config.GamesRommToken, config.GamesRommLibraryId);
+            },
+            () => provider.GetRequiredService<IHttpClientFactory>().CreateClient(),
+            GameSystemCoreResolver.RommRules));
         serviceCollection.AddSingleton<GamesService>();
         serviceCollection.AddSingleton<GameSavesService>();
         // MoonfinPlugin.ResolveDataFolderPath() must be called INSIDE each factory lambda, not
