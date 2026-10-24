@@ -369,6 +369,33 @@ public class GamesController : ControllerBase
             : NotFound();
     }
 
+    /// <summary>
+    /// Administrator-only library-wide repair, run in the background: checks the library's game
+    /// metadata for updates, then reopens artwork that never found an original.
+    /// </summary>
+    [HttpPost("{libraryId}/Artwork/Refresh")]
+    [Authorize(Policy = "RequiresElevation")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public IActionResult RefreshLibraryArtwork([FromRoute] string libraryId, [FromQuery] string? system)
+    {
+        if (!GamesEnabled())
+        {
+            return NotFound();
+        }
+
+        return _artwork.StartLibraryArtworkRefresh(libraryId, system) switch
+        {
+            LibraryArtworkRefreshStatus.NotFound => NotFound(),
+            LibraryArtworkRefreshStatus.BadSystem => BadRequest(new { error = "Unknown system." }),
+            LibraryArtworkRefreshStatus.Conflict => Conflict(new { error = "An artwork refresh for this library is already running." }),
+            _ => Accepted(),
+        };
+    }
+
     /// <summary>Lists the games inside a library, optionally filtered to one system.</summary>
     [HttpGet("{libraryId}/Games")]
     [Authorize]
