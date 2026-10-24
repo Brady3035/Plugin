@@ -2466,6 +2466,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             setNullableBoolSelect(view, '#DefaultPreferExternalSubtitles', defaults.preferExternalSubtitles);
 
             setNullableBoolSelect(view, '#DefaultCinemaModeEnabled', defaults.cinemaModeEnabled);
+            setNullableBoolSelect(view, '#DefaultCinemaModeSkipEnabled', defaults.cinemaModeSkipEnabled);
             setNullableBoolSelect(view, '#DefaultAutoplayNextEpisode', defaults.autoplayNextEpisode);
             setSelectValue(view, '#DefaultNextUpTimeout', defaults.nextUpTimeout != null ? String(defaults.nextUpTimeout) : '', 'Configured timeout');
             setSelectValue(view, '#DefaultStillWatchingBehavior', defaults.stillWatchingBehavior, 'Configured behavior');
@@ -2813,6 +2814,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             d.preferExternalSubtitles = getNullableBoolSelect(view, '#DefaultPreferExternalSubtitles');
 
             d.cinemaModeEnabled = getNullableBoolSelect(view, '#DefaultCinemaModeEnabled');
+            d.cinemaModeSkipEnabled = getNullableBoolSelect(view, '#DefaultCinemaModeSkipEnabled');
             d.autoplayNextEpisode = getNullableBoolSelect(view, '#DefaultAutoplayNextEpisode');
             d.nextUpTimeout = getNullableIntInput(view, '#DefaultNextUpTimeout');
             d.stillWatchingBehavior = view.querySelector('#DefaultStillWatchingBehavior').value || null;
