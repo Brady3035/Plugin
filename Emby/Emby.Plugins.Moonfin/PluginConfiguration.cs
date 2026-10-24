@@ -186,6 +186,13 @@ namespace Emby.Plugins.Moonfin
         /// <summary>Admin-configured default settings. Users who haven't customized a setting inherit this value.</summary>
         public MoonfinSettingsProfile? DefaultUserSettings { get; set; }
 
+        /// <summary>
+        /// Libraries added to each new user's My Media and Latest exclude lists, and to existing users'
+        /// when the admin applies the defaults to them. Kept as Emby's numeric ids, which Moonfin
+        /// clients match on and Emby's own apps ignore.
+        /// </summary>
+        public List<string> DefaultHiddenLibraryIds { get; set; } = new List<string>();
+
         /// <summary>Metadata index for uploaded custom themes stored in the plugin data folder.</summary>
         public List<UploadedThemeEntry> UploadedThemes { get; set; } = new List<UploadedThemeEntry>();
 

@@ -35,6 +35,7 @@ public class MoonfinController : ControllerBase
     private readonly ConfigBackupService _configBackup;
     private readonly MoonfinSimilarItemsService _similarItemsService;
     private readonly ItemCardDtoMapper _cardMapper;
+    private readonly DefaultHiddenLibraries _hiddenLibraries;
     private readonly ILogger<MoonfinController> _logger;
     
     private static readonly Type? _userManagerType = Type.GetType("MediaBrowser.Controller.Library.IUserManager, MediaBrowser.Controller");
@@ -51,6 +52,7 @@ public class MoonfinController : ControllerBase
         ConfigBackupService configBackup,
         MoonfinSimilarItemsService similarItemsService,
         ItemCardDtoMapper cardMapper,
+        DefaultHiddenLibraries hiddenLibraries,
         ILogger<MoonfinController> logger)
     {
         _settingsService = settingsService;
@@ -60,6 +62,7 @@ public class MoonfinController : ControllerBase
         _configBackup = configBackup;
         _similarItemsService = similarItemsService;
         _cardMapper = cardMapper;
+        _hiddenLibraries = hiddenLibraries;
         _logger = logger;
     }
 
@@ -492,6 +495,7 @@ public class MoonfinController : ControllerBase
             usersAffected = await _settingsService.MergeDefaultsToAllUsersAsync(defaults);
         }
 
+        await _hiddenLibraries.ApplyAsync(GetAllServerUserIds() ?? new List<Guid>());
         var liveRefreshDeliveries = _settingsService.BroadcastSystemEvent("settingsUpdated");
 
         return Ok(new { success = true, overwrite, usersAffected, orphansDeleted, liveRefreshDeliveries });
@@ -537,6 +541,7 @@ public class MoonfinController : ControllerBase
             await _settingsService.MergeDefaultsToUserAsync(userId, defaults);
         }
 
+        await _hiddenLibraries.ApplyAsync([userId]);
         return Ok(new { success = true, overwrite });
     }
 

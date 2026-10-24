@@ -1,4 +1,6 @@
+using Jellyfin.Data.Events.Users;
 using MediaBrowser.Controller;
+using MediaBrowser.Controller.Events;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -19,6 +21,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddSingleton<MoonfinSettingsService>();
         serviceCollection.AddSingleton<IUserDirectory, UserDirectory>();
+        serviceCollection.AddSingleton<DefaultHiddenLibraries>();
+        serviceCollection.AddScoped<IEventConsumer<UserCreatedEventArgs>, DefaultHiddenLibrariesOnUserCreated>();
         serviceCollection.AddSingleton<IPinStore, FilePinStore>();
         serviceCollection.AddSingleton<PinService>(sp => new PinService(sp.GetRequiredService<IPinStore>()));
         serviceCollection.AddSingleton<MoonfinThemeValidator>();

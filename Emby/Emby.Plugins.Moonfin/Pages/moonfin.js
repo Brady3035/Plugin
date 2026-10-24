@@ -2354,6 +2354,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             view.querySelector('#LiveTvIncompleteThresholdPercent').value = config.LiveTvIncompleteThresholdPercent || 90;
             view.querySelector('#LiveTvDeleteIncompleteCopies').checked = config.LiveTvDeleteIncompleteCopies === true;
 
+            loadLibraryPicker(view, '#DefaultHiddenLibraryPicker', 'defaultHiddenLibraryCb', config.DefaultHiddenLibraryIds || []);
+
             view.querySelector('#GamesEnabled').checked = config.GamesEnabled === true;
             loadGameLibraryPicker(view, config.GameLibraryIds || []);
             initGameCores(view, view.__moonfinState);
@@ -2697,6 +2699,11 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             config.LiveTvAutoRecordCompleteShowing = view.querySelector('#LiveTvAutoRecordCompleteShowing').checked;
             config.LiveTvIncompleteThresholdPercent = Math.min(100, Math.max(50, parseInt(view.querySelector('#LiveTvIncompleteThresholdPercent').value, 10) || 90));
             config.LiveTvDeleteIncompleteCopies = view.querySelector('#LiveTvDeleteIncompleteCopies').checked;
+
+            if (view.querySelector('.defaultHiddenLibraryCb') != null) {
+                config.DefaultHiddenLibraryIds = Array.prototype.slice.call(view.querySelectorAll('.defaultHiddenLibraryCb:checked'))
+                    .map(function (cb) { return cb.getAttribute('data-id'); });
+            }
 
             config.GamesEnabled = view.querySelector('#GamesEnabled').checked;
             config.GameLibraryIds = Array.prototype.slice.call(view.querySelectorAll('.gameLibraryCb:checked'))

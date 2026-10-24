@@ -325,6 +325,7 @@ namespace Emby.Plugins.Moonfin.Api
                 usersAffected = await Settings.MergeDefaultsToAllUsersAsync(defaults).ConfigureAwait(false);
             }
 
+            PluginServices.HiddenLibraries?.ApplyToAll();
             var liveRefreshDeliveries = Settings.BroadcastSystemEvent("settingsUpdated");
             return Json(new { success = true, overwrite, usersAffected, orphansDeleted, liveRefreshDeliveries });
         }
@@ -345,6 +346,7 @@ namespace Emby.Plugins.Moonfin.Api
             else
                 await Settings.MergeDefaultsToUserAsync(userId, defaults).ConfigureAwait(false);
 
+            PluginServices.HiddenLibraries?.ApplyTo(userId);
             return Json(new { success = true, overwrite });
         }
 

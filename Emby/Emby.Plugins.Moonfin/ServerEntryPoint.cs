@@ -24,6 +24,7 @@ namespace Emby.Plugins.Moonfin
         private readonly ILiveTvManager _liveTvManager;
         private readonly ITaskManager _taskManager;
         private Services.NewMediaNotifier? _newMediaNotifier;
+        private Services.DefaultHiddenLibraries? _hiddenLibraries;
         private Services.EmbyLiveTvRecordingHost? _recordingHost;
         private IncompleteRecordingWatcher? _recordingWatcher;
         private CancellationTokenSource? _recordingStop;
@@ -67,6 +68,9 @@ namespace Emby.Plugins.Moonfin
                     _logManager.GetLogger("MoonfinNewMedia"));
                 _newMediaNotifier.Start();
             }
+
+            _hiddenLibraries = new Services.DefaultHiddenLibraries(_userManager, _logManager.GetLogger("Moonfin"));
+            PluginServices.HiddenLibraries = _hiddenLibraries;
 
             StartIncompleteRecordings(plugin);
 
@@ -124,6 +128,9 @@ namespace Emby.Plugins.Moonfin
             _newMediaNotifier?.Dispose();
             _newMediaNotifier = null;
 
+            _hiddenLibraries?.Dispose();
+            PluginServices.HiddenLibraries = null;
+
             _recordingStop?.Cancel();
             _recordingHost?.Dispose();
             _recordingWatcher?.Dispose();
@@ -140,5 +147,6 @@ namespace Emby.Plugins.Moonfin
         public static IUserDataManager? UserDataManager { get; set; }
         public static ISessionManager? SessionManager { get; set; }
         public static IncompleteRecordingService? IncompleteRecordings { get; set; }
+        public static Services.DefaultHiddenLibraries? HiddenLibraries { get; set; }
     }
 }

@@ -325,6 +325,12 @@ public class PluginConfiguration : BasePluginConfiguration
     public MoonfinSettingsProfile? DefaultUserSettings { get; set; }
 
     /// <summary>
+    /// Libraries added to each new user's My Media and Latest exclude lists, and to existing users'
+    /// when the admin applies the defaults to them.
+    /// </summary>
+    public List<string> DefaultHiddenLibraryIds { get; set; } = new();
+
+    /// <summary>
     /// Metadata index for uploaded custom themes stored in the plugin data folder.
     /// </summary>
     public List<UploadedThemeEntry> UploadedThemes { get; set; } = new();
