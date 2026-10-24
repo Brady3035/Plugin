@@ -137,6 +137,7 @@ public class MoonfinController : ControllerBase
             TmdbReviewsSupported = true,
             MessagesSupported = true,
             PinSupported = true,
+            IncompleteRecordingsSupported = config?.LiveTvDetectIncompleteRecordings ?? true,
             RecommendationsSupported = config?.RecommendationsProviderEnabled ?? true,
             DefaultSettings = config?.DefaultUserSettings
         });
@@ -1579,6 +1580,14 @@ public class MoonfinPingResponse
     /// </summary>
     [JsonPropertyName("pinSupported")]
     public bool? PinSupported { get; set; }
+
+    /// <summary>
+    /// True when this plugin has the incomplete Live TV recordings endpoints and the admin left
+    /// detection on. Older plugins leave it out, so the app hides the badge, the Record prompt and
+    /// the setting.
+    /// </summary>
+    [JsonPropertyName("incompleteRecordingsSupported")]
+    public bool? IncompleteRecordingsSupported { get; set; }
 
     /// <summary>
     /// True when this plugin supports server-side recommendations scoring.
