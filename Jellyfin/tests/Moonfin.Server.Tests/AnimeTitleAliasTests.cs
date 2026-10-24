@@ -1,4 +1,5 @@
 using MediaBrowser.Controller.Entities.TV;
+using Moonfin.Anime;
 using Moonfin.Server.Services;
 using Xunit;
 

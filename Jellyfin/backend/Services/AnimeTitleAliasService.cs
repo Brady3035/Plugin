@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using MediaBrowser.Controller.Entities;
 using Microsoft.Extensions.Logging;
+using Moonfin.Anime;
 
 namespace Moonfin.Server.Services;
 

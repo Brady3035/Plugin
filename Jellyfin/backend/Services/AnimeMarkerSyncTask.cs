@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
+using Moonfin.Anime;
 using Moonfin.Server.Helpers;
 
 namespace Moonfin.Server.Services;

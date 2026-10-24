@@ -546,6 +546,9 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { parent: 'DefaultEnableRadarrCalendar', fields: ['DefaultRadarrCalendarShowCinema', 'DefaultRadarrCalendarShowDigital', 'DefaultRadarrCalendarShowPhysical', 'DefaultRadarrCalendarShowDate', 'DefaultMergeRadarrSonarrCalendars'] },
         { parent: 'DefaultEnableSonarrCalendar', fields: ['DefaultSonarrCalendarShowDate', 'DefaultSonarrCalendarShowEpisodeInfo', 'DefaultMergeRadarrSonarrCalendars'] },
         { parent: 'MdblistOfficialListsEnabled', fields: ['MdblistOfficialListsMaxItems'] },
+        { parent: 'AnimeMarkersEnabled', fields: ['AnimeMarkerRecapLookup', 'AnimeMarkerShowFiller', 'AnimeMarkerMaxAgeDays'] },
+        { parent: 'AnimeAudioMarkersEnabled', fields: ['AnimeAudioMarkersMovies', 'AnimeAudioSeparateDualAudio'] },
+        { parent: ['AnimeMarkersEnabled', 'AnimeAudioMarkersEnabled'], fields: ['AnimeMarkerLibraryPicker', 'AnimeAudioTrustSelectedLibraries', 'AnimeMarkerPlacement', 'AnimeMarkerDiagBtn', 'AnimeMarkerPreviewName', 'AnimeMarkerVerboseLogging', 'AnimeMarkerLogBtn'] },
         { parent: 'GamesEnabled', fields: ['GameCoresStatus', 'GameCoresFile', 'GameLibraryPicker'] },
         { parent: 'DefaultNavbarPosition', off: ['top', 'left'], fields: ['DefaultBottomNavbarStyle', 'DefaultBottomNavbarTab1'] },
         { parent: 'DefaultNavbarPosition', off: ['bottom'], fields: ['DefaultNavbarAlwaysExpanded'] },
@@ -619,7 +622,11 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
     // ── Pickers ─────────────────────────────────────────────────────────────
 
     function loadGameLibraryPicker(view, selectedIds) {
-        var picker = view.querySelector('#GameLibraryPicker');
+        loadLibraryPicker(view, '#GameLibraryPicker', 'gameLibraryCb', selectedIds);
+    }
+
+    function loadLibraryPicker(view, pickerSelector, checkboxClass, selectedIds) {
+        var picker = view.querySelector(pickerSelector);
         if (!picker) return;
         picker.innerHTML = '<div style="padding:8px;color:rgba(128,128,128,0.5);font-size:0.9em;">Loading...</div>';
         var userId = ApiClient.getCurrentUserId();
@@ -634,7 +641,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
                 var item = items[i];
                 var isChecked = selectedIds.indexOf(item.Id) !== -1;
                 html += '<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;cursor:pointer;' + (isChecked ? 'background:rgba(82,181,75,0.15);' : '') + '">' +
-                    '<input type="checkbox" class="gameLibraryCb" data-id="' + item.Id + '"' + (isChecked ? ' checked' : '') + ' style="width:16px;height:16px;">' +
+                    '<input type="checkbox" class="' + checkboxClass + '" data-id="' + item.Id + '"' + (isChecked ? ' checked' : '') + ' style="width:16px;height:16px;">' +
                     '<div style="flex:1;min-width:0;"><div style="font-size:0.9em;color:rgba(128,128,128,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(item.Name || 'Untitled') + '</div>' +
                     '<div style="font-size:0.75em;color:rgba(128,128,128,0.4);">' + esc(item.CollectionType || 'mixed') + '</div></div></label>';
             }
@@ -2270,6 +2277,21 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             view.querySelector('#ImdbListsEnabled').checked = config.ImdbListsEnabled !== false;
             view.querySelector('#StudioLogosEnabled').checked = config.StudioLogosEnabled !== false;
             view.querySelector('#StudioLogosMaxAgeDays').value = config.StudioLogosMaxAgeDays || 30;
+            view.querySelector('#AnimeMarkersEnabled').checked = config.AnimeMarkersEnabled === true;
+            view.querySelector('#AnimeMarkerRecapLookup').checked = config.AnimeMarkerRecapLookup !== false;
+            view.querySelector('#AnimeAudioMarkersEnabled').checked = config.AnimeAudioMarkersEnabled === true;
+            view.querySelector('#AnimeAudioMarkersMovies').checked = config.AnimeAudioMarkersMovies === true;
+            view.querySelector('#AnimeAudioSeparateDualAudio').checked = config.AnimeAudioSeparateDualAudio === true;
+            view.querySelector('#AnimeAudioTrustSelectedLibraries').checked = config.AnimeAudioTrustSelectedLibraries === true;
+            view.querySelector('#AnimeMarkerPlacement').value = config.AnimeMarkerPlacement || 'below';
+            view.querySelector('#AnimeMarkerShowFiller').checked = config.AnimeMarkerShowFiller !== false;
+            view.querySelector('#AnimeMarkerShowMixed').checked = config.AnimeMarkerShowMixed !== false;
+            view.querySelector('#AnimeMarkerShowRecap').checked = config.AnimeMarkerShowRecap !== false;
+            view.querySelector('#AnimeMarkerShowMangaCanon').checked = config.AnimeMarkerShowMangaCanon === true;
+            view.querySelector('#AnimeMarkerShowAnimeCanon').checked = config.AnimeMarkerShowAnimeCanon === true;
+            view.querySelector('#AnimeMarkerMaxAgeDays').value = config.AnimeMarkerMaxAgeDays || 30;
+            view.querySelector('#AnimeMarkerVerboseLogging').checked = config.AnimeMarkerVerboseLogging === true;
+            loadLibraryPicker(view, '#AnimeMarkerLibraryPicker', 'animeMarkerLibraryCb', config.AnimeMarkerLibraryIds || []);
             view.querySelector('#FcmServiceAccountJson').value = config.FcmServiceAccountJson || '';
             view.querySelector('#FcmServiceAccountPath').value = config.FcmServiceAccountPath || '';
             view.querySelector('#PushRelayUrl').value = config.PushRelayUrl || '';
@@ -2584,6 +2606,25 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             config.ImdbListsEnabled = view.querySelector('#ImdbListsEnabled').checked;
             config.StudioLogosEnabled = view.querySelector('#StudioLogosEnabled').checked;
             config.StudioLogosMaxAgeDays = parseInt(view.querySelector('#StudioLogosMaxAgeDays').value, 10) || 30;
+            config.AnimeMarkersEnabled = view.querySelector('#AnimeMarkersEnabled').checked;
+            config.AnimeMarkerRecapLookup = view.querySelector('#AnimeMarkerRecapLookup').checked;
+            config.AnimeAudioMarkersEnabled = view.querySelector('#AnimeAudioMarkersEnabled').checked;
+            config.AnimeAudioMarkersMovies = view.querySelector('#AnimeAudioMarkersMovies').checked;
+            config.AnimeAudioSeparateDualAudio = view.querySelector('#AnimeAudioSeparateDualAudio').checked;
+            config.AnimeAudioTrustSelectedLibraries = view.querySelector('#AnimeAudioTrustSelectedLibraries').checked;
+            config.AnimeMarkerPlacement = view.querySelector('#AnimeMarkerPlacement').value || 'below';
+            config.AnimeMarkerShowFiller = view.querySelector('#AnimeMarkerShowFiller').checked;
+            config.AnimeMarkerShowMixed = view.querySelector('#AnimeMarkerShowMixed').checked;
+            config.AnimeMarkerShowRecap = view.querySelector('#AnimeMarkerShowRecap').checked;
+            config.AnimeMarkerShowMangaCanon = view.querySelector('#AnimeMarkerShowMangaCanon').checked;
+            config.AnimeMarkerShowAnimeCanon = view.querySelector('#AnimeMarkerShowAnimeCanon').checked;
+            config.AnimeMarkerMaxAgeDays = parseInt(view.querySelector('#AnimeMarkerMaxAgeDays').value, 10) || 30;
+            config.AnimeMarkerVerboseLogging = view.querySelector('#AnimeMarkerVerboseLogging').checked;
+            // Only read once the picker has drawn, so a save during its load keeps the stored list.
+            if (view.querySelector('#AnimeMarkerLibraryPicker .animeMarkerLibraryCb')) {
+                config.AnimeMarkerLibraryIds = Array.prototype.slice.call(view.querySelectorAll('.animeMarkerLibraryCb:checked'))
+                    .map(function (cb) { return cb.getAttribute('data-id'); });
+            }
             config.FcmServiceAccountJson = view.querySelector('#FcmServiceAccountJson').value || null;
             config.FcmServiceAccountPath = view.querySelector('#FcmServiceAccountPath').value || null;
             config.PushRelayUrl = (view.querySelector('#PushRelayUrl').value || '').trim()
@@ -2980,6 +3021,237 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             if (resultEl) resultEl.textContent = 'Could not clear the ratings cache.';
         }).finally(function () {
             if (btn) btn.disabled = false;
+        });
+    }
+
+    function loadAnimeMarkerDiagnostics(view) {
+        var status = view.querySelector('#AnimeMarkerDiagStatus');
+        if (!status) return;
+
+        status.textContent = 'Checking every series against the AnimeFillerList catalog...';
+
+        ApiClient.getJSON(ApiClient.getUrl('Moonfin/AnimeMarkers/Diagnostics')).then(function (info) {
+            if (!info.catalogLoaded) {
+                status.textContent = info.error || 'The AnimeFillerList catalog could not be loaded.';
+                return;
+            }
+
+            var lines = [
+                info.seriesMatched + ' of ' + info.seriesConsidered + ' series matched a show (the catalog holds ' + info.catalogShows + ')',
+                info.showsCached + ' shows cached, ' + info.showsPending + ' waiting for the next sync',
+                info.episodesClassified + ' episodes classified, ' + info.episodesFlagged + ' of them filler or mixed'
+            ];
+
+            if (info.unmatchedCount > 0) {
+                lines.push(info.unmatchedCount + ' series matched nothing, for example: ' + (info.unmatched || []).slice(0, 8).join(', '));
+            }
+
+            status.innerHTML = lines.map(function (line) { return esc(line); }).join('<br>');
+        }, function () {
+            status.textContent = 'Could not read the anime marker diagnostics.';
+        });
+    }
+
+    var ANIME_MARKER_COLORS = {
+        Filler: '#e5534b',
+        Mixed: '#d29922',
+        AnimeCanon: '#3fb950',
+        MangaCanon: '#58a6ff'
+    };
+
+    var ANIME_MARKER_LABELS = {
+        Filler: 'Filler',
+        Mixed: 'Mixed',
+        AnimeCanon: 'Anime canon',
+        MangaCanon: 'Manga canon'
+    };
+
+    // Finds the typed series through Emby's own item search. Resolves to null, with the reason
+    // on the status line, when no name was typed or nothing matched.
+    function findTypedAnimeMarkerSeries(view, busyMessage) {
+        var status = view.querySelector('#AnimeMarkerPreviewStatus');
+        var name = (view.querySelector('#AnimeMarkerPreviewName').value || '').trim();
+        if (!name) {
+            status.textContent = 'Type a series name first.';
+            return Promise.resolve(null);
+        }
+
+        status.textContent = busyMessage(name);
+
+        return ApiClient.getItems(ApiClient.getCurrentUserId(), {
+            IncludeItemTypes: 'Series',
+            Recursive: true,
+            SearchTerm: name,
+            Limit: 1
+        }).then(function (result) {
+            var series = ((result && result.Items) || [])[0] || null;
+            if (!series) status.textContent = 'No series called "' + name + '" is in your library.';
+            return series;
+        });
+    }
+
+    function renderAnimeMarkerPreview(view, info) {
+        var result = view.querySelector('#AnimeMarkerPreviewResult');
+        var status = view.querySelector('#AnimeMarkerPreviewStatus');
+        if (!result || !status) return;
+
+        result.innerHTML = '';
+
+        if (!info.matched) {
+            status.textContent = info.series + ' did not match any show on AnimeFillerList. ' + (info.hint || '');
+            return;
+        }
+
+        if (info.pending) {
+            status.textContent = info.series + ' matched "' + info.title + '". ' + (info.hint || '');
+            return;
+        }
+
+        status.innerHTML =
+            esc(info.series) + ' matched <strong>' + esc(info.title) + '</strong> (' + esc(info.slug) + ')<br>' +
+            'The site lists ' + info.showEpisodes + ' episodes and you have ' + info.libraryEpisodes +
+            (info.libraryFiles > info.libraryEpisodes
+                ? ' (' + info.libraryFiles + ' files, so some episodes have more than one copy)'
+                : '') +
+            ', of which ' + info.markedEpisodes + ' got a marker (' + info.fillerEpisodes + ' filler).<br>' +
+            'Your library numbers this series <strong>' + esc(info.numbering) + '</strong>' +
+            (info.recapKnown ? ', and recap flags were looked up.' : ', and recap flags were not looked up.');
+
+        var rows = info.episodes || [];
+        if (rows.length === 0) return;
+
+        var html = '<table style="width:100%;border-collapse:collapse;font-size:0.85em;">' +
+            '<thead><tr style="text-align:left;color:rgba(128,128,128,0.7);">' +
+            '<th style="padding:4px 8px;">Episode</th><th style="padding:4px 8px;">Abs</th>' +
+            '<th style="padding:4px 8px;">Title</th><th style="padding:4px 8px;">Marker</th>' +
+            '</tr></thead><tbody>';
+
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            var color = ANIME_MARKER_COLORS[row.kind] || 'rgba(128,128,128,0.6)';
+            var label = ANIME_MARKER_LABELS[row.kind] || 'no data';
+            if (row.recap) {
+                label += ' + recap';
+            }
+
+            html += '<tr style="border-top:1px solid rgba(128,128,128,0.15);">' +
+                '<td style="padding:4px 8px;white-space:nowrap;color:rgba(128,128,128,0.9);">S' +
+                String(row.season) + 'E' + String(row.index) + '</td>' +
+                '<td style="padding:4px 8px;color:rgba(128,128,128,0.7);">' + String(row.absolute) + '</td>' +
+                '<td style="padding:4px 8px;">' + esc(row.name || '') + '</td>' +
+                '<td style="padding:4px 8px;white-space:nowrap;"><span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:0.9em;background:' +
+                color + '33;color:' + color + ';">' + esc(label) + '</span></td>' +
+                '</tr>';
+        }
+
+        result.innerHTML = html + '</tbody></table>';
+    }
+
+    function previewAnimeMarkers(view) {
+        var status = view.querySelector('#AnimeMarkerPreviewStatus');
+        view.querySelector('#AnimeMarkerPreviewResult').innerHTML = '';
+
+        findTypedAnimeMarkerSeries(view, function (name) {
+            return 'Looking up "' + name + '"...';
+        }).then(function (series) {
+            if (!series) return;
+
+            return ApiClient.getJSON(ApiClient.getUrl('Moonfin/AnimeMarkers/Preview', { seriesId: series.Id }))
+                .then(function (info) { renderAnimeMarkerPreview(view, info); });
+        }).catch(function () {
+            status.textContent = 'Could not build the preview.';
+        });
+    }
+
+    function fetchAnimeMarkersNow(view) {
+        var status = view.querySelector('#AnimeMarkerPreviewStatus');
+        var btn = view.querySelector('#AnimeMarkerFetchBtn');
+        btn.disabled = true;
+
+        findTypedAnimeMarkerSeries(view, function (name) {
+            return 'Fetching "' + name + '" from AnimeFillerList, this takes about ten seconds...';
+        }).then(function (series) {
+            if (!series) return;
+
+            return ApiClient.ajax({
+                type: 'POST',
+                url: ApiClient.getUrl('Moonfin/AnimeMarkers/Refresh', { seriesId: series.Id }),
+                dataType: 'json'
+            }).then(function (info) {
+                if (!info.matched) {
+                    status.textContent = 'That series does not match any show on AnimeFillerList.';
+                    return;
+                }
+
+                if (!info.fetched) {
+                    status.textContent = 'Matched "' + info.slug + '" but the page could not be read. Try again shortly.';
+                    return;
+                }
+
+                status.textContent = 'Fetched ' + info.episodes + ' episodes for "' + info.slug + '". Building the preview...';
+                previewAnimeMarkers(view);
+            });
+        }).catch(function () {
+            status.textContent = 'Could not fetch that series.';
+        }).finally(function () {
+            btn.disabled = false;
+        });
+    }
+
+    function loadAnimeMarkerLog(view) {
+        var status = view.querySelector('#AnimeMarkerLogStatus');
+        var output = view.querySelector('#AnimeMarkerLogOutput');
+        if (!status || !output) return;
+
+        status.textContent = 'Reading the marker log...';
+
+        ApiClient.getJSON(ApiClient.getUrl('Moonfin/AnimeMarkers/Log', { lines: 300 })).then(function (info) {
+            var lines = info.lines || [];
+            if (lines.length === 0) {
+                output.textContent = '';
+                status.textContent = info.enabled
+                    ? 'Logging is on but nothing has been recorded yet. Open a series in the app, then press Show log again.'
+                    : 'Logging is off. Tick "Write a marker debug log", save, then reproduce the problem.';
+                return;
+            }
+
+            output.textContent = lines.join('\n');
+            output.scrollTop = output.scrollHeight;
+            status.textContent = lines.length + ' lines from ' + info.path;
+        }, function () {
+            status.textContent = 'Could not read the marker log.';
+        });
+    }
+
+    function clearAnimeMarkerLog(view) {
+        var status = view.querySelector('#AnimeMarkerLogStatus');
+        var output = view.querySelector('#AnimeMarkerLogOutput');
+        if (!status) return;
+
+        ApiClient.ajax({
+            type: 'POST',
+            url: ApiClient.getUrl('Moonfin/AnimeMarkers/ClearLog'),
+            dataType: 'json'
+        }).then(function () {
+            if (output) output.textContent = '';
+            status.textContent = 'Log cleared. Reproduce the problem, then press Show log.';
+        }, function () {
+            status.textContent = 'Could not clear the marker log.';
+        });
+    }
+
+    function clearAnimeMarkerCache(view) {
+        var status = view.querySelector('#AnimeMarkerDiagStatus');
+        if (!status) return;
+
+        ApiClient.ajax({
+            type: 'POST',
+            url: ApiClient.getUrl('Moonfin/AnimeMarkers/ClearCache'),
+            dataType: 'json'
+        }).then(function (result) {
+            status.textContent = 'Cleared ' + ((result && result.cleared) || 0) + ' cached shows. Run the Anime Markers Sync task to fetch them again.';
+        }, function () {
+            status.textContent = 'Could not clear the anime marker cache.';
         });
     }
 
@@ -3461,6 +3733,34 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
 
         var mdblistClearCacheBtn = view.querySelector('#MdblistClearCacheBtn');
         if (mdblistClearCacheBtn) mdblistClearCacheBtn.addEventListener('click', function () { clearMdblistCache(view); });
+
+        var animeDiagBtn = view.querySelector('#AnimeMarkerDiagBtn');
+        if (animeDiagBtn) animeDiagBtn.addEventListener('click', function () { loadAnimeMarkerDiagnostics(view); });
+
+        var animeClearBtn = view.querySelector('#AnimeMarkerClearBtn');
+        if (animeClearBtn) animeClearBtn.addEventListener('click', function () { clearAnimeMarkerCache(view); });
+
+        var animePreviewBtn = view.querySelector('#AnimeMarkerPreviewBtn');
+        if (animePreviewBtn) animePreviewBtn.addEventListener('click', function () { previewAnimeMarkers(view); });
+
+        var animeFetchBtn = view.querySelector('#AnimeMarkerFetchBtn');
+        if (animeFetchBtn) animeFetchBtn.addEventListener('click', function () { fetchAnimeMarkersNow(view); });
+
+        var animePreviewInput = view.querySelector('#AnimeMarkerPreviewName');
+        if (animePreviewInput) {
+            animePreviewInput.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    previewAnimeMarkers(view);
+                }
+            });
+        }
+
+        var animeLogBtn = view.querySelector('#AnimeMarkerLogBtn');
+        if (animeLogBtn) animeLogBtn.addEventListener('click', function () { loadAnimeMarkerLog(view); });
+
+        var animeClearLogBtn = view.querySelector('#AnimeMarkerClearLogBtn');
+        if (animeClearLogBtn) animeClearLogBtn.addEventListener('click', function () { clearAnimeMarkerLog(view); });
     }
 
     function View(view, params) {

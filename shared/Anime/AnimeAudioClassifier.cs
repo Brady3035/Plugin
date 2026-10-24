@@ -1,6 +1,8 @@
+using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace Moonfin.Server.Services;
+namespace Moonfin.Anime;
 
 /// <summary>
 /// Whether a file is the original Japanese audio or carries a dub.
@@ -26,13 +28,12 @@ public enum AnimeAudioKind
 /// declare.
 ///
 /// The rule is what a viewer actually means. Japanese and nothing else is subbed. Any other
-/// spoken language makes it dubbed, whether or not the Japanese track is still there. Kept
-/// free of Jellyfin types so the awkward cases can be tested directly.
+/// spoken language makes it dubbed, whether or not the Japanese track is still there.
 /// </summary>
 public static class AnimeAudioClassifier
 {
     /// <summary>
-    /// The spellings of Japanese that turn up in real files. Jellyfin normalises most
+    /// The spellings of Japanese that turn up in real files. The server normalizes most
     /// tracks to ISO 639-2/B, but remuxes carry whatever the muxer wrote.
     /// </summary>
     private static readonly HashSet<string> JapaneseCodes = new(StringComparer.OrdinalIgnoreCase)
@@ -100,7 +101,7 @@ public static class AnimeAudioClassifier
     ///
     /// A season only earns a pill when every episode that could be classified agrees, since
     /// the pill is a promise about the season as a whole. A season holding both a dubbed and
-    /// a subbed episode is left blank rather than being labelled by majority, which would be
+    /// a subbed episode is left blank rather than being labeled by majority, which would be
     /// wrong for whichever episodes are in the minority. Episodes with no verdict are
     /// ignored rather than counted against the rest.
     /// </summary>

@@ -1184,6 +1184,204 @@
                         </div>
                     </div>
 
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Anime Filler &amp; Recap Markers</h3>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input type="checkbox" id="AnimeMarkersEnabled" is="emby-checkbox" />
+                                <span>Classify anime episodes as canon, mixed or filler</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Nightly task that matches your anime against
+                                <a href="https://www.animefillerlist.com/" target="_blank">AnimeFillerList</a> so Moonfin
+                                clients can badge filler episodes. No account or API key is needed. Series are matched by
+                                title, falling back to the English and romaji titles behind their ids for libraries in other languages,
+                                and only shows the site actually lists are fetched.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused">Libraries to look in</label>
+                            <div id="AnimeMarkerLibraryPicker" style="max-height:200px;overflow-y:auto;border:1px solid rgba(128,128,128,0.2);border-radius:4px;padding:4px;"></div>
+                            <div class="fieldDescription">
+                                Leave everything unchecked to consider every library. Matching is a local title lookup, so
+                                narrowing this only helps if a non-anime show shares a title with an anime.
+                            </div>
+                        </div>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input type="checkbox" id="AnimeAudioTrustSelectedLibraries" is="emby-checkbox" />
+                                <span>Treat everything in the selected libraries as anime</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Affects the Subbed/Dubbed pills. Normally an item also has to look like anime on its own,
+                                meaning it carries an AniList, AniDB, AniSearch, Kitsu or MyAnimeList id, or an
+                                &quot;Anime&quot; genre or tag. That check is what keeps a library holding both anime and
+                                ordinary shows from marking the ordinary ones.
+                                <br><br>
+                                If the libraries you picked above are <em>only</em> anime, turn this on: the check then
+                                only costs you the entries whose metadata happens to be thin, which would otherwise show
+                                no pill at all. Has no effect while no libraries are selected, since there is then
+                                nothing to trust.
+                            </div>
+                        </div>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input type="checkbox" id="AnimeMarkerRecapLookup" is="emby-checkbox" />
+                                <span>Also mark recap episodes (uses MyAnimeList)</span>
+                            </label>
+                            <div class="fieldDescription">
+                                AnimeFillerList has no recap category, so this asks MyAnimeList as well. It is best-effort
+                                and additive: if that lookup fails, the filler data is unaffected.
+                            </div>
+                        </div>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input type="checkbox" id="AnimeAudioMarkersEnabled" is="emby-checkbox" />
+                                <span>Also mark episodes and seasons as Subbed or Dubbed</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Reads the audio tracks in each file: Japanese and nothing else is <strong>Subbed</strong>,
+                                anything carrying another spoken language is <strong>Dubbed</strong>. A season gets a pill
+                                only when every episode in it agrees. This needs no internet and does not depend on
+                                AnimeFillerList, so it works for anime the site has never listed. Files whose audio has no
+                                language tag are left unmarked rather than guessed at.
+                                <br><br>
+                                <strong>In a mixed library:</strong> when you select your anime libraries above, only shows
+                                in them are marked. If you leave the selection empty the whole server is in scope, and a
+                                series is then only marked when it looks like anime on its own, meaning it carries an
+                                AniList, AniDB, AniSearch, Kitsu or MyAnimeList id, or an "Anime" genre or tag. A Japanese
+                                live-action show carrying one of those would still be marked.
+                            </div>
+                        </div>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input type="checkbox" id="AnimeAudioMarkersMovies" is="emby-checkbox" />
+                                <span>Also mark movies as Subbed or Dubbed</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Extends the same audio rules to movies, so the pill shows on a movie card anywhere it
+                                appears, including home screen rows. Separate from the option above because a movie has
+                                no series to inherit from, and a mixed library is most likely to mislabel a film.
+                            </div>
+                        </div>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input type="checkbox" id="AnimeAudioSeparateDualAudio" is="emby-checkbox" />
+                                <span>Label dual-audio files as Subbed/Dubbed</span>
+                            </label>
+                            <div class="fieldDescription">
+                                A file holding the Japanese audio <em>and</em> a dub can be watched either way, so it
+                                shows as <strong>Subbed/Dubbed</strong> rather than just Dubbed. Leave off for the
+                                shorter label.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="AnimeMarkerPlacement">Where to put the pills</label>
+                            <select is="emby-select" id="AnimeMarkerPlacement">
+                                <option value="below">Below the runtime</option>
+                                <option value="beside">Beside the runtime</option>
+                                <option value="thumbnail">On the episode thumbnail</option>
+                            </select>
+                            <div class="fieldDescription">
+                                Applies to episode rows in Moonfin clients. Season and movie cards always draw the pill
+                                over the artwork, since they have no runtime line to sit next to.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused">Which pills to show</label>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input type="checkbox" id="AnimeMarkerShowFiller" is="emby-checkbox" />
+                                    <span>Filler</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input type="checkbox" id="AnimeMarkerShowMixed" is="emby-checkbox" />
+                                    <span>Mixed canon and filler</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input type="checkbox" id="AnimeMarkerShowRecap" is="emby-checkbox" />
+                                    <span>Recap</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input type="checkbox" id="AnimeMarkerShowMangaCanon" is="emby-checkbox" />
+                                    <span>Manga canon</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input type="checkbox" id="AnimeMarkerShowAnimeCanon" is="emby-checkbox" />
+                                    <span>Anime canon</span>
+                                </label>
+                            </div>
+                            <div class="fieldDescription">
+                                A pill that is switched off is never sent to a client, so every Moonfin client agrees.
+                                The two canon options are off by default: nearly every episode of most shows is canon,
+                                so turning them on puts a pill on almost everything.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="AnimeMarkerMaxAgeDays">Marker refresh age (days)</label>
+                            <input type="number" id="AnimeMarkerMaxAgeDays" is="emby-input" min="1" max="365" step="1" />
+                            <div class="fieldDescription">
+                                Shows older than this are re-fetched (default 30). A finished show's classifications never
+                                change, so this mainly governs how quickly an airing show picks up new episodes.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button type="button" id="AnimeMarkerDiagBtn" is="emby-button" class="raised">Check matching</button>
+                                <button type="button" id="AnimeMarkerClearBtn" is="emby-button" class="raised">Clear marker cache</button>
+                            </div>
+                            <div class="fieldDescription">
+                                Markers appear after the <strong>Moonfin Anime Markers Sync</strong> task has run. You can
+                                start it now from Scheduled Tasks in the Emby dashboard.
+                            </div>
+                            <div id="AnimeMarkerDiagStatus" style="margin-top:8px;font-size:0.9em;color:rgba(128,128,128,0.9);"></div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="AnimeMarkerPreviewName">Preview a series</label>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                                <input type="text" id="AnimeMarkerPreviewName" is="emby-input" placeholder="One Piece" style="flex:1;min-width:200px;" />
+                                <button type="button" id="AnimeMarkerPreviewBtn" is="emby-button" class="raised">Preview</button>
+                                <button type="button" id="AnimeMarkerFetchBtn" is="emby-button" class="raised">Fetch now</button>
+                            </div>
+                            <div class="fieldDescription">
+                                Type a series name from your library and press Preview to see exactly which of your
+                                episodes each marker landed on. <strong>Fetch now</strong> pulls that one show
+                                immediately (about ten seconds, the site's crawl delay) instead of waiting for the task.
+                            </div>
+                            <div id="AnimeMarkerPreviewStatus" style="margin-top:8px;font-size:0.9em;color:rgba(128,128,128,0.9);"></div>
+                            <div id="AnimeMarkerPreviewResult" style="margin-top:8px;max-height:420px;overflow:auto;"></div>
+                        </div>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input type="checkbox" id="AnimeMarkerVerboseLogging" is="emby-checkbox" />
+                                <span>Write a marker debug log</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Records every marker request a client makes and what it was answered with, to
+                                <code>moonfin-anime-markers.log</code> in the server's own log folder, so it also shows
+                                up under Logs in the Emby dashboard where it can be downloaded. Turn this on when a badge is not
+                                appearing: if a request never shows up here, the app never asked, which means the
+                                problem is in the app rather than on the server. Leave it off otherwise.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button type="button" id="AnimeMarkerLogBtn" is="emby-button" class="raised">Show log</button>
+                                <button type="button" id="AnimeMarkerClearLogBtn" is="emby-button" class="raised">Clear log</button>
+                            </div>
+                            <div id="AnimeMarkerLogStatus" style="margin-top:8px;font-size:0.9em;color:rgba(128,128,128,0.9);"></div>
+                            <pre id="AnimeMarkerLogOutput" style="margin-top:8px;max-height:320px;overflow:auto;font-size:0.8em;line-height:1.45;background:rgba(128,128,128,0.12);padding:8px;border-radius:4px;white-space:pre-wrap;word-break:break-word;"></pre>
+                        </div>
+                    </div>
+
                     </section>
                     <section class="moonfinTabPanel" data-tab="games">
                     <div class="verticalSection">

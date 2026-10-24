@@ -1,10 +1,10 @@
-using Moonfin.Server.Services;
+using Moonfin.Anime;
 using Xunit;
 
-namespace Moonfin.Server.Tests;
+namespace Moonfin.Anime.Tests;
 
 /// <summary>
-/// "Subbed" means Japanese audio and nothing else; anything carrying another spoken
+/// "Subbed" means Japanese audio and nothing else, and anything carrying another spoken
 /// language is a dub.
 /// </summary>
 public class AnimeAudioClassifierTests
@@ -55,9 +55,9 @@ public class AnimeAudioClassifierTests
     [InlineData("jap")]
     [InlineData("Japanese")]
     [InlineData("JPN")]
-    public void JapaneseIsRecognisedHoweverItIsSpelled(string code)
+    public void JapaneseIsRecognizedHoweverItIsSpelled(string code)
     {
-        // Jellyfin normalises most tracks, but a remux carries whatever the muxer wrote.
+        // Servers normalize most tracks, but a remux carries whatever the muxer wrote.
         Assert.Equal(AnimeAudioKind.Subbed, AnimeAudioClassifier.Classify(new[] { code }));
     }
 
@@ -95,7 +95,7 @@ public class AnimeAudioClassifierTests
     [Fact]
     public void ASeasonWithBothStaysBlank()
     {
-        // Labelling by majority would be wrong for whichever episodes are in the minority.
+        // Labeling by majority would be wrong for whichever episodes are in the minority.
         var kinds = new AnimeAudioKind?[] { AnimeAudioKind.Dubbed, AnimeAudioKind.Subbed };
 
         Assert.Null(AnimeAudioClassifier.ClassifySeason(kinds));
@@ -104,7 +104,7 @@ public class AnimeAudioClassifierTests
     [Fact]
     public void UnclassifiedEpisodesDoNotSpoilASeason()
     {
-        // One untagged file in an otherwise subbed season should not silence the pill.
+        // One untagged file in an otherwise subbed season shouldnt silence the pill.
         var kinds = new AnimeAudioKind?[] { AnimeAudioKind.Subbed, null, AnimeAudioKind.Subbed };
 
         Assert.Equal(AnimeAudioKind.Subbed, AnimeAudioClassifier.ClassifySeason(kinds));

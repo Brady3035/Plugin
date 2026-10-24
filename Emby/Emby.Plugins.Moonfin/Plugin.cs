@@ -8,6 +8,7 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Configuration;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Drawing;
 using MediaBrowser.Model.Globalization;
 using MediaBrowser.Model.Logging;
@@ -48,6 +49,11 @@ namespace Emby.Plugins.Moonfin
         public PushDeliveryService? PushDelivery { get; private set; }
         public SeerrWebhookService? SeerrWebhook { get; private set; }
         public SeerrProvisioningService? SeerrProvisioning { get; private set; }
+        public AnimeMarkerDiagnosticLog? AnimeMarkerDiagnostics { get; private set; }
+        public AnimeFillerListClient? AnimeFillerList { get; private set; }
+        public AnimeMarkerCacheService? AnimeMarkerCache { get; private set; }
+        public AnimeRecapFetchService? AnimeRecapFetch { get; private set; }
+        public AnimeMarkerResolver? AnimeMarkerResolver { get; private set; }
 
         public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer, ILogManager logManager)
             : base(applicationPaths, xmlSerializer)
@@ -178,6 +184,20 @@ namespace Emby.Plugins.Moonfin
             StudioLogoCache = new StudioLogoCacheService(mdbLogger);
             StudioLogoFetch = new StudioLogoFetchService(StudioLogoCache, mdbLogger);
             GameThumbs = new GameThumbService(mdbLogger);
+
+            var animeLogger = logManager.GetLogger("MoonfinAnimeMarkers");
+            AnimeMarkerDiagnostics = new AnimeMarkerDiagnosticLog(animeLogger);
+            AnimeFillerList = new AnimeFillerListClient(animeLogger);
+            AnimeMarkerCache = new AnimeMarkerCacheService(animeLogger);
+            var animeIdMapping = new AnimeIdMappingService(animeLogger);
+            AnimeRecapFetch = new AnimeRecapFetchService(animeIdMapping, AnimeMarkerDiagnostics, animeLogger);
+            AnimeMarkerResolver = new AnimeMarkerResolver(
+                appHost.Resolve<ILibraryManager>(),
+                appHost.Resolve<IMediaSourceManager>(),
+                AnimeFillerList,
+                AnimeMarkerCache,
+                new AnimeTitleAliasService(animeIdMapping, AnimeMarkerDiagnostics, animeLogger),
+                animeLogger);
 
             NotificationStore = new NotificationStore(notifyLogger);
             RelaySender = new RelaySender(notifyLogger);

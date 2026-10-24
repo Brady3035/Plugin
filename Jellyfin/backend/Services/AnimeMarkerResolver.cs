@@ -3,6 +3,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
+using Moonfin.Anime;
 
 namespace Moonfin.Server.Services;
 
@@ -523,7 +524,7 @@ public class AnimeMarkerResolver
             .ThenBy(slot => slot.Index)
             .ToList();
 
-        var numbers = AssignAbsoluteNumbers(slots);
+        var numbers = AnimeEpisodeNumbering.AssignAbsoluteNumbers(slots);
         var absoluteBySlot = new Dictionary<(int Season, int Index), int>();
         for (var i = 0; i < slots.Count; i++)
         {
@@ -536,68 +537,7 @@ public class AnimeMarkerResolver
                 absoluteBySlot[(episode.ParentIndexNumber!.Value, episode.IndexNumber!.Value)]))
             .ToList();
 
-        return new SeriesNumbering(IsAlreadyAbsolute(slots) ? "absolute" : "per-season", numbered);
-    }
-
-    /// <summary>
-    /// True when the library already numbers this series absolutely (S04E207), which is the
-    /// case exactly when no index number repeats across the whole series.
-    /// </summary>
-    public static bool IsAlreadyAbsolute(IReadOnlyList<(int Season, int Index)> episodes) =>
-        episodes.Count > 0 &&
-        episodes.Select(episode => episode.Index).Distinct().Count() == episodes.Count;
-
-    /// <summary>
-    /// The absolute episode number for each of a series' episodes, given their season and
-    /// index numbers already sorted by season then index. Split out from the library query
-    /// because this is the part with the actual reasoning in it.
-    /// </summary>
-    public static int[] AssignAbsoluteNumbers(IReadOnlyList<(int Season, int Index)> episodes)
-    {
-        var numbers = new int[episodes.Count];
-        if (episodes.Count == 0)
-        {
-            return numbers;
-        }
-
-        // Index numbers unique across the whole series means the library is already
-        // numbering absolutely, so they are the answer as-is. When they repeat,
-        // each season restarts at 1 and the earlier seasons have to be added back on.
-        if (IsAlreadyAbsolute(episodes))
-        {
-            for (var i = 0; i < episodes.Count; i++)
-            {
-                numbers[i] = episodes[i].Index;
-            }
-
-            return numbers;
-        }
-
-        // A season's length is the highest index seen in it, not how many episodes are
-        // present, so a library missing an episode mid-season doesnt shift every later
-        // episode onto the wrong marker.
-        var seasonLengths = new Dictionary<int, int>();
-        foreach (var (season, index) in episodes)
-        {
-            seasonLengths[season] = seasonLengths.TryGetValue(season, out var length) && length > index
-                ? length
-                : index;
-        }
-
-        var offsets = new Dictionary<int, int>();
-        var running = 0;
-        foreach (var season in seasonLengths.Keys.OrderBy(season => season))
-        {
-            offsets[season] = running;
-            running += seasonLengths[season];
-        }
-
-        for (var i = 0; i < episodes.Count; i++)
-        {
-            numbers[i] = offsets[episodes[i].Season] + episodes[i].Index;
-        }
-
-        return numbers;
+        return new SeriesNumbering(AnimeEpisodeNumbering.IsAlreadyAbsolute(slots) ? "absolute" : "per-season", numbered);
     }
 }
 

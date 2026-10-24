@@ -1,10 +1,10 @@
-using Moonfin.Server.Services;
+using Moonfin.Anime;
 using Xunit;
 
-namespace Moonfin.Server.Tests;
+namespace Moonfin.Anime.Tests;
 
 /// <summary>
-/// Tests the logic that matches a library series to its entry on animefillerlist.com, 
+/// Tests the logic that matches a library series to its entry on animefillerlist.com,
 /// which is complicated by the site's inconsistent use of alternate names and season markers.
 /// </summary>
 public class AnimeTitleMatcherTests

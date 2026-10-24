@@ -1,7 +1,7 @@
-using Moonfin.Server.Services;
+using Moonfin.Anime;
 using Xunit;
 
-namespace Moonfin.Server.Tests;
+namespace Moonfin.Anime.Tests;
 
 /// <summary>
 /// Tests the logic that assigns absolute episode numbers to a series, flattening per-season numbering.
@@ -17,7 +17,7 @@ public class AnimeEpisodeNumberingTests
             (2, 1), (2, 2)
         };
 
-        Assert.Equal(new[] { 1, 2, 3, 4, 5 }, AnimeMarkerResolver.AssignAbsoluteNumbers(episodes));
+        Assert.Equal(new[] { 1, 2, 3, 4, 5 }, AnimeEpisodeNumbering.AssignAbsoluteNumbers(episodes));
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class AnimeEpisodeNumberingTests
             (4, 207), (4, 208)
         };
 
-        Assert.Equal(new[] { 144, 145, 207, 208 }, AnimeMarkerResolver.AssignAbsoluteNumbers(episodes));
+        Assert.Equal(new[] { 144, 145, 207, 208 }, AnimeEpisodeNumbering.AssignAbsoluteNumbers(episodes));
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class AnimeEpisodeNumberingTests
             (2, 1), (2, 2)
         };
 
-        Assert.Equal(new[] { 1, 3, 4, 5, 6 }, AnimeMarkerResolver.AssignAbsoluteNumbers(episodes));
+        Assert.Equal(new[] { 1, 3, 4, 5, 6 }, AnimeEpisodeNumbering.AssignAbsoluteNumbers(episodes));
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class AnimeEpisodeNumberingTests
     {
         var episodes = new List<(int Season, int Index)> { (1, 1), (1, 2), (1, 3) };
 
-        Assert.Equal(new[] { 1, 2, 3 }, AnimeMarkerResolver.AssignAbsoluteNumbers(episodes));
+        Assert.Equal(new[] { 1, 2, 3 }, AnimeEpisodeNumbering.AssignAbsoluteNumbers(episodes));
     }
 
     [Fact]
@@ -66,24 +66,23 @@ public class AnimeEpisodeNumberingTests
         };
 
         // Season 1 is 25 long, season 2 is 12, so season 3 episode 1 is absolute 38.
-        Assert.Equal(new[] { 25, 26, 37, 38 }, AnimeMarkerResolver.AssignAbsoluteNumbers(episodes));
+        Assert.Equal(new[] { 25, 26, 37, 38 }, AnimeEpisodeNumbering.AssignAbsoluteNumbers(episodes));
     }
 
     [Fact]
     public void RepeatedSlotsDoNotChangeTheNumberingScheme()
     {
-        // A recursive query under a series returns each episode once per ancestor, so the
-        // caller now feeds distinct season/episode slots. Absolute numbering has to survive
-        // that: seen doubled, 144/145/207 would look like repeats and pick per-season.
+        // Callers feed distinct season/episode slots, since 144/145/207 seen twice would look
+        // like repeated index numbers and pick per-season numbering.
         var slots = new List<(int Season, int Index)> { (3, 144), (3, 145), (4, 207) };
 
-        Assert.True(AnimeMarkerResolver.IsAlreadyAbsolute(slots));
-        Assert.Equal(new[] { 144, 145, 207 }, AnimeMarkerResolver.AssignAbsoluteNumbers(slots));
+        Assert.True(AnimeEpisodeNumbering.IsAlreadyAbsolute(slots));
+        Assert.Equal(new[] { 144, 145, 207 }, AnimeEpisodeNumbering.AssignAbsoluteNumbers(slots));
     }
 
     [Fact]
     public void EmptyInputIsEmpty()
     {
-        Assert.Empty(AnimeMarkerResolver.AssignAbsoluteNumbers(new List<(int, int)>()));
+        Assert.Empty(AnimeEpisodeNumbering.AssignAbsoluteNumbers(new List<(int, int)>()));
     }
 }

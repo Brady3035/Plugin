@@ -1,6 +1,8 @@
+using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace Moonfin.Server.Services;
+namespace Moonfin.Anime;
 
 /// <summary>
 /// One of the four categories AnimeFillerList uses to classify episodes. The site doesnt
@@ -18,7 +20,6 @@ public enum AnimeEpisodeKind
     /// <summary>Part manga, part padding. Worth watching, worth warning about.</summary>
     Mixed,
 
-    /// <summary>Pure filler.</summary>
     Filler
 }
 
@@ -58,8 +59,7 @@ public class AnimeMarkerEpisode
 }
 
 /// <summary>
-/// One cached show: every episode AnimeFillerList lists for it, plus what it was matched
-/// from.
+/// One cached show and every episode AnimeFillerList lists for it.
 /// </summary>
 public class AnimeMarkerCacheEntry
 {

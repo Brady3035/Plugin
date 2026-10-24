@@ -1,8 +1,11 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Moonfin.Server.Services;
+namespace Moonfin.Anime;
 
 /// <summary>
 /// Folds a title down to a comparison key and builds a lookup from every key to the show that owns it.
@@ -135,14 +138,14 @@ public static class AnimeTitleMatcher
         PrimaryVariants(title).Concat(AlternateVariants(title)).Distinct(StringComparer.Ordinal);
 
     /// <summary>
-    /// Builds a lookup from every key to the show that owns it. Duplicate keys are ignored, keeping the first show seen.
+    /// Duplicate keys keep the first show seen.
     /// </summary>
     public static Dictionary<string, AnimeFillerShow> BuildIndex(IEnumerable<AnimeFillerShow> shows)
     {
         var index = new Dictionary<string, AnimeFillerShow>(StringComparer.Ordinal);
-        var materialised = shows as IReadOnlyCollection<AnimeFillerShow> ?? shows.ToList();
+        var materialized = shows as IReadOnlyCollection<AnimeFillerShow> ?? shows.ToList();
 
-        foreach (var show in materialised)
+        foreach (var show in materialized)
         {
             foreach (var key in PrimaryVariants(show.Title))
             {
@@ -150,7 +153,7 @@ public static class AnimeTitleMatcher
             }
         }
 
-        foreach (var show in materialised)
+        foreach (var show in materialized)
         {
             foreach (var key in AlternateVariants(show.Title))
             {

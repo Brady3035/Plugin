@@ -116,6 +116,47 @@ namespace Emby.Plugins.Moonfin
         /// <summary>How long a cached studio logo stays fresh before the sync refetches it.</summary>
         public int StudioLogosMaxAgeDays { get; set; } = 30;
 
+        /// <summary>Classifies anime episodes as canon, mixed or filler from animefillerlist.com, which needs no account or key.</summary>
+        public bool AnimeMarkersEnabled { get; set; }
+
+        /// <summary>Emby library ids to look for anime in. Empty means every library.</summary>
+        public List<string> AnimeMarkerLibraryIds { get; set; } = new List<string>();
+
+        /// <summary>Also asks MyAnimeList which episodes are recaps, since AnimeFillerList has no recap category.</summary>
+        public bool AnimeMarkerRecapLookup { get; set; } = true;
+
+        /// <summary>How long a cached show stays fresh, which mostly governs how quickly an airing show picks up new episodes.</summary>
+        public int AnimeMarkerMaxAgeDays { get; set; } = 30;
+
+        /// <summary>Writes every marker request and its answer to a dedicated log.</summary>
+        public bool AnimeMarkerVerboseLogging { get; set; }
+
+        /// <summary>Marks episodes Subbed or Dubbed from the languages of their audio tracks.</summary>
+        public bool AnimeAudioMarkersEnabled { get; set; }
+
+        public bool AnimeAudioMarkersMovies { get; set; }
+
+        /// <summary>Reports a file holding both Japanese audio and a dub as Subbed/Dubbed rather than just Dubbed.</summary>
+        public bool AnimeAudioSeparateDualAudio { get; set; }
+
+        /// <summary>Treats every item in the selected libraries as anime, for libraries that hold nothing else.</summary>
+        public bool AnimeAudioTrustSelectedLibraries { get; set; }
+
+        /// <summary>"below", "beside" or "thumbnail". The server only passes it along to clients.</summary>
+        public string AnimeMarkerPlacement { get; set; } = "below";
+
+        public bool AnimeMarkerShowFiller { get; set; } = true;
+
+        public bool AnimeMarkerShowMixed { get; set; } = true;
+
+        public bool AnimeMarkerShowRecap { get; set; } = true;
+
+        /// <summary>Off by default, since nearly every episode of most anime is manga canon.</summary>
+        public bool AnimeMarkerShowMangaCanon { get; set; }
+
+        /// <summary>Off by default for the same reason as manga canon.</summary>
+        public bool AnimeMarkerShowAnimeCanon { get; set; }
+
         /// <summary>Optional default server URL shown in the Moonfin web Add Server dialog.</summary>
         public string? WebDefaultServerUrl { get; set; }
 

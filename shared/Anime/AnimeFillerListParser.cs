@@ -1,7 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
-namespace Moonfin.Server.Services;
+namespace Moonfin.Anime;
 
 /// <summary>
 /// Parses the HTML of animefillerlist.com into a form that can be used to mark episodes as filler, recap or canon.
@@ -45,8 +48,7 @@ public static class AnimeFillerListParser
     }
 
     /// <summary>
-    /// Reads one show's episode table. Episodes come back sorted by number, with duplicates
-    /// dropped, so the caller can index into them positionally.
+    /// Reads one show's episode table, sorted by number with duplicates dropped.
     /// </summary>
     public static List<AnimeMarkerEpisode> ParseEpisodes(string html)
     {

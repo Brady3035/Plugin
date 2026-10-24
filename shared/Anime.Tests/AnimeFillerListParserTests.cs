@@ -1,10 +1,10 @@
-using Moonfin.Server.Services;
+using Moonfin.Anime;
 using Xunit;
 
-namespace Moonfin.Server.Tests;
+namespace Moonfin.Anime.Tests;
 
 /// <summary>
-/// Tests the logic that assigns absolute episode numbers to a series, flattening per-season numbering.
+/// Tests reading the show index and the episode tables out of the site's HTML.
 /// </summary>
 public class AnimeFillerListParserTests
 {

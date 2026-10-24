@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using MediaBrowser.Controller.Entities;
 using Microsoft.Extensions.Logging;
+using Moonfin.Anime;
 
 namespace Moonfin.Server.Services;
 
