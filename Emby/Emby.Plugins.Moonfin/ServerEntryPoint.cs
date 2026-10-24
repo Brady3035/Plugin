@@ -51,7 +51,6 @@ namespace Emby.Plugins.Moonfin
             PluginServices.UserDataManager = _userDataManager;
             PluginServices.SessionManager = _sessionManager;
 
-            plugin.MigrateConfiguration();
             plugin.InitializeServices(_logManager, _appHost);
 
             // New-media notifications: ItemAdded -> coalesced websocket + push fan-out.

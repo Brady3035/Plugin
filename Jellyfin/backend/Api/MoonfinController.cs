@@ -1483,8 +1483,6 @@ public class MoonfinController : ControllerBase
     /// Gets the Seerr configuration (admin URL + user enablement).
     /// </summary>
     [HttpGet("Seerr/Config")]
-    // Legacy alias kept active so older clients keep working while they migrate to /Moonfin/Seerr.
-    [HttpGet("Jellyseerr/Config")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<SeerrConfigResponse>> GetSeerrConfig()
@@ -1602,13 +1600,6 @@ public class MoonfinPingResponse
 
     [JsonPropertyName("defaultSettings")]
     public MoonfinSettingsProfile? DefaultSettings { get; set; }
-
-    // Legacy field names so clients from before the Seerr rename keep reading these.
-    [JsonPropertyName("jellyseerrEnabled")]
-    public bool? JellyseerrEnabled => SeerrEnabled;
-
-    [JsonPropertyName("jellyseerrUrl")]
-    public string? JellyseerrUrl => SeerrUrl;
 }
 
 /// <summary>

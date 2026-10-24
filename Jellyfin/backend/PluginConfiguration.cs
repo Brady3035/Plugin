@@ -31,12 +31,6 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public string? SeerrDisplayName { get; set; }
 
-    // Legacy keys from before the Jellyseerr -> Seerr rename. Kept only so existing
-    // configs deserialize; MigrateLegacyKeys() copies them into the Seerr* keys on load.
-    public string? JellyseerrUrl { get; set; }
-    public bool JellyseerrEnabled { get; set; }
-    public string? JellyseerrDisplayName { get; set; }
-
     /// <summary>
     /// Shared secret Seerr must present (header or query) when calling the Moonfin
     /// webhook. Auto-generated on first load if empty.
@@ -430,44 +424,7 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public string? GetEffectiveSeerrUrl()
     {
-        return NormalizeSeerrUrl(SeerrUrl ?? JellyseerrUrl);
-    }
-
-    /// <summary>
-    /// Copies any pre-rename Jellyseerr* values into the Seerr* keys and clears the
-    /// legacy ones. Returns true when something changed so the caller can persist.
-    /// </summary>
-    public bool MigrateLegacyKeys()
-    {
-        var changed = false;
-
-        if (string.IsNullOrEmpty(SeerrUrl) && !string.IsNullOrEmpty(JellyseerrUrl))
-        {
-            SeerrUrl = JellyseerrUrl;
-            changed = true;
-        }
-
-        if (!SeerrEnabled && JellyseerrEnabled)
-        {
-            SeerrEnabled = true;
-            changed = true;
-        }
-
-        if (string.IsNullOrEmpty(SeerrDisplayName) && !string.IsNullOrEmpty(JellyseerrDisplayName))
-        {
-            SeerrDisplayName = JellyseerrDisplayName;
-            changed = true;
-        }
-
-        if (JellyseerrUrl != null || JellyseerrEnabled || JellyseerrDisplayName != null)
-        {
-            JellyseerrUrl = null;
-            JellyseerrEnabled = false;
-            JellyseerrDisplayName = null;
-            changed = true;
-        }
-
-        return changed;
+        return NormalizeSeerrUrl(SeerrUrl);
     }
 
     /// <summary>

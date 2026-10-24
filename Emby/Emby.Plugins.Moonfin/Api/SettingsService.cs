@@ -76,9 +76,6 @@ namespace Emby.Plugins.Moonfin.Api
                 serverName = "Emby",
                 seerrEnabled,
                 seerrUrl,
-                // Legacy field names so clients from before the Seerr rename keep reading these.
-                jellyseerrEnabled = seerrEnabled,
-                jellyseerrUrl = seerrUrl,
                 mdblistAvailable = !string.IsNullOrWhiteSpace(config?.MdblistApiKey),
                 tmdbAvailable = !string.IsNullOrWhiteSpace(config?.TmdbApiKey),
                 // Older plugins leave this out, so the app keeps the backdrop Seerr gave it.

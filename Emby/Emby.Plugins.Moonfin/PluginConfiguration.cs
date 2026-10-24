@@ -226,50 +226,7 @@ namespace Emby.Plugins.Moonfin
         public string GamesLaunchBoxUrl { get; set; } =
             "https://gamesdb.launchbox-app.com/Metadata.zip";
 
-        // Legacy keys from before the Jellyseerr -> Seerr rename. Kept only so existing
-        // configs deserialize. MigrateLegacyKeys() copies them into the Seerr* keys on load.
-        public string? JellyseerrUrl { get; set; }
-        public bool JellyseerrEnabled { get; set; }
-        public string? JellyseerrDisplayName { get; set; }
-
-        public string? GetEffectiveSeerrUrl() => NormalizeSeerrUrl(SeerrUrl ?? JellyseerrUrl);
-
-        /// <summary>
-        /// Copies any pre-rename Jellyseerr* values into the Seerr* keys and clears the
-        /// legacy ones. Returns true when something changed so the caller can persist.
-        /// </summary>
-        public bool MigrateLegacyKeys()
-        {
-            var changed = false;
-
-            if (string.IsNullOrEmpty(SeerrUrl) && !string.IsNullOrEmpty(JellyseerrUrl))
-            {
-                SeerrUrl = JellyseerrUrl;
-                changed = true;
-            }
-
-            if (!SeerrEnabled && JellyseerrEnabled)
-            {
-                SeerrEnabled = true;
-                changed = true;
-            }
-
-            if (string.IsNullOrEmpty(SeerrDisplayName) && !string.IsNullOrEmpty(JellyseerrDisplayName))
-            {
-                SeerrDisplayName = JellyseerrDisplayName;
-                changed = true;
-            }
-
-            if (JellyseerrUrl != null || JellyseerrEnabled || JellyseerrDisplayName != null)
-            {
-                JellyseerrUrl = null;
-                JellyseerrEnabled = false;
-                JellyseerrDisplayName = null;
-                changed = true;
-            }
-
-            return changed;
-        }
+        public string? GetEffectiveSeerrUrl() => NormalizeSeerrUrl(SeerrUrl);
 
         /// <summary>
         /// Normalizes a user-entered Seerr URL so downstream Uri parsing and string
