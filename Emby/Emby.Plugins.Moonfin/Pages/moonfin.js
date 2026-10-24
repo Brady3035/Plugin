@@ -1062,6 +1062,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { id: 'extras', label: 'Extras' },
         { id: 'collections', label: 'Collections' },
         { id: 'moreLikeThis', label: 'More Like This' },
+        { id: 'reviews', label: 'Reviews' },
         { id: 'moreEpisodes', label: 'More episodes' },
         { id: 'mediaInfo', label: 'Media info' },
         { id: 'seerrGenresTags', label: 'Seerr: Genres & tags' },

@@ -34,6 +34,7 @@ public class TmdbController : ControllerBase
     private static readonly ConcurrentDictionary<string, (TmdbNextEpisodeResponse Response, DateTimeOffset CachedAt)> _nextEpisodeCache = new();
     private static readonly TimeSpan NextEpisodeCacheTtl = TimeSpan.FromHours(6);
     private static readonly ConcurrentDictionary<string, (TmdbPersonLinksResponse Response, DateTimeOffset CachedAt)> _personLinksCache = new();
+    private static readonly ConcurrentDictionary<string, (TmdbReviewsResponse Response, DateTimeOffset CachedAt)> _reviewsCache = new();
 
     private static TimeSpan StudioCacheMaxAge =>
         TimeSpan.FromDays(MoonfinPlugin.Instance?.Configuration?.StudioLogosMaxAgeDays ?? 30);
@@ -461,6 +462,106 @@ public class TmdbController : ControllerBase
     }
 
     /// <summary>
+    /// Returns TMDB's user reviews for a movie or show, in the viewer's language when TMDB has
+    /// any in it and in English otherwise.
+    /// </summary>
+    [HttpGet("Reviews")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<TmdbReviewsResponse>> GetReviews(
+        [FromQuery] string tmdbId,
+        [FromQuery] string? type,
+        [FromQuery] string? language,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(tmdbId))
+        {
+            return BadRequest(new { Error = "Missing required parameter: tmdbId" });
+        }
+
+        var apiKey = await GetUserApiKey();
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return Ok(new TmdbReviewsResponse
+            {
+                Success = false,
+                Error = "No TMDB API key configured. Add your key in Moonfin Settings, or ask your server admin to set a server-wide key."
+            });
+        }
+
+        var mediaType = string.Equals(type?.Trim(), "tv", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
+        var lang = TmdbReview.RequestLanguage(language);
+        var cacheKey = $"{mediaType}:{tmdbId.Trim()}:{lang}";
+        if (_reviewsCache.TryGetValue(cacheKey, out var cached) && DateTimeOffset.UtcNow - cached.CachedAt < CacheTtl)
+        {
+            return Ok(cached.Response);
+        }
+
+        try
+        {
+            var result = await FetchReviewsAsync(mediaType, tmdbId.Trim(), lang, apiKey, cancellationToken);
+            if (result.Success && TmdbReview.ShouldAskInEnglish(result.TotalResults, lang))
+            {
+                result = await FetchReviewsAsync(mediaType, tmdbId.Trim(), "en-US", apiKey, cancellationToken);
+            }
+
+            if (result.Success)
+            {
+                _reviewsCache[cacheKey] = (result, DateTimeOffset.UtcNow);
+            }
+
+            return Ok(result);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Ok(new TmdbReviewsResponse
+            {
+                Success = false,
+                Error = $"Failed to fetch from TMDB: {ex.Message}"
+            });
+        }
+    }
+
+    private async Task<TmdbReviewsResponse> FetchReviewsAsync(
+        string mediaType,
+        string tmdbId,
+        string language,
+        string apiKey,
+        CancellationToken cancellationToken)
+    {
+        var url = $"https://api.themoviedb.org/3/{mediaType}/{Uri.EscapeDataString(tmdbId)}/reviews?language={Uri.EscapeDataString(language)}";
+        var client = CreateClient();
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        ApplyAuth(request, apiKey);
+
+        using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        if ((int)response.StatusCode == 429)
+        {
+            return new TmdbReviewsResponse { Success = false, Error = "TMDB rate limit reached. Try again later." };
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return new TmdbReviewsResponse { Success = false, Error = $"TMDB returned status {(int)response.StatusCode}" };
+        }
+
+        var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        using var doc = JsonDocument.Parse(json);
+        return new TmdbReviewsResponse
+        {
+            Success = true,
+            TotalResults = TmdbReview.TotalResults(doc.RootElement),
+            Reviews = TmdbReview.ParseList(doc.RootElement)
+        };
+    }
+
+    /// <summary>
     /// Returns the TMDB production companies (studios) for a movie or show, serving
     /// from the server-side cache and filling it from TMDB on a miss. Each company
     /// reports whether a logo is available via <c>StudioImage/{companyId}</c>.
@@ -758,6 +859,21 @@ public class TmdbPersonLinksResponse
 
     [JsonPropertyName("youtube")]
     public string? YouTube { get; set; }
+}
+
+public class TmdbReviewsResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    [JsonPropertyName("totalResults")]
+    public int TotalResults { get; set; }
+
+    [JsonPropertyName("reviews")]
+    public List<TmdbReview> Reviews { get; set; } = new();
 }
 
 // ===== Raw TMDB API Models =====

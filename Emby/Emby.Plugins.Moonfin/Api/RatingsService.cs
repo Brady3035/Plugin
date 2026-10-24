@@ -24,6 +24,7 @@ namespace Emby.Plugins.Moonfin.Api
         private static readonly ConcurrentDictionary<string, (object Response, DateTimeOffset CachedAt)> _tmdbNextEpisodeCache = new ConcurrentDictionary<string, (object, DateTimeOffset)>();
         private static readonly TimeSpan TmdbNextEpisodeCacheTtl = TimeSpan.FromHours(6);
         private static readonly ConcurrentDictionary<string, (object Response, DateTimeOffset CachedAt)> _tmdbPersonLinksCache = new ConcurrentDictionary<string, (object, DateTimeOffset)>();
+        private static readonly ConcurrentDictionary<string, (object Response, DateTimeOffset CachedAt)> _tmdbReviewsCache = new ConcurrentDictionary<string, (object, DateTimeOffset)>();
 
         // Remember failed upstream lookups briefly so a burst of requests during a bad-key
         // or rate-limit spell doesn't hammer api.mdblist.com.
@@ -452,6 +453,55 @@ namespace Emby.Plugins.Moonfin.Api
             {
                 return Json(new { success = false, error = "Failed to fetch from TMDB: " + ex.Message });
             }
+        }
+
+        public async Task<object?> Get(GetTmdbReviewsRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.TmdbId))
+                return Json(400, new { success = false, error = "Missing required parameter: tmdbId" });
+
+            var apiKey = await GetUserTmdbApiKey().ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(apiKey))
+                return Json(new { success = false, error = "No TMDB API key configured." });
+
+            var mediaType = string.Equals(request.Type?.Trim(), "tv", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
+            var lang = TmdbReview.RequestLanguage(request.Language);
+            var tmdbId = request.TmdbId!.Trim();
+            var cacheKey = $"{mediaType}:{tmdbId}:{lang}";
+            if (_tmdbReviewsCache.TryGetValue(cacheKey, out var cached) && DateTimeOffset.UtcNow - cached.CachedAt < TmdbCacheTtl)
+                return Json(cached.Response);
+
+            try
+            {
+                var (total, reviews, error) = await FetchTmdbReviews(mediaType, tmdbId, lang, apiKey!).ConfigureAwait(false);
+                if (error == null && TmdbReview.ShouldAskInEnglish(total, lang))
+                    (total, reviews, error) = await FetchTmdbReviews(mediaType, tmdbId, "en-US", apiKey!).ConfigureAwait(false);
+                if (error != null) return Json(new { success = false, error });
+
+                var result = new { success = true, totalResults = total, reviews };
+                _tmdbReviewsCache[cacheKey] = (result, DateTimeOffset.UtcNow);
+                return Json(result);
+            }
+            catch (Exception ex) when (!(ex is OperationCanceledException))
+            {
+                return Json(new { success = false, error = "Failed to fetch from TMDB: " + ex.Message });
+            }
+        }
+
+        private async Task<(int Total, List<TmdbReview> Reviews, string? Error)> FetchTmdbReviews(string mediaType, string tmdbId, string language, string apiKey)
+        {
+            var url = $"https://api.themoviedb.org/3/{mediaType}/{Uri.EscapeDataString(tmdbId)}/reviews?language={Uri.EscapeDataString(language)}";
+            using var client = CreateTmdbClient();
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            MoonfinHttp.ApplyTmdbAuth(req, apiKey);
+            using var response = await client.SendAsync(req).ConfigureAwait(false);
+
+            if ((int)response.StatusCode == 429) return (0, new List<TmdbReview>(), "TMDB rate limit reached.");
+            if (!response.IsSuccessStatusCode) return (0, new List<TmdbReview>(), $"TMDB returned status {(int)response.StatusCode}");
+
+            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            return (TmdbReview.TotalResults(doc.RootElement), TmdbReview.ParseList(doc.RootElement), null);
         }
 
         public async Task<object?> Get(GetProductionCompaniesRequest request)

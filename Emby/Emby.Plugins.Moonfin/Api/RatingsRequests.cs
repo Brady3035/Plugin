@@ -85,4 +85,13 @@ namespace Emby.Plugins.Moonfin.Api
     {
         public string? TmdbId { get; set; }
     }
+
+    [Route("/Moonfin/Tmdb/Reviews", "GET")]
+    [Authenticated]
+    public class GetTmdbReviewsRequest : IReturn<object>
+    {
+        public string? TmdbId { get; set; }
+        public string? Type { get; set; }
+        public string? Language { get; set; }
+    }
 }

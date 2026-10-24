@@ -134,6 +134,7 @@ public class MoonfinController : ControllerBase
             TmdbAvailable = !string.IsNullOrWhiteSpace(config?.TmdbApiKey),
             TmdbThumbsSupported = true,
             TmdbPersonLinksSupported = true,
+            TmdbReviewsSupported = true,
             MessagesSupported = true,
             RecommendationsSupported = config?.RecommendationsProviderEnabled ?? true,
             DefaultSettings = config?.DefaultUserSettings
@@ -1556,6 +1557,13 @@ public class MoonfinPingResponse
     /// </summary>
     [JsonPropertyName("tmdbPersonLinksSupported")]
     public bool? TmdbPersonLinksSupported { get; set; }
+
+    /// <summary>
+    /// True when this plugin has the Tmdb/Reviews endpoint. Older plugins leave it out, so the
+    /// app hides the Reviews section rather than asking for it.
+    /// </summary>
+    [JsonPropertyName("tmdbReviewsSupported")]
+    public bool? TmdbReviewsSupported { get; set; }
 
     /// <summary>
     /// True when this plugin has the admin messages endpoints. Older plugins leave it out, so
