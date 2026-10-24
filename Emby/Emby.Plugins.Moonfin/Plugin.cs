@@ -47,6 +47,9 @@ namespace Emby.Plugins.Moonfin
 
         /// <summary>The RomM-backed game library. It holds RomM's inventory, so it lives as long as the server.</summary>
         public RommSource? Romm { get; private set; }
+
+        public RommSaveSync? RommSaves { get; private set; }
+
         public NotificationStore? NotificationStore { get; private set; }
         public RelaySender? RelaySender { get; private set; }
         public FcmSender? FcmSender { get; private set; }
@@ -197,7 +200,9 @@ namespace Emby.Plugins.Moonfin
                     return config == null ? null : RommSettings.From(config.GamesRommUrl, config.GamesRommToken, config.GamesRommLibraryId);
                 },
                 () => rommHttp,
-                Api.GamesScanner.RommRules);
+                Api.GamesScanner.RommRules,
+                accountsFolder: Path.Combine(DataFolderPath, "romm-accounts"));
+            RommSaves = new RommSaveSync(Romm);
 
             var animeLogger = logManager.GetLogger("MoonfinAnimeMarkers");
             AnimeMarkerDiagnostics = new AnimeMarkerDiagnosticLog(animeLogger);

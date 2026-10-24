@@ -227,6 +227,30 @@ public static class RommParser
         return true;
     }
 
+    public static List<RommAsset> ParseAssets(JsonElement assets) =>
+        assets.ValueKind == JsonValueKind.Array
+            ? assets.EnumerateArray().Select(ParseAsset).OfType<RommAsset>().ToList()
+            : new List<RommAsset>();
+
+    /// <summary>A save or state, or null without an id or a readable update time.</summary>
+    public static RommAsset? ParseAsset(JsonElement asset)
+    {
+        var id = Int(asset, "id");
+        var updated = Text(asset, "updated_at");
+        if (id == null || updated == null ||
+            !DateTime.TryParse(updated, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var updatedUtc))
+        {
+            return null;
+        }
+
+        return new RommAsset
+        {
+            Id = id.Value,
+            FileName = Text(asset, "file_name") ?? string.Empty,
+            UpdatedUtc = updatedUtc,
+        };
+    }
+
     private static int? MostPlayers(string? playerCount)
     {
         if (string.IsNullOrWhiteSpace(playerCount))
@@ -325,7 +349,7 @@ public static class RommParser
         }
     }
 
-    private static string? Text(JsonElement obj, string name)
+    internal static string? Text(JsonElement obj, string name)
     {
         if (obj.ValueKind != JsonValueKind.Object ||
             !obj.TryGetProperty(name, out var value) ||
@@ -343,7 +367,7 @@ public static class RommParser
         obj.TryGetProperty(name, out var value) &&
         value.ValueKind == JsonValueKind.True;
 
-    private static int? Int(JsonElement obj, string name) =>
+    internal static int? Int(JsonElement obj, string name) =>
         obj.ValueKind == JsonValueKind.Object &&
         obj.TryGetProperty(name, out var value) &&
         value.ValueKind == JsonValueKind.Number &&

@@ -57,7 +57,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
                     : RommSettings.From(config.GamesRommUrl, config.GamesRommToken, config.GamesRommLibraryId);
             },
             () => provider.GetRequiredService<IHttpClientFactory>().CreateClient(),
-            GameSystemCoreResolver.RommRules));
+            GameSystemCoreResolver.RommRules,
+            accountsFolder: Path.Combine(MoonfinPlugin.ResolveDataFolderPath(), "romm-accounts")));
+        serviceCollection.AddSingleton(provider => new RommSaveSync(provider.GetRequiredService<RommSource>()));
         serviceCollection.AddSingleton<GamesService>();
         serviceCollection.AddSingleton<GameSavesService>();
         // MoonfinPlugin.ResolveDataFolderPath() must be called INSIDE each factory lambda, not

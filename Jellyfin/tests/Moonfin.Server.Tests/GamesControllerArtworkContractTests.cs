@@ -161,6 +161,9 @@ public sealed class GamesControllerArtworkContractTests
             [nameof(GamesController.InstallCores)] = "RequiresElevation",
             [nameof(GamesController.UploadCores)] = "RequiresElevation",
             [nameof(GamesController.TestRomm)] = "RequiresElevation",
+            [nameof(GamesController.GetRommAccount)] = null,
+            [nameof(GamesController.LinkRommAccount)] = null,
+            [nameof(GamesController.UnlinkRommAccount)] = null,
         };
 
     public static IEnumerable<object?[]> GamesControllerActionPolicyCases() =>

@@ -455,12 +455,16 @@ public class GamesService
         };
     }
 
+    /// <summary>Lists a library's systems as this user sees them, through their own RomM account when linked.</summary>
+    public IReadOnlyList<GameSystem> GetSystems(string libraryId, Guid? userId) =>
+        _romm?.Owns(libraryId) == true ? GetRommSystems(_romm.ForUser(userId)) : GetSystems(libraryId);
+
     /// <summary>Lists the top-level system folders inside a game library.</summary>
     public IReadOnlyList<GameSystem> GetSystems(string libraryId)
     {
         if (_romm?.Owns(libraryId) == true)
         {
-            return GetRommSystems();
+            return GetRommSystems(_romm);
         }
 
         var library = GetGameLibraries().FirstOrDefault(l =>
@@ -502,12 +506,16 @@ public class GamesService
             .ToList();
     }
 
+    /// <summary>Lists a library's games as this user sees them, through their own RomM account when linked.</summary>
+    public IReadOnlyList<GameSummary> GetGames(string libraryId, string? systemId, Guid? userId) =>
+        _romm?.Owns(libraryId) == true ? GetRommGames(_romm.ForUser(userId), systemId) : GetGames(libraryId, systemId);
+
     /// <summary>Lists the games inside a system folder (optionally a single system).</summary>
     public virtual IReadOnlyList<GameSummary> GetGames(string libraryId, string? systemId)
     {
         if (_romm?.Owns(libraryId) == true)
         {
-            return GetRommGames(systemId);
+            return GetRommGames(_romm, systemId);
         }
 
         var library = GetGameLibraries().FirstOrDefault(l =>
@@ -770,7 +778,7 @@ public class GamesService
 
         if (_romm?.Owns(libraryId) == true)
         {
-            var rommGame = _romm.FindGame(gameId);
+            var rommGame = _romm.ForUser(userId).FindGame(gameId);
             if (rommGame == null)
             {
                 return null;
@@ -814,7 +822,7 @@ public class GamesService
     /// The cores, display title, and full ROM path a game's art is keyed on. Deliberately skips
     /// the full metadata resolution <see cref="GetGameAsync"/> does (which may hash an arcade ZIP)
     /// since this fires once per poster, concurrently for every tile on screen, so it must stay
-    /// cheap like <see cref="GetGames"/>; arcade compatibility is read only from
+    /// cheap like <see cref="GetGames(string, string?)"/>. Arcade compatibility is read only from
     /// <see cref="ArcadeCompatibilityService.TryGetCached"/>, never freshly hashed.
     ///
     /// Returns the full ROM path (not just filename) since <see cref="GameThumbService.GetThumbPathAsync"/>
@@ -861,9 +869,9 @@ public class GamesService
             coreWasDefaulted);
     }
 
-    private IReadOnlyList<GameSystem> GetRommSystems()
+    private static IReadOnlyList<GameSystem> GetRommSystems(RommSource romm)
     {
-        var snapshot = _romm!.Snapshot();
+        var snapshot = romm.Snapshot();
         if (snapshot == null)
         {
             return Array.Empty<GameSystem>();
@@ -885,9 +893,9 @@ public class GamesService
             .ToList();
     }
 
-    private IReadOnlyList<GameSummary> GetRommGames(string? systemId)
+    private static IReadOnlyList<GameSummary> GetRommGames(RommSource romm, string? systemId)
     {
-        var snapshot = _romm!.Snapshot();
+        var snapshot = romm.Snapshot();
         if (snapshot == null)
         {
             return Array.Empty<GameSummary>();
@@ -920,7 +928,7 @@ public class GamesService
 
     private async Task<GameDetail?> BuildRommDetailAsync(string gameId, Guid? userId, CancellationToken cancellationToken)
     {
-        if (_romm!.FindGameAndPlatform(gameId) is not (var game, var platform))
+        if (_romm!.ForUser(userId).FindGameAndPlatform(gameId) is not (var game, var platform))
         {
             return null;
         }

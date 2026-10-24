@@ -93,7 +93,7 @@ public class GamesController : ControllerBase
             return Ok(Array.Empty<GameSystem>());
         }
 
-        var systems = (await _artwork.GetSystemsAsync(libraryId, cancellationToken).ConfigureAwait(false)).ToList();
+        var systems = (await _artwork.GetSystemsAsync(libraryId, this.GetUserIdFromClaims(), cancellationToken).ConfigureAwait(false)).ToList();
 
         // One catalog pass for every system on the page. Reading them one at a time re-walked the
         // whole catalog per system, so a library's browse request cost systems x entries.
@@ -383,7 +383,7 @@ public class GamesController : ControllerBase
             return Ok(Array.Empty<GameSummary>());
         }
 
-        return Ok(_gamesService.GetGames(libraryId, system));
+        return Ok(_gamesService.GetGames(libraryId, system, this.GetUserIdFromClaims()));
     }
 
     /// <summary>Resolves a single game's full detail (ROM, core, BIOS files).</summary>
@@ -830,8 +830,9 @@ public class GamesController : ControllerBase
 
         if (_romm.Owns(libraryId))
         {
-            var firmware = _romm.FindFirmware(token);
-            var client = _romm.CreateClient();
+            var romm = _romm.ForUser(this.GetUserIdFromClaims());
+            var firmware = romm.FindFirmware(token);
+            var client = romm.CreateClient();
             return firmware == null || client == null
                 ? NotFound()
                 : await ProxyRommAsync((method, range) => client.SendFirmwareAsync(method, firmware, range, cancellationToken), cancellationToken).ConfigureAwait(false);
@@ -1005,10 +1006,62 @@ public class GamesController : ControllerBase
         }
     }
 
+    /// <summary>The signed-in user's link to their own RomM account. A pending link is checked with RomM on each call.</summary>
+    [HttpGet("Romm/Account")]
+    [Authorize]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<RommAccountStatus>> GetRommAccount(CancellationToken cancellationToken)
+    {
+        var userId = this.GetUserIdFromClaims();
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
+        return _romm.Accounts == null || !GamesEnabled()
+            ? Ok(new RommAccountStatus())
+            : Ok(await _romm.Accounts.StatusAsync(userId.Value, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>Starts linking the signed-in user's RomM account, which they approve in RomM.</summary>
+    [HttpPost("Romm/Account")]
+    [Authorize]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<RommAccountStatus>> LinkRommAccount(CancellationToken cancellationToken)
+    {
+        var userId = this.GetUserIdFromClaims();
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
+        return _romm.Accounts == null || !GamesEnabled()
+            ? Ok(new RommAccountStatus())
+            : Ok(await _romm.Accounts.StartLinkAsync(userId.Value, cancellationToken).ConfigureAwait(false));
+    }
+
+    [HttpDelete("Romm/Account")]
+    [Authorize]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<RommAccountStatus> UnlinkRommAccount()
+    {
+        var userId = this.GetUserIdFromClaims();
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
+        return Ok(_romm.Accounts?.Unlink(userId.Value) ?? new RommAccountStatus());
+    }
+
     private async Task<IActionResult> ServeRommRomAsync(string gameId, CancellationToken cancellationToken)
     {
-        var game = _romm.FindGame(gameId);
-        var client = _romm.CreateClient();
+        var romm = _romm.ForUser(this.GetUserIdFromClaims());
+        var game = romm.FindGame(gameId);
+        var client = romm.CreateClient();
         if (game == null || client == null)
         {
             return NotFound();

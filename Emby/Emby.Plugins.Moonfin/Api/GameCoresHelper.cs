@@ -225,7 +225,7 @@ namespace Emby.Plugins.Moonfin.Api
             lock (Gate) { File.WriteAllBytes(path, data); }
         }
 
-        private static string? ResolvePath(Guid userId, string gameId, string kind)
+        internal static string? ResolvePath(Guid userId, string gameId, string kind)
         {
             if (string.IsNullOrWhiteSpace(gameId)) return null;
             var normalizedKind = kind?.Trim().ToLowerInvariant();

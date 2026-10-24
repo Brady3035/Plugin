@@ -160,3 +160,39 @@ public sealed class RommFileRules
     /// <summary>Whether an archive is sent as is, given the core and the file name. Arcade sets are.</summary>
     public Func<string, string, bool> KeepArchiveIntact { get; }
 }
+
+/// <summary>A save or state in RomM.</summary>
+public sealed class RommAsset
+{
+    public int Id { get; set; }
+
+    public string FileName { get; set; } = string.Empty;
+
+    public DateTime UpdatedUtc { get; set; }
+}
+
+/// <summary>A pairing RomM started, waiting for the user to approve it in RomM.</summary>
+public sealed class RommDeviceLink
+{
+    public RommDeviceLink(string deviceCode, string userCode, string verificationUrl, string verificationUrlComplete, int expiresInSeconds, int intervalSeconds)
+    {
+        DeviceCode = deviceCode;
+        UserCode = userCode;
+        VerificationUrl = verificationUrl;
+        VerificationUrlComplete = verificationUrlComplete;
+        ExpiresInSeconds = expiresInSeconds;
+        IntervalSeconds = intervalSeconds;
+    }
+
+    public string DeviceCode { get; }
+
+    public string UserCode { get; }
+
+    public string VerificationUrl { get; }
+
+    public string VerificationUrlComplete { get; }
+
+    public int ExpiresInSeconds { get; }
+
+    public int IntervalSeconds { get; }
+}

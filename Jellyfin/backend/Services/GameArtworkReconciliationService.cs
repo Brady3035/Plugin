@@ -235,10 +235,10 @@ public sealed class GameArtworkReconciliationService : IHostedService
     /// reconciliation is intentionally asynchronous, so the catalog must never gate whether a
     /// system or game is visible to clients during startup, recovery, or a catalog rebuild.
     /// </summary>
-    public Task<IReadOnlyList<GameSystem>> GetSystemsAsync(string libraryId, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<GameSystem>> GetSystemsAsync(string libraryId, Guid? userId = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(_games.GetSystems(libraryId));
+        return Task.FromResult(_games.GetSystems(libraryId, userId));
     }
 
     /// <summary>

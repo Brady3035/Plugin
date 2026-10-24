@@ -67,6 +67,14 @@
         var save = params.get('save');
         if (save) { window.EJS_loadStateURL = save; }
 
+        // A save state already holds the battery save, so a Continue skips it.
+        var sram = params.get('sram');
+        var pendingSram = sram && !save
+          ? fetch(sram)
+            .then(function (response) { return response.ok ? response.arrayBuffer() : null; })
+            .catch(function () { return null; })
+          : null;
+
         var name = params.get('name');
         if (name) { window.EJS_gameName = name; }
 
@@ -134,6 +142,54 @@
           for (var i = 0; i < binary.length; i++) { bytes[i] = binary.charCodeAt(i); }
           return bytes;
         }
+
+        // Returns the battery save as a base64 string, or null when the core keeps none.
+        window.moonfinGetSram = function () {
+          try {
+            var gm = window.EJS_emulator && window.EJS_emulator.gameManager;
+            var data = gm && gm.getSaveFile ? gm.getSaveFile(true) : null;
+            return data && data.byteLength ? uint8ToBase64(data) : null;
+          } catch (e) {
+            return null;
+          }
+        };
+
+        function sameBytes(a, b) {
+          if (a.byteLength !== b.byteLength) { return false; }
+          for (var i = 0; i < a.byteLength; i++) {
+            if (a[i] !== b[i]) { return false; }
+          }
+          return true;
+        }
+
+        // The core reads its battery save only at boot, so a different one is written to the
+        // emulator's file system and the game restarted.
+        function applySram(bytes) {
+          try {
+            var gm = window.EJS_emulator && window.EJS_emulator.gameManager;
+            if (!gm || !gm.getSaveFilePath || !gm.FS) { return; }
+            var current = gm.getSaveFile(true);
+            if (current && sameBytes(current, bytes)) { return; }
+            var path = gm.getSaveFilePath();
+            var parts = path.split('/');
+            var dir = '';
+            for (var i = 1; i < parts.length - 1; i++) {
+              dir += '/' + parts[i];
+              if (!gm.FS.analyzePath(dir).exists) { gm.FS.mkdir(dir); }
+            }
+            gm.FS.writeFile(path, bytes);
+            gm.loadSaveFiles();
+            gm.restart();
+          } catch (e) { /* ignore */ }
+        }
+
+        window.EJS_onGameStart = function () {
+          if (pendingSram) {
+            pendingSram.then(function (buffer) {
+              if (buffer && buffer.byteLength) { applySram(new Uint8Array(buffer)); }
+            });
+          }
+        };
 
         // Loads a save state from a base64 blob (the Moonfin cloud save).
         window.moonfinLoadState = function (b64) {

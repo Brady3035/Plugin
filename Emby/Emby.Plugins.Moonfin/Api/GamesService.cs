@@ -48,10 +48,11 @@ namespace Emby.Plugins.Moonfin.Api
         private GamesScanner? Scanner()
         {
             var lm = PluginServices.LibraryManager;
-            return lm == null ? null : new GamesScanner(lm, Plugin.Instance?.Romm);
+            return lm == null ? null : new GamesScanner(lm, Romm());
         }
 
-        private static RommSource? Romm() => Plugin.Instance?.Romm;
+        // A user linked to RomM browses and downloads with their own RomM account.
+        private RommSource? Romm() => Plugin.Instance?.Romm?.ForUser(AuthHelpers.GetCurrentUserId(Request, _authContext));
 
         public object Get(GetGamesDebugRequest request)
         {
@@ -220,6 +221,33 @@ namespace Emby.Plugins.Moonfin.Api
             });
         }
 
+        public async Task<object> Get(GetRommAccountRequest request)
+        {
+            var userId = AuthHelpers.GetCurrentUserId(Request, _authContext);
+            if (userId == null) return Json(401, new { error = "User not authenticated" });
+            var accounts = Plugin.Instance?.Romm?.Accounts;
+            return Json(accounts == null || !GamesEnabled()
+                ? new RommAccountStatus()
+                : await accounts.StatusAsync(userId.Value, Request.CancellationToken).ConfigureAwait(false));
+        }
+
+        public async Task<object> Post(LinkRommAccountRequest request)
+        {
+            var userId = AuthHelpers.GetCurrentUserId(Request, _authContext);
+            if (userId == null) return Json(401, new { error = "User not authenticated" });
+            var accounts = Plugin.Instance?.Romm?.Accounts;
+            return Json(accounts == null || !GamesEnabled()
+                ? new RommAccountStatus()
+                : await accounts.StartLinkAsync(userId.Value, Request.CancellationToken).ConfigureAwait(false));
+        }
+
+        public object Delete(UnlinkRommAccountRequest request)
+        {
+            var userId = AuthHelpers.GetCurrentUserId(Request, _authContext);
+            if (userId == null) return Json(401, new { error = "User not authenticated" });
+            return Json(Plugin.Instance?.Romm?.Accounts?.Unlink(userId.Value) ?? new RommAccountStatus());
+        }
+
         public async Task<object> Post(TestRommRequest request)
         {
             var romm = Romm();
@@ -356,11 +384,15 @@ namespace Emby.Plugins.Moonfin.Api
             return null!;
         }
 
-        public object Get(GetGameSaveRequest request)
+        public async Task<object> Get(GetGameSaveRequest request)
         {
             var userId = AuthHelpers.GetCurrentUserId(Request, _authContext);
             if (userId == null) return Json(401, new { error = "User not authenticated" });
-            var data = GameSavesHelper.Get(userId.Value, request.GameId, request.Kind ?? "state");
+            var rommSaves = Plugin.Instance?.RommSaves;
+            var target = RommTarget(rommSaves, userId.Value, request.GameId, request.Kind);
+            var data = target != null
+                ? await rommSaves!.ReadAsync(target, Request.CancellationToken).ConfigureAwait(false)
+                : GameSavesHelper.Get(userId.Value, request.GameId, request.Kind ?? "state");
             if (data == null) return NotFound();
             return ResultFactory.GetResult(Request, new MemoryStream(data), "application/octet-stream", null);
         }
@@ -375,10 +407,23 @@ namespace Emby.Plugins.Moonfin.Api
             if (ms.Length == 0) return Json(400, new { error = "Empty save payload." });
             if (ms.Length > MaxSaveBytes) return Json(400, new { error = "Save payload too large." });
 
-            GameSavesHelper.Save(userId.Value, request.GameId, request.Kind ?? "state", ms.ToArray());
+            var rommSaves = Plugin.Instance?.RommSaves;
+            var target = RommTarget(rommSaves, userId.Value, request.GameId, request.Kind);
+            if (target != null)
+            {
+                await rommSaves!.WriteAsync(target, ms.ToArray(), Request.CancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                GameSavesHelper.Save(userId.Value, request.GameId, request.Kind ?? "state", ms.ToArray());
+            }
+
             Request.Response.StatusCode = 204;
             return null!;
         }
+
+        private static RommSaveTarget? RommTarget(RommSaveSync? rommSaves, Guid userId, string gameId, string? kind) =>
+            rommSaves?.Target(userId, gameId, kind, GameSavesHelper.ResolvePath(userId, gameId, kind ?? "state"));
 
         public object Get(GetCoresStatusRequest request)
         {

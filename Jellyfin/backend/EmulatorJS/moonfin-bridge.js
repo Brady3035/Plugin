@@ -536,6 +536,71 @@
       }
     };
 
+    // Returns the battery save as a base64 string, or null when the core keeps none.
+    window.moonfinGetSram = function () {
+      try {
+        var gm = window.EJS_emulator && window.EJS_emulator.gameManager;
+        var sram = gm && gm.getSaveFile ? gm.getSaveFile(true) : null;
+        return sram && sram.byteLength ? uint8ToBase64(sram) : null;
+      } catch (e) {
+        return null;
+      }
+    };
+
+    function sameBytes(a, b) {
+      if (a.byteLength !== b.byteLength) {
+        return false;
+      }
+      for (var i = 0; i < a.byteLength; i++) {
+        if (a[i] !== b[i]) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // The core reads its battery save only at boot, so a different one is written to the
+    // emulator's file system and the game restarted.
+    function applySram(bytes) {
+      try {
+        var gm = window.EJS_emulator && window.EJS_emulator.gameManager;
+        if (!gm || !gm.getSaveFilePath || !gm.FS) {
+          return;
+        }
+        var current = gm.getSaveFile(true);
+        if (current && sameBytes(current, bytes)) {
+          return;
+        }
+        var path = gm.getSaveFilePath();
+        var parts = path.split('/');
+        var dir = '';
+        for (var i = 1; i < parts.length - 1; i++) {
+          dir += '/' + parts[i];
+          if (!gm.FS.analyzePath(dir).exists) {
+            gm.FS.mkdir(dir);
+          }
+        }
+        gm.FS.writeFile(path, bytes);
+        gm.loadSaveFiles();
+        gm.restart();
+      } catch (e) { /* ignore */ }
+    }
+
+    var pendingSram = window.moonfinSramUrl
+      ? fetch(window.moonfinSramUrl)
+        .then(function (response) { return response.ok ? response.arrayBuffer() : null; })
+        .catch(function () { return null; })
+      : null;
+    window.EJS_onGameStart = function () {
+      if (pendingSram) {
+        pendingSram.then(function (buffer) {
+          if (buffer && buffer.byteLength) {
+            applySram(new Uint8Array(buffer));
+          }
+        });
+      }
+    };
+
     window.moonfinLoadState = function (b64) {
       try {
         var emu = window.EJS_emulator;

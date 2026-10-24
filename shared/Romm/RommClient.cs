@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -186,6 +187,120 @@ public sealed class RommClient
         return HttpStatusCode.OK;
     }
 
+    /// <summary>Starts RomM's device pairing, which needs no token yet.</summary>
+    public async Task<RommDeviceLink> StartDeviceLinkAsync(string identifier, string name, IEnumerable<string> scopes, CancellationToken cancellationToken)
+    {
+        var body = JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["client_device_identifier"] = identifier,
+            ["name"] = name,
+            ["client"] = "Moonfin",
+            ["requested_scopes"] = scopes.ToArray(),
+        });
+        using var request = NewRequest(HttpMethod.Post, "/api/auth/device/init", authorize: false);
+        request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new RommRequestException((int)response.StatusCode, "/api/auth/device/init");
+        }
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
+        var root = document.RootElement;
+        var deviceCode = RommParser.Text(root, "device_code");
+        var userCode = RommParser.Text(root, "user_code");
+        if (deviceCode == null || userCode == null)
+        {
+            throw new RommRequestException(502, "/api/auth/device/init");
+        }
+
+        return new RommDeviceLink(
+            deviceCode,
+            userCode,
+            _baseUrl + (RommParser.Text(root, "verification_path") ?? "/pair/device"),
+            _baseUrl + (RommParser.Text(root, "verification_path_complete") ?? "/pair/device"),
+            RommParser.Int(root, "expires_in") ?? 600,
+            RommParser.Int(root, "interval") ?? 5);
+    }
+
+    /// <summary>
+    /// One poll of a pairing. Returns the token once the user approved, or the reason RomM gave
+    /// for not having one yet: authorization_pending, slow_down, access_denied or expired_token.
+    /// </summary>
+    public async Task<(string? Token, string? Reason)> PollDeviceLinkAsync(string deviceCode, CancellationToken cancellationToken)
+    {
+        var body = JsonSerializer.Serialize(new Dictionary<string, string> { ["device_code"] = deviceCode });
+        using var request = NewRequest(HttpMethod.Post, "/api/auth/device/token", authorize: false);
+        request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        var text = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            using var error = JsonDocument.Parse(text);
+            return (null, RommParser.Text(error.RootElement, "detail"));
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new RommRequestException((int)response.StatusCode, "/api/auth/device/token");
+        }
+
+        using var document = JsonDocument.Parse(text);
+        return (NormalizeToken(RommParser.Text(document.RootElement, "access_token")), null);
+    }
+
+    public async Task<string?> GetUsernameAsync(CancellationToken cancellationToken)
+    {
+        using var document = await GetJsonAsync("/api/users/me", cancellationToken).ConfigureAwait(false);
+        return RommParser.Text(document.RootElement, "username");
+    }
+
+    /// <summary>The newest battery save in a slot, from any emulator, so RomM's own player shares it.</summary>
+    public async Task<RommAsset?> LatestSaveAsync(int romId, string slot, CancellationToken cancellationToken)
+    {
+        using var document = await GetJsonAsync($"/api/saves?rom_id={romId}&slot={Uri.EscapeDataString(slot)}", cancellationToken).ConfigureAwait(false);
+        return RommParser.ParseAssets(document.RootElement).OrderByDescending(asset => asset.UpdatedUtc).FirstOrDefault();
+    }
+
+    public async Task<RommAsset?> FindStateAsync(int romId, string fileName, CancellationToken cancellationToken)
+    {
+        using var document = await GetJsonAsync($"/api/states?rom_id={romId}", cancellationToken).ConfigureAwait(false);
+        return RommParser.ParseAssets(document.RootElement)
+            .Where(asset => asset.FileName == fileName)
+            .OrderByDescending(asset => asset.UpdatedUtc)
+            .FirstOrDefault();
+    }
+
+    /// <summary><paramref name="folder"/> is "saves" or "states".</summary>
+    public async Task<byte[]> DownloadAssetAsync(string folder, int id, CancellationToken cancellationToken)
+    {
+        var path = $"/api/{folder}/{id}/content";
+        using var request = NewRequest(HttpMethod.Get, path, authorize: true);
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new RommRequestException((int)response.StatusCode, path);
+        }
+
+        return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Files a battery save in a slot the way RomM's own player does: each upload is a new
+    /// version and RomM keeps a short history.
+    /// </summary>
+    public Task<RommAsset> UploadSaveAsync(int romId, string emulator, string slot, string fileName, byte[] data, CancellationToken cancellationToken) =>
+        UploadAsync(
+            $"/api/saves?rom_id={romId}&emulator={Uri.EscapeDataString(emulator)}&slot={Uri.EscapeDataString(slot)}&overwrite=true&autocleanup=true",
+            "saveFile",
+            fileName,
+            data,
+            cancellationToken);
+
+    /// <summary>RomM replaces a state with the same file name, so one name keeps one state.</summary>
+    public Task<RommAsset> UploadStateAsync(int romId, string emulator, string fileName, byte[] data, CancellationToken cancellationToken) =>
+        UploadAsync($"/api/states?rom_id={romId}&emulator={Uri.EscapeDataString(emulator)}", "stateFile", fileName, data, cancellationToken);
+
     /// <summary>
     /// The full URL of a RomM artwork file. Only RomM's public asset folder is accepted, so a
     /// path from RomM can't point the plugin's downloader anywhere else.
@@ -216,6 +331,22 @@ public sealed class RommClient
         }
 
         return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<RommAsset> UploadAsync(string pathAndQuery, string field, string fileName, byte[] data, CancellationToken cancellationToken)
+    {
+        using var request = NewRequest(HttpMethod.Post, pathAndQuery, authorize: true);
+        var file = new ByteArrayContent(data);
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        request.Content = new MultipartFormDataContent { { file, field, fileName } };
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new RommRequestException((int)response.StatusCode, pathAndQuery);
+        }
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
+        return RommParser.ParseAsset(document.RootElement) ?? throw new RommRequestException(502, pathAndQuery);
     }
 
     private async Task<JsonDocument> GetJsonAsync(string pathAndQuery, CancellationToken cancellationToken, bool authorize = true)

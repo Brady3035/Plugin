@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Http;
 using System.Threading;
@@ -35,6 +36,8 @@ public sealed class RommSettings
     }
 
     internal string Signature => BaseUrl + "\n" + Token;
+
+    internal RommSettings WithToken(string token) => new RommSettings(BaseUrl, token, LibraryId);
 }
 
 /// <summary>
@@ -51,6 +54,7 @@ public sealed class RommSource
     private readonly RommFileRules _rules;
     private readonly Func<RommSettings, CancellationToken, Task<RommSnapshot>>? _loadOverride;
     private readonly object _gate = new object();
+    private readonly ConcurrentDictionary<Guid, RommSource> _userSources = new ConcurrentDictionary<Guid, RommSource>();
     private string? _inventorySignature;
     private RommInventory? _inventory;
 
@@ -58,17 +62,22 @@ public sealed class RommSource
     /// <param name="httpClient">Hands out the HttpClient each RomM call uses.</param>
     /// <param name="rules">The plugin's ROM file rules.</param>
     /// <param name="loadOverride">Replaces the RomM listing, for tests.</param>
+    /// <param name="accountsFolder">Where users' own RomM links are kept. Without it everyone uses the admin's token.</param>
     public RommSource(
         Func<RommSettings?> settings,
         Func<HttpClient> httpClient,
         RommFileRules rules,
-        Func<RommSettings, CancellationToken, Task<RommSnapshot>>? loadOverride = null)
+        Func<RommSettings, CancellationToken, Task<RommSnapshot>>? loadOverride = null,
+        string? accountsFolder = null)
     {
         _settings = settings;
         _httpClient = httpClient;
         _rules = rules;
         _loadOverride = loadOverride;
+        Accounts = accountsFolder == null ? null : new RommAccounts(settings, httpClient, accountsFolder);
     }
+
+    public RommAccounts? Accounts { get; }
 
     /// <summary>Raised when a RomM load changed the games clients see.</summary>
     public event Action? Changed;
@@ -127,6 +136,29 @@ public sealed class RommSource
             games = snapshot?.Games.Count,
             lastError = LastError,
         };
+    }
+
+    /// <summary>
+    /// The library as a linked user's own RomM account sees it, with that user's token for every
+    /// call. Anyone not linked gets this source and the admin's token.
+    /// </summary>
+    public RommSource ForUser(Guid? userId)
+    {
+        if (userId == null || Accounts?.TokenFor(userId.Value) == null)
+        {
+            return this;
+        }
+
+        return _userSources.GetOrAdd(userId.Value, id => new RommSource(
+            () =>
+            {
+                var settings = Settings;
+                var token = Accounts.TokenFor(id);
+                return settings == null || token == null ? null : settings.WithToken(token);
+            },
+            _httpClient,
+            _rules,
+            _loadOverride));
     }
 
     public RommClient? CreateClient()

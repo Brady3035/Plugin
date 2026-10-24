@@ -63,7 +63,7 @@ public class GameSavesService
     /// Builds a contained file path for a save blob. The gameId is sanitized to a safe file
     /// name (it is a base64url ROM token from the games API) so it can never escape the tree.
     /// </summary>
-    private string? ResolvePath(Guid userId, string gameId, string kind)
+    internal string? ResolvePath(Guid userId, string gameId, string kind)
     {
         if (string.IsNullOrWhiteSpace(gameId))
         {

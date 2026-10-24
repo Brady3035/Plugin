@@ -1,25 +1,29 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Moonfin.Romm;
 using Moonfin.Server.Services;
 
 namespace Moonfin.Server.Api;
 
 /// <summary>
 /// Per-user EmulatorJS save-state / SRAM sync. Blobs are keyed by the opaque game id
-/// (a ROM token from the games API) and the current authenticated user.
+/// (a ROM token from the games API) and the current authenticated user. A user linked to RomM
+/// keeps the saves of RomM's games in their RomM account too.
 /// </summary>
 [ApiController]
 [Route("Moonfin/Games/Saves")]
 public class GameSavesController : ControllerBase
 {
     private readonly GameSavesService _savesService;
+    private readonly RommSaveSync _rommSaves;
 
     private const long MaxSaveBytes = 32 * 1024 * 1024; // 32 MB ceiling per blob
 
-    public GameSavesController(GameSavesService savesService)
+    public GameSavesController(GameSavesService savesService, RommSaveSync rommSaves)
     {
         _savesService = savesService;
+        _rommSaves = rommSaves;
     }
 
     /// <summary>Downloads a stored save blob for the current user.</summary>
@@ -38,7 +42,10 @@ public class GameSavesController : ControllerBase
             return Unauthorized();
         }
 
-        var data = await _savesService.GetAsync(userId.Value, gameId, kind ?? "state", cancellationToken).ConfigureAwait(false);
+        var target = RommTarget(userId.Value, gameId, kind);
+        var data = target != null
+            ? await _rommSaves.ReadAsync(target, cancellationToken).ConfigureAwait(false)
+            : await _savesService.GetAsync(userId.Value, gameId, kind ?? "state", cancellationToken).ConfigureAwait(false);
         if (data == null)
         {
             return NotFound();
@@ -75,7 +82,19 @@ public class GameSavesController : ControllerBase
             return BadRequest(new { Error = "Save payload too large." });
         }
 
-        await _savesService.SaveAsync(userId.Value, gameId, kind ?? "state", ms.ToArray(), cancellationToken).ConfigureAwait(false);
+        var target = RommTarget(userId.Value, gameId, kind);
+        if (target != null)
+        {
+            await _rommSaves.WriteAsync(target, ms.ToArray(), cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            await _savesService.SaveAsync(userId.Value, gameId, kind ?? "state", ms.ToArray(), cancellationToken).ConfigureAwait(false);
+        }
+
         return NoContent();
     }
+
+    private RommSaveTarget? RommTarget(Guid userId, string gameId, string? kind) =>
+        _rommSaves.Target(userId, gameId, kind, _savesService.ResolvePath(userId, gameId, kind ?? "state"));
 }
