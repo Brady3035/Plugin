@@ -158,6 +158,14 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         return picked.length ? picked : null;
     }
 
+    // The switch says whether a card plays anything, and the mode says which kind. Defaults
+    // saved before the mode existed only have the switch.
+    function mediaPreviewModeOf(defaults) {
+        if (defaults.episodePreviewEnabled === false) return 'off';
+        if (defaults.episodePreviewEnabled !== true) return '';
+        return defaults.mediaPreviewMode === 'trailer' ? 'trailer' : 'media';
+    }
+
     function setSelectValue(view, selector, value, dynamicLabelPrefix) {
         var select = view.querySelector(selector);
         if (!select) return;
@@ -575,7 +583,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { parent: 'DefaultHomeRowsStyle', off: ['v2'], fields: ['DefaultClassicHomeRowsPadding', 'DefaultHomeRowInfoOverlay', 'DefaultHomeImageTypeContinueWatching', 'DefaultHomeRowsImageTypeOverride'] },
         { parent: 'DefaultHomeRowsImageTypeOverride', fields: ['DefaultHomeRowsImageType'] },
         { parent: 'DefaultHomeRowsImageTypeOverride', off: ['true'], fields: ['DefaultHomeRowImageTypesSection'] },
-        { parent: 'DefaultEpisodePreviewEnabled', fields: ['DefaultPreviewAudioEnabled'] },
+        { parent: 'DefaultMediaPreviewMode', off: ['off'], fields: ['DefaultPreviewAudioEnabled'] },
         { parent: 'DefaultSeasonalRowEnabled', fields: ['DefaultSeasonalRowCountry', 'DefaultSeasonalRowHolidays'] },
         { parent: 'DefaultDetailScreenStyle', off: ['modern', 'spotlight', 'nouveau', 'minimalist'], fields: ['DefaultDetailUseSeriesThumbnails'] },
         { parent: 'DefaultDetailScreenStyle', off: ['classic', 'spotlight', 'nouveau', 'minimalist'], fields: ['DefaultDetailExpandedTabs'] },
@@ -2442,7 +2450,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             bindNullableRangeInput(view, '#DefaultTrailerVolume', '%');
             setNullableRangeInput(view, '#DefaultTrailerVolume', defaults.trailerVolume, '%');
             setNullableBoolSelect(view, '#DefaultMediaBarTrailerCaptions', defaults.mediaBarTrailerCaptions);
-            setNullableBoolSelect(view, '#DefaultEpisodePreviewEnabled', defaults.episodePreviewEnabled);
+            setSelectValue(view, '#DefaultMediaPreviewMode', mediaPreviewModeOf(defaults), 'Configured preview');
             setNullableBoolSelect(view, '#DefaultPreviewAudioEnabled', defaults.previewAudioEnabled);
             bindNullableRangeInput(view, '#DefaultPreviewVolume', '%');
             setNullableRangeInput(view, '#DefaultPreviewVolume', defaults.previewVolume, '%');
@@ -2808,7 +2816,10 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             d.mediaBarTrailerAudio = getNullableBoolSelect(view, '#DefaultMediaBarTrailerAudio');
             d.trailerVolume = getNullableRangeInput(view, '#DefaultTrailerVolume');
             d.mediaBarTrailerCaptions = getNullableBoolSelect(view, '#DefaultMediaBarTrailerCaptions');
-            d.episodePreviewEnabled = getNullableBoolSelect(view, '#DefaultEpisodePreviewEnabled');
+            var mediaPreviewMode = view.querySelector('#DefaultMediaPreviewMode').value;
+            // Older apps only read the on and off switch, so it's written alongside the mode.
+            d.episodePreviewEnabled = mediaPreviewMode ? mediaPreviewMode !== 'off' : null;
+            d.mediaPreviewMode = mediaPreviewMode || null;
             d.previewAudioEnabled = getNullableBoolSelect(view, '#DefaultPreviewAudioEnabled');
             d.previewVolume = getNullableRangeInput(view, '#DefaultPreviewVolume');
             d.seasonalSurprise = view.querySelector('#DefaultSeasonalSurprise').value || null;

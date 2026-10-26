@@ -190,6 +190,13 @@ public class MoonfinSettingsProfile
     [JsonPropertyName("episodePreviewEnabled")]
     public bool? EpisodePreviewEnabled { get; set; }
 
+    /// <summary>
+    /// What a focused home card plays when EpisodePreviewEnabled is on: media for a clip of the
+    /// title, trailer for its trailer. Off is written along with the switch turned off.
+    /// </summary>
+    [JsonPropertyName("mediaPreviewMode")]
+    public string? MediaPreviewMode { get; set; }
+
     [JsonPropertyName("previewAudioEnabled")]
     public bool? PreviewAudioEnabled { get; set; }
 

@@ -2584,12 +2584,14 @@
                                 </select>
                             </div>
                             <div class="inputContainer">
-                                <label class="inputLabel inputLabelUnfocused" for="DefaultEpisodePreviewEnabled">Media Preview</label>
-                                <select id="DefaultEpisodePreviewEnabled" is="emby-select">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultMediaPreviewMode">Media Preview</label>
+                                <select id="DefaultMediaPreviewMode" is="emby-select">
                                     <option value="">Not set (user decides)</option>
-                                    <option value="true">Yes</option>
-                                    <option value="false">No</option>
+                                    <option value="off">Off</option>
+                                    <option value="media">Media Preview</option>
+                                    <option value="trailer">Trailer Preview</option>
                                 </select>
+                                <div class="fieldDescription">What a focused home card plays after a moment: a clip of the title or its trailer.</div>
                             </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultPreviewAudioEnabled">Preview Audio</label>
@@ -4277,7 +4279,7 @@
                 { parent: 'DefaultHomeRowsStyle', off: ['v2'], fields: ['DefaultClassicHomeRowsPadding', 'DefaultHomeRowInfoOverlay', 'DefaultHomeImageTypeContinueWatching', 'DefaultHomeRowsImageTypeOverride'] },
                 { parent: 'DefaultHomeRowsImageTypeOverride', fields: ['DefaultHomeRowsImageType'] },
                 { parent: 'DefaultHomeRowsImageTypeOverride', off: ['true'], fields: ['DefaultHomeRowImageTypesSection'] },
-                { parent: 'DefaultEpisodePreviewEnabled', fields: ['DefaultPreviewAudioEnabled'] },
+                { parent: 'DefaultMediaPreviewMode', off: ['off'], fields: ['DefaultPreviewAudioEnabled'] },
                 { parent: 'DefaultSeasonalRowEnabled', fields: ['DefaultSeasonalRowCountry', 'DefaultSeasonalRowHolidays'] },
                 { parent: 'DefaultDetailScreenStyle', off: ['modern', 'spotlight', 'nouveau', 'minimalist'], fields: ['DefaultDetailUseSeriesThumbnails'] },
                 { parent: 'DefaultDetailScreenStyle', off: ['classic', 'spotlight', 'nouveau', 'minimalist'], fields: ['DefaultDetailExpandedTabs'] },
@@ -4367,6 +4369,14 @@
                     if (value && picked.indexOf(value) === -1) picked.push(value);
                 }
                 return picked.length ? picked : null;
+            }
+
+            // The switch says whether a card plays anything, and the mode says which kind. Defaults
+            // saved before the mode existed only have the switch.
+            function mediaPreviewModeOf(defaults) {
+                if (defaults.episodePreviewEnabled === false) return 'off';
+                if (defaults.episodePreviewEnabled !== true) return '';
+                return defaults.mediaPreviewMode === 'trailer' ? 'trailer' : 'media';
             }
 
             function setSelectValue(selector, value, dynamicLabelPrefix) {
@@ -7170,7 +7180,7 @@
                     bindNullableRangeInput('#DefaultTrailerVolume', '%');
                     setNullableRangeInput('#DefaultTrailerVolume', defaults.trailerVolume, '%');
                     setNullableBoolSelect('#DefaultMediaBarTrailerCaptions', defaults.mediaBarTrailerCaptions);
-                    setNullableBoolSelect('#DefaultEpisodePreviewEnabled', defaults.episodePreviewEnabled);
+                    setSelectValue('#DefaultMediaPreviewMode', mediaPreviewModeOf(defaults), 'Configured preview');
                     setNullableBoolSelect('#DefaultPreviewAudioEnabled', defaults.previewAudioEnabled);
                     bindNullableRangeInput('#DefaultPreviewVolume', '%');
                     setNullableRangeInput('#DefaultPreviewVolume', defaults.previewVolume, '%');
@@ -8064,7 +8074,10 @@
                         config.DefaultUserSettings.mediaBarTrailerAudio = getNullableBoolSelect('#DefaultMediaBarTrailerAudio');
                         config.DefaultUserSettings.trailerVolume = getNullableRangeInput('#DefaultTrailerVolume');
                         config.DefaultUserSettings.mediaBarTrailerCaptions = getNullableBoolSelect('#DefaultMediaBarTrailerCaptions');
-                        config.DefaultUserSettings.episodePreviewEnabled = getNullableBoolSelect('#DefaultEpisodePreviewEnabled');
+                        var mediaPreviewMode = document.querySelector('#DefaultMediaPreviewMode').value;
+                        // Older apps only read the on and off switch, so it's written alongside the mode.
+                        config.DefaultUserSettings.episodePreviewEnabled = mediaPreviewMode ? mediaPreviewMode !== 'off' : null;
+                        config.DefaultUserSettings.mediaPreviewMode = mediaPreviewMode || null;
                         config.DefaultUserSettings.previewAudioEnabled = getNullableBoolSelect('#DefaultPreviewAudioEnabled');
                         config.DefaultUserSettings.previewVolume = getNullableRangeInput('#DefaultPreviewVolume');
                         config.DefaultUserSettings.seasonalSurprise = document.querySelector('#DefaultSeasonalSurprise').value || null;

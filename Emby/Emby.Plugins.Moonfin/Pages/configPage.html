@@ -2636,12 +2636,14 @@
                                 </select>
                             </div>
                             <div class="inputContainer">
-                                <label class="inputLabel inputLabelUnfocused" for="DefaultEpisodePreviewEnabled">Media Preview</label>
-                                <select id="DefaultEpisodePreviewEnabled" is="emby-select">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultMediaPreviewMode">Media Preview</label>
+                                <select id="DefaultMediaPreviewMode" is="emby-select">
                                     <option value="">Not set (user decides)</option>
-                                    <option value="true">Yes</option>
-                                    <option value="false">No</option>
+                                    <option value="off">Off</option>
+                                    <option value="media">Media Preview</option>
+                                    <option value="trailer">Trailer Preview</option>
                                 </select>
+                                <div class="fieldDescription">What a focused home card plays after a moment: a clip of the title or its trailer.</div>
                             </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultPreviewAudioEnabled">Preview Audio</label>
