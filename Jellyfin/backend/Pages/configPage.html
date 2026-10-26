@@ -20,7 +20,7 @@
                 margin: 0;
             }
 
-            #MoonfinConfigPage #AnimeMarkersSection .checkboxContainer > label > span {
+            #MoonfinConfigPage #AnimeMarkersSection .checkboxContainer > label > span:not(.checkboxOutline) {
                 flex: 1 1 auto;
                 white-space: normal;
                 line-height: 1.4;
@@ -1166,6 +1166,16 @@
                                 A file holding the Japanese audio <em>and</em> a dub can be watched either way, so it
                                 shows as <strong>Subbed/Dubbed</strong> rather than just Dubbed. Leave off for the
                                 shorter label.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="AnimeAudioLabelStyle">Audio pill wording</label>
+                            <select is="emby-select" id="AnimeAudioLabelStyle">
+                                <option value="full">Full: Subbed / Dubbed / Subbed/Dubbed</option>
+                                <option value="short">Short: Sub / Dub / Sub/Dub</option>
+                            </select>
+                            <div class="fieldDescription">
+                                Full wording is longer while on Phones and Tablets a shorter label fits better.
                             </div>
                         </div>
                         <div class="inputContainer">
@@ -4252,7 +4262,7 @@
                 { parent: 'MdblistOfficialListsEnabled', fields: ['MdblistOfficialListsMaxItems'] },
                 { parent: 'LiveTvDetectIncompleteRecordings', fields: ['LiveTvAutoRecordCompleteShowing', 'LiveTvDeleteIncompleteCopies', 'LiveTvIncompleteThresholdPercent'] },
                 { parent: 'AnimeMarkersEnabled', fields: ['AnimeMarkerRecapLookup', 'AnimeMarkerShowFiller', 'AnimeMarkerMaxAgeDays'] },
-                { parent: 'AnimeAudioMarkersEnabled', fields: ['AnimeAudioMarkersMovies', 'AnimeAudioSeparateDualAudio'] },
+                { parent: 'AnimeAudioMarkersEnabled', fields: ['AnimeAudioMarkersMovies', 'AnimeAudioSeparateDualAudio', 'AnimeAudioLabelStyle'] },
                 { parent: ['AnimeMarkersEnabled', 'AnimeAudioMarkersEnabled'], fields: ['AnimeMarkerLibraryPicker', 'AnimeAudioTrustSelectedLibraries', 'AnimeMarkerPlacement', 'AnimeMarkerDiagBtn', 'AnimeMarkerPreviewName', 'AnimeMarkerVerboseLogging', 'AnimeMarkerLogBtn'] },
                 { parent: 'GamesEnabled', fields: ['GameCoresStatus', 'GameCoresFile', 'GameLibraryPicker', 'GamesRommUrl', 'GamesRommToken', 'GamesRommLibraryId', 'GamesRommTestBtn'] },
                 { parent: 'DefaultNavbarPosition', off: ['top', 'left'], fields: ['DefaultBottomNavbarStyle', 'DefaultBottomNavbarTab1'] },
@@ -7078,6 +7088,7 @@
                     document.querySelector('#AnimeAudioSeparateDualAudio').checked = config.AnimeAudioSeparateDualAudio === true;
                     document.querySelector('#AnimeAudioTrustSelectedLibraries').checked = config.AnimeAudioTrustSelectedLibraries === true;
                     document.querySelector('#AnimeMarkerPlacement').value = config.AnimeMarkerPlacement || 'below';
+                    document.querySelector('#AnimeAudioLabelStyle').value = config.AnimeAudioLabelStyle || 'full';
                     document.querySelector('#AnimeMarkerShowFiller').checked = config.AnimeMarkerShowFiller !== false;
                     document.querySelector('#AnimeMarkerShowMixed').checked = config.AnimeMarkerShowMixed !== false;
                     document.querySelector('#AnimeMarkerShowRecap').checked = config.AnimeMarkerShowRecap !== false;
@@ -7682,7 +7693,8 @@
                             : '') +
                         ', of which ' + info.markedEpisodes + ' got a marker (' + info.fillerEpisodes + ' filler).<br>' +
                         'Your library numbers this series <strong>' + esc(info.numbering) + '</strong>' +
-                        (info.recapKnown ? ', and recap flags were looked up.' : ', and recap flags were not looked up.');
+                        (info.recapKnown ? ', and recap flags were looked up.' : ', and recap flags were not looked up.') +
+                        '<br>' + describeAnimeMarkerMatching(info);
 
                     var rows = info.episodes || [];
                     if (rows.length === 0) return;
@@ -7704,7 +7716,8 @@
                         html += '<tr style="border-top:1px solid rgba(255,255,255,0.06);">' +
                             '<td style="padding:4px 8px;white-space:nowrap;color:rgba(255,255,255,0.6);">S' +
                             String(row.season) + 'E' + String(row.index) + '</td>' +
-                            '<td style="padding:4px 8px;color:rgba(255,255,255,0.4);">' + String(row.absolute) + '</td>' +
+                            '<td style="padding:4px 8px;color:rgba(255,255,255,0.4);">' + String(row.absolute) +
+                            (row.siteNumber != null && row.siteNumber !== row.absolute ? ' &rarr; #' + String(row.siteNumber) : '') + '</td>' +
                             '<td style="padding:4px 8px;">' + esc(row.name || '') + '</td>' +
                             '<td style="padding:4px 8px;white-space:nowrap;"><span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:0.9em;background:' +
                             color + '33;color:' + color + ';">' + esc(label) + '</span></td>' +
@@ -7712,6 +7725,18 @@
                     }
 
                     result.innerHTML = html + '</tbody></table>';
+                }
+
+                function describeAnimeMarkerMatching(info) {
+                    if (info.matchedBy === 'airdate') {
+                        return 'Episodes were paired by <strong>air date</strong>, because only ' + info.numberAgreements + ' of ' +
+                            info.datedEpisodes + ' dated episodes aired when the site says their number did. The arrow shows the site&#39;s number.';
+                    }
+                    if (info.airDatesKnown === false) {
+                        return 'Episodes were paired by <strong>number</strong>. This table was cached before air dates were read, so use Fetch now to let them check the numbering.';
+                    }
+                    return 'Episodes were paired by <strong>number</strong>' +
+                        (info.datedEpisodes > 0 ? ' (' + info.numberAgreements + ' of ' + info.datedEpisodes + ' dated episodes agree with the site&#39;s air dates).' : '.');
                 }
 
                 function previewAnimeMarkers() {
@@ -7936,6 +7961,7 @@
                         config.AnimeAudioSeparateDualAudio = document.querySelector('#AnimeAudioSeparateDualAudio').checked;
                         config.AnimeAudioTrustSelectedLibraries = document.querySelector('#AnimeAudioTrustSelectedLibraries').checked;
                         config.AnimeMarkerPlacement = document.querySelector('#AnimeMarkerPlacement').value || 'below';
+                        config.AnimeAudioLabelStyle = document.querySelector('#AnimeAudioLabelStyle').value || 'full';
                         config.AnimeMarkerShowFiller = document.querySelector('#AnimeMarkerShowFiller').checked;
                         config.AnimeMarkerShowMixed = document.querySelector('#AnimeMarkerShowMixed').checked;
                         config.AnimeMarkerShowRecap = document.querySelector('#AnimeMarkerShowRecap').checked;

@@ -556,7 +556,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { parent: 'DefaultEnableSonarrCalendar', fields: ['DefaultSonarrCalendarShowDate', 'DefaultSonarrCalendarShowEpisodeInfo', 'DefaultMergeRadarrSonarrCalendars'] },
         { parent: 'MdblistOfficialListsEnabled', fields: ['MdblistOfficialListsMaxItems'] },
         { parent: 'AnimeMarkersEnabled', fields: ['AnimeMarkerRecapLookup', 'AnimeMarkerShowFiller', 'AnimeMarkerMaxAgeDays'] },
-        { parent: 'AnimeAudioMarkersEnabled', fields: ['AnimeAudioMarkersMovies', 'AnimeAudioSeparateDualAudio'] },
+        { parent: 'AnimeAudioMarkersEnabled', fields: ['AnimeAudioMarkersMovies', 'AnimeAudioSeparateDualAudio', 'AnimeAudioLabelStyle'] },
         { parent: ['AnimeMarkersEnabled', 'AnimeAudioMarkersEnabled'], fields: ['AnimeMarkerLibraryPicker', 'AnimeAudioTrustSelectedLibraries', 'AnimeMarkerPlacement', 'AnimeMarkerDiagBtn', 'AnimeMarkerPreviewName', 'AnimeMarkerVerboseLogging', 'AnimeMarkerLogBtn'] },
         { parent: 'GamesEnabled', fields: ['GameCoresStatus', 'GameCoresFile', 'GameLibraryPicker', 'GamesRommUrl', 'GamesRommToken', 'GamesRommLibraryId', 'GamesRommTestBtn'] },
         { parent: 'DefaultNavbarPosition', off: ['top', 'left'], fields: ['DefaultBottomNavbarStyle', 'DefaultBottomNavbarTab1'] },
@@ -2341,6 +2341,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             view.querySelector('#AnimeAudioSeparateDualAudio').checked = config.AnimeAudioSeparateDualAudio === true;
             view.querySelector('#AnimeAudioTrustSelectedLibraries').checked = config.AnimeAudioTrustSelectedLibraries === true;
             view.querySelector('#AnimeMarkerPlacement').value = config.AnimeMarkerPlacement || 'below';
+            view.querySelector('#AnimeAudioLabelStyle').value = config.AnimeAudioLabelStyle || 'full';
             view.querySelector('#AnimeMarkerShowFiller').checked = config.AnimeMarkerShowFiller !== false;
             view.querySelector('#AnimeMarkerShowMixed').checked = config.AnimeMarkerShowMixed !== false;
             view.querySelector('#AnimeMarkerShowRecap').checked = config.AnimeMarkerShowRecap !== false;
@@ -2686,6 +2687,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             config.AnimeAudioSeparateDualAudio = view.querySelector('#AnimeAudioSeparateDualAudio').checked;
             config.AnimeAudioTrustSelectedLibraries = view.querySelector('#AnimeAudioTrustSelectedLibraries').checked;
             config.AnimeMarkerPlacement = view.querySelector('#AnimeMarkerPlacement').value || 'below';
+            config.AnimeAudioLabelStyle = view.querySelector('#AnimeAudioLabelStyle').value || 'full';
             config.AnimeMarkerShowFiller = view.querySelector('#AnimeMarkerShowFiller').checked;
             config.AnimeMarkerShowMixed = view.querySelector('#AnimeMarkerShowMixed').checked;
             config.AnimeMarkerShowRecap = view.querySelector('#AnimeMarkerShowRecap').checked;
@@ -3209,7 +3211,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
                 : '') +
             ', of which ' + info.markedEpisodes + ' got a marker (' + info.fillerEpisodes + ' filler).<br>' +
             'Your library numbers this series <strong>' + esc(info.numbering) + '</strong>' +
-            (info.recapKnown ? ', and recap flags were looked up.' : ', and recap flags were not looked up.');
+            (info.recapKnown ? ', and recap flags were looked up.' : ', and recap flags were not looked up.') +
+            '<br>' + describeAnimeMarkerMatching(info);
 
         var rows = info.episodes || [];
         if (rows.length === 0) return;
@@ -3231,7 +3234,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             html += '<tr style="border-top:1px solid rgba(128,128,128,0.15);">' +
                 '<td style="padding:4px 8px;white-space:nowrap;color:rgba(128,128,128,0.9);">S' +
                 String(row.season) + 'E' + String(row.index) + '</td>' +
-                '<td style="padding:4px 8px;color:rgba(128,128,128,0.7);">' + String(row.absolute) + '</td>' +
+                '<td style="padding:4px 8px;color:rgba(128,128,128,0.7);">' + String(row.absolute) +
+                (row.siteNumber != null && row.siteNumber !== row.absolute ? ' &rarr; #' + String(row.siteNumber) : '') + '</td>' +
                 '<td style="padding:4px 8px;">' + esc(row.name || '') + '</td>' +
                 '<td style="padding:4px 8px;white-space:nowrap;"><span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:0.9em;background:' +
                 color + '33;color:' + color + ';">' + esc(label) + '</span></td>' +
@@ -3239,6 +3243,18 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         }
 
         result.innerHTML = html + '</tbody></table>';
+    }
+
+    function describeAnimeMarkerMatching(info) {
+        if (info.matchedBy === 'airdate') {
+            return 'Episodes were paired by <strong>air date</strong>, because only ' + info.numberAgreements + ' of ' +
+                info.datedEpisodes + ' dated episodes aired when the site says their number did. The arrow shows the site&#39;s number.';
+        }
+        if (info.airDatesKnown === false) {
+            return 'Episodes were paired by <strong>number</strong>. This table was cached before air dates were read, so use Fetch now to let them check the numbering.';
+        }
+        return 'Episodes were paired by <strong>number</strong>' +
+            (info.datedEpisodes > 0 ? ' (' + info.numberAgreements + ' of ' + info.datedEpisodes + ' dated episodes agree with the site&#39;s air dates).' : '.');
     }
 
     function previewAnimeMarkers(view) {
