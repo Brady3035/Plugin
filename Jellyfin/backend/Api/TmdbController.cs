@@ -682,6 +682,36 @@ public class TmdbController : ControllerBase
         return Redirect($"{imageScheme}://image.tmdb.org/t/p/w1280{path}");
     }
 
+    /// <summary>
+    /// The overview, score, genres, runtime, logo, plain backdrop and trailer TMDB holds for a
+    /// movie or show the server doesn't have, so a client can show it like a library title.
+    /// Image paths are TMDB paths.
+    /// </summary>
+    /// <param name="type">movie or tv.</param>
+    /// <param name="tmdbId">TMDB id of the title.</param>
+    /// <param name="imdbId">IMDb id, used when there is no TMDB id.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpGet("Details")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TmdbTitleDetails>> GetDetails(
+        [FromQuery] string? type,
+        [FromQuery] long? tmdbId,
+        [FromQuery] string? imdbId,
+        CancellationToken cancellationToken)
+    {
+        var apiKey = await GetUserApiKey();
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return NotFound();
+        }
+
+        var mediaType = string.Equals(type, "tv", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
+        var details = await _thumbs.GetDetailsAsync(mediaType, tmdbId, imdbId, apiKey, cancellationToken);
+        return details == null ? NotFound() : Ok(details);
+    }
+
     private async Task<string?> GetUserApiKey()
     {
         var userId = this.GetUserIdFromClaims();

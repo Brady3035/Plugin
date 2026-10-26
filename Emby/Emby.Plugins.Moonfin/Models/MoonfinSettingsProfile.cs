@@ -62,6 +62,7 @@ namespace Emby.Plugins.Moonfin.Models
         [JsonPropertyName("mediaBarCollectionIds")] public List<string>? MediaBarCollectionIds { get; set; }
         [JsonPropertyName("mediaBarLibraryIds")] public List<string>? MediaBarLibraryIds { get; set; }
         [JsonPropertyName("mediaBarExcludedGenres")] public List<string>? MediaBarExcludedGenres { get; set; }
+        [JsonPropertyName("mediaBarExternalLists")] public List<string>? MediaBarExternalLists { get; set; }
         [JsonPropertyName("seasonalSurprise")] public string? SeasonalSurprise { get; set; }
         [JsonPropertyName("seasonalDensity")] public string? SeasonalDensity { get; set; }
         [JsonPropertyName("seasonalRowEnabled")] public bool? SeasonalRowEnabled { get; set; }

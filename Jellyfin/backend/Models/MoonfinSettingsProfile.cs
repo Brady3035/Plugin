@@ -208,6 +208,12 @@ public class MoonfinSettingsProfile
     [JsonPropertyName("mediaBarExcludedGenres")]
     public List<string>? MediaBarExcludedGenres { get; set; }
 
+    /// <summary>
+    /// The outside lists the media bar also draws from, by the home row id each list has.
+    /// </summary>
+    [JsonPropertyName("mediaBarExternalLists")]
+    public List<string>? MediaBarExternalLists { get; set; }
+
     [JsonPropertyName("seasonalSurprise")]
     public string? SeasonalSurprise { get; set; }
 
