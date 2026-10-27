@@ -1763,12 +1763,14 @@
                                 </select>
                             </div>
                             <div class="inputContainer">
-                                <label class="inputLabel inputLabelUnfocused" for="DefaultHomeBackdropEnabled">Home Screen Backdrop</label>
-                                <select id="DefaultHomeBackdropEnabled" is="emby-select">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultHomeBackdropStyle">Home Screen Backdrop</label>
+                                <select id="DefaultHomeBackdropStyle" is="emby-select">
                                     <option value="">Not set (user decides)</option>
-                                    <option value="true">Yes</option>
-                                    <option value="false">No</option>
+                                    <option value="off">Off</option>
+                                    <option value="fullScreen">Full Screen</option>
+                                    <option value="corner">Corner</option>
                                 </select>
+                                <div class="fieldDescription">Corner fades the backdrop out from the top right on TV and desktop. Phones show it full screen.</div>
                             </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultDetailsBackdropEnabled">Details Screen Backdrop</label>
@@ -4428,6 +4430,14 @@
                 if (defaults.episodePreviewEnabled === false) return 'off';
                 if (defaults.episodePreviewEnabled !== true) return '';
                 return defaults.mediaPreviewMode === 'trailer' ? 'trailer' : 'media';
+            }
+
+            // The switch says whether Home shows a backdrop, and the style says how. Defaults saved
+            // before the style existed only have the switch.
+            function homeBackdropStyleOf(defaults) {
+                if (defaults.homeBackdropEnabled === false) return 'off';
+                if (defaults.homeBackdropEnabled !== true) return '';
+                return defaults.homeBackdropStyle === 'corner' ? 'corner' : 'fullScreen';
             }
 
             function setSelectValue(selector, value, dynamicLabelPrefix) {
@@ -7196,7 +7206,7 @@
                     setSelectValue('#DefaultClockBehavior', defaults.clockBehavior, 'Configured clock');
                     setNullableBoolSelect('#DefaultUse24HourClock', defaults.use24HourClock);
                     setSelectValue('#DefaultDesktopUiScale', defaults.desktopUiScale, 'Configured scale');
-                    setNullableBoolSelect('#DefaultHomeBackdropEnabled', defaults.homeBackdropEnabled);
+                    setSelectValue('#DefaultHomeBackdropStyle', homeBackdropStyleOf(defaults), 'Configured style');
                     setNullableBoolSelect('#DefaultDetailsBackdropEnabled', defaults.detailsBackdropEnabled);
                     bindNullableRangeInput('#DefaultBrowsingBlur');
                     setNullableRangeInput('#DefaultBrowsingBlur', defaults.browsingBlur);
@@ -8092,7 +8102,10 @@
                         config.DefaultUserSettings.clockBehavior = document.querySelector('#DefaultClockBehavior').value || null;
                         config.DefaultUserSettings.use24HourClock = getNullableBoolSelect('#DefaultUse24HourClock');
                         config.DefaultUserSettings.desktopUiScale = document.querySelector('#DefaultDesktopUiScale').value || null;
-                        config.DefaultUserSettings.homeBackdropEnabled = getNullableBoolSelect('#DefaultHomeBackdropEnabled');
+                        var homeBackdropStyle = document.querySelector('#DefaultHomeBackdropStyle').value;
+                        // Phones and older apps only read the on and off switch, so it's written alongside the style.
+                        config.DefaultUserSettings.homeBackdropEnabled = homeBackdropStyle ? homeBackdropStyle !== 'off' : null;
+                        config.DefaultUserSettings.homeBackdropStyle = homeBackdropStyle || null;
                         config.DefaultUserSettings.detailsBackdropEnabled = getNullableBoolSelect('#DefaultDetailsBackdropEnabled');
                         config.DefaultUserSettings.showBookDiscoverTab = getNullableBoolSelect('#DefaultShowBookDiscoverTab');
                         config.DefaultUserSettings.browsingBlur = getNullableRangeInputAsText('#DefaultBrowsingBlur');

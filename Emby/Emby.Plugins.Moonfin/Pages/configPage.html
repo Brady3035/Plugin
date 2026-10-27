@@ -1815,12 +1815,14 @@
                                 </select>
                             </div>
                             <div class="inputContainer">
-                                <label class="inputLabel inputLabelUnfocused" for="DefaultHomeBackdropEnabled">Home Screen Backdrop</label>
-                                <select id="DefaultHomeBackdropEnabled" is="emby-select">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultHomeBackdropStyle">Home Screen Backdrop</label>
+                                <select id="DefaultHomeBackdropStyle" is="emby-select">
                                     <option value="">Not set (user decides)</option>
-                                    <option value="true">Yes</option>
-                                    <option value="false">No</option>
+                                    <option value="off">Off</option>
+                                    <option value="fullScreen">Full Screen</option>
+                                    <option value="corner">Corner</option>
                                 </select>
+                                <div class="fieldDescription">Corner fades the backdrop out from the top right on TV and desktop. Phones show it full screen.</div>
                             </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultDetailsBackdropEnabled">Details Screen Backdrop</label>

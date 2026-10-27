@@ -241,6 +241,14 @@ public class MoonfinSettingsProfile
     [JsonPropertyName("homeBackdropEnabled")]
     public bool? HomeBackdropEnabled { get; set; }
 
+    /// <summary>
+    /// How TV and desktop apps draw the home backdrop when HomeBackdropEnabled is on: fullScreen
+    /// behind everything, or corner faded out from the top right. Off is written along with the
+    /// switch turned off.
+    /// </summary>
+    [JsonPropertyName("homeBackdropStyle")]
+    public string? HomeBackdropStyle { get; set; }
+
     [JsonPropertyName("detailsBackdropEnabled")]
     public bool? DetailsBackdropEnabled { get; set; }
 
