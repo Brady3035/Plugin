@@ -1781,6 +1781,15 @@
                                 </select>
                             </div>
                             <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultDetailsBackdropSize">Details Backdrop Size</label>
+                                <select id="DefaultDetailsBackdropSize" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="fullScreen">Full Screen</option>
+                                    <option value="fit">Fit</option>
+                                </select>
+                                <div class="fieldDescription">Phones only. Fit shows the whole backdrop across the top of the details screen.</div>
+                            </div>
+                            <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultBrowsingBlur">Browsing Background Blur</label>
                                 <div style="display:flex; align-items:center; gap: 12px; margin-top: 6px; max-width: 440px;">
                                     <select id="DefaultBrowsingBlur_Set" is="emby-select" style="width: auto; min-width: 195px;">
@@ -7208,6 +7217,7 @@
                     setSelectValue('#DefaultDesktopUiScale', defaults.desktopUiScale, 'Configured scale');
                     setSelectValue('#DefaultHomeBackdropStyle', homeBackdropStyleOf(defaults), 'Configured style');
                     setNullableBoolSelect('#DefaultDetailsBackdropEnabled', defaults.detailsBackdropEnabled);
+                    setSelectValue('#DefaultDetailsBackdropSize', defaults.detailsBackdropSize, 'Configured size');
                     bindNullableRangeInput('#DefaultBrowsingBlur');
                     setNullableRangeInput('#DefaultBrowsingBlur', defaults.browsingBlur);
                     bindNullableRangeInput('#DefaultDetailsScreenBlur');
@@ -8107,6 +8117,7 @@
                         config.DefaultUserSettings.homeBackdropEnabled = homeBackdropStyle ? homeBackdropStyle !== 'off' : null;
                         config.DefaultUserSettings.homeBackdropStyle = homeBackdropStyle || null;
                         config.DefaultUserSettings.detailsBackdropEnabled = getNullableBoolSelect('#DefaultDetailsBackdropEnabled');
+                        config.DefaultUserSettings.detailsBackdropSize = document.querySelector('#DefaultDetailsBackdropSize').value || null;
                         config.DefaultUserSettings.showBookDiscoverTab = getNullableBoolSelect('#DefaultShowBookDiscoverTab');
                         config.DefaultUserSettings.browsingBlur = getNullableRangeInputAsText('#DefaultBrowsingBlur');
                         config.DefaultUserSettings.detailsScreenBlur = getNullableRangeInputAsText('#DefaultDetailsScreenBlur');

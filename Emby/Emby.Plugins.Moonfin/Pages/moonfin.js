@@ -2425,6 +2425,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             setSelectValue(view, '#DefaultDesktopUiScale', defaults.desktopUiScale, 'Configured scale');
             setSelectValue(view, '#DefaultHomeBackdropStyle', homeBackdropStyleOf(defaults), 'Configured style');
             setNullableBoolSelect(view, '#DefaultDetailsBackdropEnabled', defaults.detailsBackdropEnabled);
+            setSelectValue(view, '#DefaultDetailsBackdropSize', defaults.detailsBackdropSize, 'Configured size');
             setNullableBoolSelect(view, '#DefaultShowBookDiscoverTab', defaults.showBookDiscoverTab);
             bindNullableRangeInput(view, '#DefaultBrowsingBlur');
             setNullableRangeInput(view, '#DefaultBrowsingBlur', defaults.browsingBlur);
@@ -2799,6 +2800,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             d.homeBackdropEnabled = homeBackdropStyle ? homeBackdropStyle !== 'off' : null;
             d.homeBackdropStyle = homeBackdropStyle || null;
             d.detailsBackdropEnabled = getNullableBoolSelect(view, '#DefaultDetailsBackdropEnabled');
+            d.detailsBackdropSize = view.querySelector('#DefaultDetailsBackdropSize').value || null;
             d.showBookDiscoverTab = getNullableBoolSelect(view, '#DefaultShowBookDiscoverTab');
             d.browsingBlur = getNullableRangeInputAsText(view, '#DefaultBrowsingBlur');
             d.detailsScreenBlur = getNullableRangeInputAsText(view, '#DefaultDetailsScreenBlur');

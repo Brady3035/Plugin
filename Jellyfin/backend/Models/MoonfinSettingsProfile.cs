@@ -252,6 +252,13 @@ public class MoonfinSettingsProfile
     [JsonPropertyName("detailsBackdropEnabled")]
     public bool? DetailsBackdropEnabled { get; set; }
 
+    /// <summary>
+    /// How phones size the details backdrop: fullScreen zooms it to fill the screen, fit shows the
+    /// whole picture across the top fading into the page.
+    /// </summary>
+    [JsonPropertyName("detailsBackdropSize")]
+    public string? DetailsBackdropSize { get; set; }
+
     [JsonPropertyName("homeRowsImageTypeOverride")]
     public bool? HomeRowsImageTypeOverride { get; set; }
 
