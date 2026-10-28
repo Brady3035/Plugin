@@ -310,6 +310,7 @@ namespace Emby.Plugins.Moonfin.Models
         [JsonPropertyName("allGenresImageType")] public string? AllGenresImageType { get; set; }
         [JsonPropertyName("groupItemsIntoCollections")] public bool? GroupItemsIntoCollections { get; set; }
         [JsonPropertyName("showMediaDetailsOnLibraryPage")] public bool? ShowMediaDetailsOnLibraryPage { get; set; }
+        [JsonPropertyName("libraryCardTitles")] public bool? LibraryCardTitles { get; set; }
         [JsonPropertyName("hideBackdropsInLibraries")] public bool? HideBackdropsInLibraries { get; set; }
         [JsonPropertyName("playlistsRowSortBy")] public string? PlaylistsRowSortBy { get; set; }
         [JsonPropertyName("playlistsRowSortOrder")] public string? PlaylistsRowSortOrder { get; set; }

@@ -891,6 +891,9 @@ public class MoonfinSettingsProfile
     [JsonPropertyName("showMediaDetailsOnLibraryPage")]
     public bool? ShowMediaDetailsOnLibraryPage { get; set; }
 
+    [JsonPropertyName("libraryCardTitles")]
+    public bool? LibraryCardTitles { get; set; }
+
     [JsonPropertyName("hideBackdropsInLibraries")]
     public bool? HideBackdropsInLibraries { get; set; }
 
