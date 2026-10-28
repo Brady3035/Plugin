@@ -15,8 +15,8 @@ The rest needs things Silo's plugin API doesn't offer. See Known limits below.
 
 | | Version |
 |---|---|
-| Silo server | Tested on `be6527e` (2026-10-22, `api_major` 2). Older builds are untested. |
-| Plugin SDK | `v0.28.0`, the version that server pins |
+| Silo server | `9b77105` (#3021, 2026-10-28) or newer. Older builds don't verify the profile or the acting admin on plugin routes, see Known limits. |
+| Plugin SDK | `v0.30.0`, the version that server pins |
 | Platforms | `linux/amd64` (tested live), `linux/arm64` (builds, not tested on hardware) |
 
 ## Install
@@ -57,7 +57,7 @@ A few things don't fit Silo's form and stay on the **Moonbase** page, which open
 
 The Moonbase page is the Jellyfin admin page itself, with the same tabs, fields, search and Save button, in Jellyfin's dark style. `web/host.js` stands in for the Jellyfin dashboard it expects. It edits the same settings as Silo's form: what it saves goes back into Silo's store, so the two never disagree. It says "Silo" where the Jellyfin copy says "Jellyfin", and sections for features Silo can't run say so at the top. Lists it would fill from the library stay empty, because Silo doesn't let plugins read library items, and the user picker lists accounts that have synced settings.
 
-Silo gives a plugin page five minutes before its sign-in runs out. If Save fails after that, the page says so and keeps what you tried to save. Open Moonbase again in the same browser tab within an hour and those changes come back, ready to save.
+Silo signs a plugin page in for five minutes and renews that while the page keeps calling its routes and the Silo sign-in is still good. If Save fails anyway, the page says so and keeps what you tried to save. Open Moonbase again in the same browser tab within an hour and those changes come back, ready to save.
 
 Both API keys reach every signed-in user through `Settings/Resolved`, the same as on Jellyfin, since Moonfin calls TMDB directly with the key for some rows. Don't use keys here you wouldn't hand to your users.
 
@@ -69,19 +69,17 @@ Silo serves plugin routes under the plugin's installation id, not at the server 
 https://silo.example/api/v2/plugin-content/plugins/<installation id>/Moonfin/...
 ```
 
-`/api/v1/plugins/<installation id>/Moonfin/...` is an older alias for the same thing. Clients find the installation id with `GET /api/v2/settings/plugins`, which lists Moonbase as `plugin_id` `moonfin.moonbase`. Requests use Silo's own headers: `Authorization: Bearer <token>`, plus `X-Profile-Id` (and `X-Profile-Token` for a PIN-locked profile). The routes only answer on Silo's native port (8090 by default). Moonbase doesn't use or need the Jellyfin-compatible port.
+`/api/v1/plugins/<installation id>/Moonfin/...` is an older alias for the same thing. Clients find the installation id with `GET /api/v2/settings/plugins`, which lists Moonbase as `plugin_id` `moonfin.moonbase`. Requests use Silo's own headers: `Authorization: Bearer <token>`, plus `X-Profile-Id` (and `X-Profile-Token` for a PIN-locked profile). Silo checks the profile, and its PIN proof, before the request reaches Moonbase, and passes the verified profile on as `X-Silo-Profile-Id`. The routes only answer on Silo's native port (8090 by default). Moonbase doesn't use or need the Jellyfin-compatible port.
 
 ## Known limits
 
 These come from Silo's plugin API, not from the plugin.
 
 - **No live updates.** Silo can't stream a plugin's response or pass a plugin's events to apps, so a settings change on one device reaches the others at their next sign-in or manual sync. `Settings/Stream` answers 501.
-- **Profiles are known by name.** Silo tells plugins the account id and the profile's name, not its id. Renaming a profile starts its Moonfin settings over.
-- **PIN-locked profiles aren't checked.** Silo's plugin proxy doesn't verify `X-Profile-Token`, so anyone signed in to an account can read and change the Moonfin settings of that account's PIN-locked profiles. Silo's own API refuses that.
-- **No library access.** Silo's `ListLibraries` ignores which user is asking, and its other catalog calls aren't implemented. So nothing here returns library items, and similar items, the seasonal row and the media bar aren't available.
-- **The Moonbase page has five minutes.** Silo signs a plugin page in for five minutes, see Settings above. Silo's own Settings cards don't have this limit.
+- **Older Silo builds.** Before #3021, Silo didn't pass plugins the profile id, didn't check `X-Profile-Token` on plugin routes and marked every profile of an admin account as admin. On those builds settings are kept per profile name, and anyone signed in to an account can read and change its PIN-locked profiles' Moonfin settings. Settings stored that way aren't carried over: on a newer Silo each profile starts a new record keyed by its id, and Moonfin fills it from the device at the next sign-in.
+- **No library items.** Silo lets plugins list the libraries an account may see, but not the items in them. So similar items, the seasonal row and the media bar aren't available, and the Moonbase page's library pickers stay empty.
 - **No plugin icon.** Silo's plugin pages don't take icons from plugins, so Moonbase shows as "MO".
-- **Admin routes need the primary profile.** Silo's proxy treats every profile of an admin account as admin. Moonbase only accepts admin requests made through the account's primary profile, which is the rule Silo's own admin API uses.
+- **Admin routes need the primary profile.** Silo marks a request as admin only for an admin account acting through its primary profile, the rule its own admin API uses.
 - **Storage is small.** Silo gives each plugin 256 keys of up to 256 KiB. Each profile with synced settings takes one key, so a server can hold settings for about 240 profiles.
 - **Deleted users leave their settings behind.** Silo doesn't tell plugins when an account or profile is deleted.
 

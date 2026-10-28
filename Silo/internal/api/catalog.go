@@ -17,8 +17,7 @@ type Library struct {
 
 // Catalog is the slice of Silo's catalog Moonbase reads through RuntimeHost.
 type Catalog interface {
-	// Libraries asks Silo for the account's libraries. Silo ignores the account
-	// and answers with every library.
+	// Libraries asks Silo for the libraries the account may see.
 	Libraries(ctx context.Context, userID int) ([]Library, error)
 }
 

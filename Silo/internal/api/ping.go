@@ -26,26 +26,23 @@ func (s *Server) handlePing(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleWhoami shows what Silo told the plugin about the caller, for checking
-// identity on a live server. Only admins get the library list, because Silo's
-// ListLibraries ignores its user id and answers with every library.
+// identity on a live server.
 func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 	id := callerOf(r)
 	body := map[string]any{
-		"userId":         id.UserID,
-		"admin":          id.Admin,
-		"userName":       id.UserName,
-		"profileName":    id.ProfileName,
-		"primaryProfile": id.PrimaryProfile,
+		"userId":      id.UserID,
+		"admin":       id.Admin,
+		"userName":    id.UserName,
+		"profileId":   id.ProfileID,
+		"profileName": id.ProfileName,
 	}
-	if id.isAdmin() {
-		libs, err := s.catalog.Libraries(r.Context(), id.UserID)
-		if err != nil {
-			logError(r, "list libraries", err)
-			writeError(w, http.StatusBadGateway, "Silo didn't return the library list.")
-			return
-		}
-		body["libraries"] = libs
+	libs, err := s.catalog.Libraries(r.Context(), id.UserID)
+	if err != nil {
+		logError(r, "list libraries", err)
+		writeError(w, http.StatusBadGateway, "Silo didn't return the library list.")
+		return
 	}
+	body["libraries"] = libs
 	writeJSON(w, http.StatusOK, body)
 }
 

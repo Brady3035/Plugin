@@ -22,22 +22,23 @@ func (fakeCatalog) Libraries(context.Context, int) ([]Library, error) {
 }
 
 // caller is the identity Silo's proxy stamps on a request. The zero value is
-// an anonymous caller.
+// an anonymous caller. admin is Silo's acting-admin decision, so an admin
+// account's child profile reaches the plugin as a user.
 type caller struct {
-	user    int
-	admin   bool
-	profile string
-	primary bool
-	name    string
+	user      int
+	admin     bool
+	profileID string
+	profile   string
+	name      string
 }
 
 var (
 	anon      = caller{}
-	adminMain = caller{user: 2, admin: true, profile: "test", primary: true}
-	adminKid  = caller{user: 2, admin: true, profile: "Kid"}
-	userMain  = caller{user: 3, profile: "Main", primary: true, name: "pat"}
-	userKids  = caller{user: 3, profile: "Kids", name: "pat"}
-	other     = caller{user: 4, profile: "Main", primary: true}
+	adminMain = caller{user: 2, admin: true, profileID: "20", profile: "test"}
+	adminKid  = caller{user: 2, profileID: "21", profile: "Kid"}
+	userMain  = caller{user: 3, profileID: "30", profile: "Main", name: "pat"}
+	userKids  = caller{user: 3, profileID: "31", profile: "Kids", name: "pat"}
+	other     = caller{user: 4, profileID: "40", profile: "Main"}
 )
 
 func (c caller) headers() map[string]string {
@@ -50,11 +51,11 @@ func (c caller) headers() map[string]string {
 	if c.admin {
 		h["X-Silo-User-Role"] = "admin"
 	}
+	if c.profileID != "" {
+		h["X-Silo-Profile-Id"] = c.profileID
+	}
 	if c.profile != "" {
 		h["X-Silo-Profile-Name"] = c.profile
-	}
-	if c.primary {
-		h["X-Silo-Profile-Primary"] = "true"
 	}
 	if c.name != "" {
 		h["X-Silo-User-Name"] = c.name
@@ -139,6 +140,11 @@ func TestSettingsStayWithTheirProfile(t *testing.T) {
 		if code, _ := call(t, s, c, "GET", "/Moonfin/Settings", "", nil); code != 404 {
 			t.Fatalf("%+v reads another profile's envelope: %d", c, code)
 		}
+	}
+	renamed := userKids
+	renamed.profile = "Little ones"
+	if _, got := call(t, s, renamed, "GET", "/Moonfin/Settings/Resolved/tv", "", nil); got["posterSize"] != "small" {
+		t.Fatalf("a renamed profile lost its settings: %v", got)
 	}
 	if code, _ := call(t, s, userKids, "DELETE", "/Moonfin/Settings", "", nil); code != 200 {
 		t.Fatal("delete failed")
