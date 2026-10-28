@@ -169,11 +169,76 @@ func TestAdminDefaultsAndPush(t *testing.T) {
 	if code != 200 || got["usersAffected"] != 1.0 {
 		t.Fatalf("push = %d %v", code, got)
 	}
-	if _, env := call(t, s, userMain, "GET", "/Moonfin/Settings", "", nil); env["tv"] != nil || env["global"].(map[string]any)["b"] != 2.0 {
-		t.Fatalf("overwrite must reset to the defaults: %v", env)
+	if _, env := call(t, s, userMain, "GET", "/Moonfin/Settings", "", nil); env["tv"] != nil || len(env["global"].(map[string]any)) != 0 {
+		t.Fatalf("overwrite must clear the user's settings: %v", env)
+	}
+	if _, got := call(t, s, userMain, "GET", "/Moonfin/Settings/Resolved/tv", "", nil); got["b"] != 2.0 {
+		t.Fatalf("a reset user must get the defaults: %v", got)
 	}
 	if _, got := call(t, s, adminMain, "POST", "/Moonfin/Admin/PushDefaults", "", map[string]any{"overwrite": "True"}); got["overwrite"] != true {
 		t.Fatalf("overwrite must ignore case: %v", got)
+	}
+}
+
+func TestDefaultsReachUsersWhoNeverChangedThem(t *testing.T) {
+	s := newTestServer()
+	saveConfig(t, s, map[string]any{"DefaultUserSettings": map[string]any{"style": "classic"}})
+	// Apps send every setting they hold, the ones from the defaults included.
+	call(t, s, userMain, "POST", "/Moonfin/Settings/Profile/mobile", `{"profile":{"style":"classic","thumbs":false}}`, nil)
+	call(t, s, other, "POST", "/Moonfin/Settings/Profile/mobile", `{"profile":{"style":"modern","thumbs":false}}`, nil)
+	if _, env := call(t, s, userMain, "GET", "/Moonfin/Settings", "", nil); env["mobile"].(map[string]any)["style"] != nil {
+		t.Fatalf("a value equal to the default must not be stored: %v", env)
+	}
+
+	saveConfig(t, s, map[string]any{"DefaultUserSettings": map[string]any{"style": "spotlight", "thumbs": true}})
+	resolved := func(c caller) map[string]any {
+		_, got := call(t, s, c, "GET", "/Moonfin/Settings/Resolved/mobile", "", nil)
+		return got
+	}
+	if got := resolved(userMain); got["style"] != "spotlight" || got["thumbs"] != true {
+		t.Fatalf("a user on the defaults must follow them, and a new default replaces the app's own: %v", got)
+	}
+	if got := resolved(other); got["style"] != "modern" || got["thumbs"] != true {
+		t.Fatalf("a value picked against the old default must stay: %v", got)
+	}
+
+	// Silo's own form saves restart the plugin with the new values.
+	native := toNative(map[string]any{"DefaultUserSettings": map[string]any{"detailScreenStyle": "classic"}})
+	call(t, s, userMain, "POST", "/Moonfin/Settings/Profile/mobile", `{"profile":{"detailScreenStyle":"modern"}}`, nil)
+	entries := []*pluginv1.ConfigEntry{}
+	for k, v := range native {
+		entries = append(entries, &pluginv1.ConfigEntry{Key: k, Value: mustStruct(t, v)})
+	}
+	if err := s.Configure(context.Background(), entries); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolved(userMain); got["detailScreenStyle"] != "classic" {
+		t.Fatalf("a default first set in Silo's form must reach users: %v", got)
+	}
+}
+
+func TestDeleteUserRemovesEveryProfile(t *testing.T) {
+	s := newTestServer()
+	for _, c := range []caller{userMain, userKids, other} {
+		call(t, s, c, "POST", "/Moonfin/Settings/Profile/tv", `{"profile":{"a":1}}`, nil)
+	}
+	if code, _ := call(t, s, userMain, "DELETE", "/Moonfin/Admin/Users/3", "", nil); code != http.StatusForbidden {
+		t.Fatalf("only an admin may remove a user's data, got %d", code)
+	}
+	if code, got := call(t, s, adminMain, "DELETE", "/Moonfin/Admin/Users/3", "", nil); code != 200 || got["profilesRemoved"] != 2.0 {
+		t.Fatalf("delete = %d %v", code, got)
+	}
+	for _, c := range []caller{userMain, userKids} {
+		if code, _ := call(t, s, c, "GET", "/Moonfin/Settings", "", nil); code != http.StatusNotFound {
+			t.Fatalf("%v kept settings", c)
+		}
+	}
+	if code, _ := call(t, s, other, "GET", "/Moonfin/Settings", "", nil); code != 200 {
+		t.Fatal("another account's settings must stay")
+	}
+	var index []indexEntry
+	if _, err := s.loadJSON(context.Background(), keyIndex, &index); err != nil || len(index) != 1 || index[0].UserID != 4 {
+		t.Fatalf("index = %v %v", index, err)
 	}
 }
 

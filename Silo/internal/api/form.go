@@ -63,6 +63,8 @@ func (s *Server) Configure(_ context.Context, entries []*pluginv1.ConfigEntry) e
 		native[e.GetKey()] = e.GetValue().AsMap()
 	}
 	s.setNative(native)
+	// The host may not answer yet, so users catch up on the first request.
+	s.defaultsUnchecked.Store(true)
 	return nil
 }
 

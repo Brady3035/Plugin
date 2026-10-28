@@ -197,7 +197,8 @@ func (s *Server) handlePostSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	clientID, _ := body["clientid"].(string)
 	s.save(w, r, func(env M) M {
-		return settings.SaveEnvelope(env, incoming, mode, clientID, serverKeys(s.config(r.Context())), time.Now())
+		cfg := s.config(r.Context())
+		return settings.SaveEnvelope(env, incoming, mode, clientID, serverKeys(cfg), cfg.Defaults, time.Now())
 	})
 }
 
@@ -221,11 +222,13 @@ func (s *Server) handlePostProfile(w http.ResponseWriter, r *http.Request) {
 // extra fields added to the success body.
 func (s *Server) saveProfile(w http.ResponseWriter, r *http.Request, name string, incoming M, clientID string, extra M) {
 	s.save(w, r, func(env M) M {
-		return settings.SaveProfile(env, name, incoming, clientID, serverKeys(s.config(r.Context())), time.Now())
+		cfg := s.config(r.Context())
+		return settings.SaveProfile(env, name, incoming, clientID, serverKeys(cfg), cfg.Defaults, time.Now())
 	}, extra)
 }
 
 func (s *Server) save(w http.ResponseWriter, r *http.Request, apply func(M) M, extra ...M) {
+	s.catchUpDefaults(r)
 	id := callerOf(r)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -284,6 +287,7 @@ func (s *Server) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) resolve(r *http.Request, name string, record bool) (M, error) {
+	s.catchUpDefaults(r)
 	id := callerOf(r)
 	// Only recording a baseline writes, so read-only lookups skip the lock.
 	if record {
@@ -387,9 +391,11 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 		if only != 0 && e.UserID != only {
 			continue
 		}
+		// Either way the defaults come through Resolve rather than as copies,
+		// so a later change to them still reaches this user.
 		var env M
 		if reset {
-			env = M{"schemaVersion": 2, "syncEnabled": true, "global": defaults,
+			env = M{"schemaVersion": 2, "syncEnabled": true, "global": M{},
 				"lastUpdated": time.Now().UnixMilli(), "lastUpdatedBy": by}
 		} else {
 			existing, err := s.loadEnvelope(ctx, e.identity())
@@ -401,7 +407,11 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 			if existing == nil {
 				continue
 			}
-			env = settings.SaveProfile(existing, "global", clone(defaults), "admin-default-merge", serverKeys(cfg), time.Now())
+			if settings.Forget(existing, func(k string, _ any) bool { _, ok := defaults[k]; return ok }) {
+				existing["lastUpdated"] = time.Now().UnixMilli()
+				existing["lastUpdatedBy"] = "admin-default-merge"
+			}
+			env = existing
 		}
 		// Every entry is already in the index, so only its own key changes.
 		if err := s.saveJSON(ctx, e.key(), env); err != nil {
@@ -421,13 +431,6 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, M{"success": true, "overwrite": reset, "usersAffected": affected,
 		"orphansDeleted": 0, "liveRefreshDeliveries": 0})
-}
-
-func clone(m M) M {
-	raw, _ := json.Marshal(m)
-	var out M
-	_ = json.Unmarshal(raw, &out)
-	return out
 }
 
 // handleSeerrConfig always reports Seerr off: the Seerr proxy isn't part of

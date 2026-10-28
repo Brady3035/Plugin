@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 
@@ -37,6 +38,9 @@ type Server struct {
 	native   map[string]M
 	// setConfigEntry writes one of the form's entries back to Silo.
 	setConfigEntry func(ctx context.Context, key string, value map[string]any) error
+	// defaultsUnchecked is set while the defaults may have changed since
+	// users were last moved onto them (see catchUpDefaults).
+	defaultsUnchecked atomic.Bool
 }
 
 func NewServer(version string, kv store.KV, catalog Catalog) *Server {
