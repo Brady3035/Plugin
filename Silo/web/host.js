@@ -19,8 +19,13 @@
     }
 
     // Silo signs these requests with the HttpOnly launch cookie it set when the
-    // page was opened. It lasts five minutes.
+    // page was opened. It lasts five minutes, and Silo replaces it with a fresh
+    // one on a request once it is half way through, so a ping each minute
+    // keeps the page signed in for as long as the admin's Silo login lasts.
     var nativeFetch = window.fetch.bind(window);
+    var keepAlive = setInterval(function () {
+        window.fetch(getUrl('Moonfin/Ping'), { cache: 'no-store' }).catch(function () { /* the next one tries again */ });
+    }, 60 * 1000);
     window.fetch = function (input, init) {
         return nativeFetch(input, init).then(function (response) {
             if (response.status === 401) showSessionEnded();
@@ -205,7 +210,8 @@
     function showSessionEnded() {
         if (sessionEndedShown) return;
         sessionEndedShown = true;
-        notice('Your Silo session for this page has ended (Silo gives plugin pages five minutes). Open Moonbase again from Plugin Apps in Silo’s admin menu. Changes you tried to save are kept and come back when you do.', true);
+        clearInterval(keepAlive);
+        notice('Your Silo session for this page has ended. Open Moonbase again from Plugin Apps in Silo’s admin menu. Changes you tried to save are kept and come back when you do.', true);
         window.scrollTo(0, 0);
     }
 
@@ -293,5 +299,49 @@
         }).observe(page, { childList: true, subtree: true });
 
         page.dispatchEvent(new CustomEvent('pageshow', { bubbles: true }));
+        bindRemoveUserData();
     });
+
+    // Moonbase on Silo only: removes the stored settings of the account
+    // picked in the page's single-user list.
+    function bindRemoveUserData() {
+        var select = document.getElementById('SingleUserSelect');
+        var after = document.getElementById('ApplySingleUserResult');
+        if (!select || !after) return;
+        var help = document.createElement('div');
+        help.className = 'fieldDescription';
+        help.style.margin = '1.6em 0 0.4em';
+        help.textContent = 'Or remove everything Moonbase keeps for the selected user, on every profile. Use it for an account deleted from Silo, since Silo doesn’t tell Moonbase about that. If the user signs in again, they start from the defaults.';
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'raised emby-button';
+        button.innerHTML = '<span>Remove Selected User’s Data</span>';
+        var result = document.createElement('div');
+        result.className = 'fieldDescription';
+        result.style.cssText = 'display:none; margin-top:0.8em;';
+        after.after(help, button, result);
+        function show(text, failed) {
+            result.style.display = '';
+            result.style.color = failed ? '#d9534f' : '#52b54b';
+            result.textContent = text;
+        }
+        button.addEventListener('click', function () {
+            var option = select.selectedOptions[0];
+            if (!option || !select.value) {
+                show('Select a user first.', true);
+                return;
+            }
+            var name = option.textContent;
+            if (!window.confirm('Remove all Moonbase data for ' + name + '?\n\nThis permanently erases their synced settings on every profile.')) return;
+            button.disabled = true;
+            send('DELETE', getUrl('Moonfin/Admin/Users/' + encodeURIComponent(select.value))).then(json).then(function (body) {
+                option.remove();
+                show('Removed ' + name + ' (' + body.profilesRemoved + ' profile' + (body.profilesRemoved === 1 ? '' : 's') + ').');
+            }, function (error) {
+                show('Silo didn’t remove the data' + (error && error.status ? ' (status ' + error.status + ').' : '.'), true);
+            }).finally(function () {
+                button.disabled = false;
+            });
+        });
+    }
 })();

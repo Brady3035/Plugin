@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"mime"
@@ -11,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Moonfin-Client/Plugin/Silo/internal/settings"
 	"github.com/Moonfin-Client/Plugin/Silo/web"
@@ -31,6 +34,7 @@ func (s *Server) adminRoutes() {
 	m.HandleFunc("GET /Moonfin/Admin/Configuration", s.admin(s.handleGetConfiguration))
 	m.HandleFunc("POST /Moonfin/Admin/Configuration", s.admin(s.handlePostConfiguration))
 	m.HandleFunc("GET /Moonfin/Admin/Users", s.admin(s.handleAdminUsers))
+	m.HandleFunc("DELETE /Moonfin/Admin/Users/{userId}", s.admin(s.handleDeleteUser))
 	m.HandleFunc("GET /Moonfin/MdbList/KeyInfo", s.admin(s.handleMdbListKeyInfo))
 	m.HandleFunc("POST /Moonfin/MdbList/ClearCache", s.admin(s.handleMdbListClearCache))
 	// Moonbase on Silo has no custom themes. Empty lists keep the page and the
@@ -155,7 +159,127 @@ func (s *Server) handlePostConfiguration(w http.ResponseWriter, r *http.Request)
 		storageFailed(w, r, err)
 		return
 	}
+	if err := s.followChangedDefaults(ctx); err != nil {
+		logError(r, "apply changed defaults to users", err)
+	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// keyDefaultsSeen holds the admin defaults users were last moved onto.
+const keyDefaultsSeen = "s/defaults-seen"
+
+// catchUpDefaults runs followChangedDefaults once after Silo hands the
+// plugin its settings, which it does when an admin saves Silo's own form.
+func (s *Server) catchUpDefaults(r *http.Request) {
+	if !s.defaultsUnchecked.CompareAndSwap(true, false) {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.followChangedDefaults(r.Context()); err != nil {
+		logError(r, "apply changed defaults to users", err)
+	}
+}
+
+// followChangedDefaults moves users onto each default the admin changed
+// since the last run (the caller holds s.mu): a user's stored value gives
+// way to the new default when it equals the old one, or when there was no
+// default before (apps store every value they have, so a value from then
+// is the app's own default, not a choice). Values a user picked against an
+// earlier default are kept. The first run only records the defaults.
+func (s *Server) followChangedDefaults(ctx context.Context) error {
+	after := s.config(ctx).Defaults
+	var before M
+	found, err := s.loadJSON(ctx, keyDefaultsSeen, &before)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return s.saveJSON(ctx, keyDefaultsSeen, nonNil(after))
+	}
+	changed := M{}
+	for k, v := range after {
+		if old, ok := before[k]; !ok || !settings.SameValue(old, v) {
+			changed[k] = v
+		}
+	}
+	if len(changed) == 0 {
+		return nil
+	}
+	var index []indexEntry
+	if _, err := s.loadJSON(ctx, keyIndex, &index); err != nil {
+		return err
+	}
+	var errs []error
+	for _, e := range index {
+		env, err := s.loadEnvelope(ctx, e.identity())
+		if err != nil || env == nil {
+			errs = append(errs, err)
+			continue
+		}
+		follows := func(k string, v any) bool {
+			if _, ok := changed[k]; !ok {
+				return false
+			}
+			old, had := before[k]
+			return !had || settings.SameValue(old, v)
+		}
+		if settings.Forget(env, follows) {
+			env["lastUpdated"] = time.Now().UnixMilli()
+			env["lastUpdatedBy"] = "admin-defaults-changed"
+			errs = append(errs, s.saveJSON(ctx, e.key(), env))
+		}
+	}
+	// Recorded even after a failure, so a later save doesn't take a user's
+	// value from this round for one from before it.
+	errs = append(errs, s.saveJSON(ctx, keyDefaultsSeen, nonNil(after)))
+	return errors.Join(errs...)
+}
+
+func nonNil(m M) M {
+	if m == nil {
+		return M{}
+	}
+	return m
+}
+
+// handleDeleteUser removes every profile's settings that a Silo account has
+// stored, for an account that was deleted from Silo or wants a fresh start.
+// Silo doesn't tell plugins when an account goes, so the admin does this.
+func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
+	userID, err := strconv.Atoi(r.PathValue("userId"))
+	if err != nil || userID <= 0 {
+		writeJSON(w, http.StatusBadRequest, M{"error": "A valid userId is required"})
+		return
+	}
+	ctx := r.Context()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var index []indexEntry
+	if _, err := s.loadJSON(ctx, keyIndex, &index); err != nil {
+		storageFailed(w, r, err)
+		return
+	}
+	kept := index[:0:0]
+	removed := 0
+	for _, e := range index {
+		if e.UserID != userID {
+			kept = append(kept, e)
+			continue
+		}
+		if err := s.saveJSON(ctx, e.key(), nil); err != nil {
+			storageFailed(w, r, err)
+			return
+		}
+		removed++
+	}
+	if removed > 0 {
+		if err := s.saveJSON(ctx, keyIndex, kept); err != nil {
+			storageFailed(w, r, err)
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, M{"success": true, "profilesRemoved": removed})
 }
 
 // handleAdminUsers lists, in the shape Jellyfin's /Users has, the Silo
