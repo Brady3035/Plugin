@@ -3,7 +3,7 @@ module github.com/Moonfin-Client/Plugin/Silo
 go 1.26.0
 
 require (
-	github.com/Silo-Server/silo-plugin-sdk v0.28.0
+	github.com/Silo-Server/silo-plugin-sdk v0.30.0
 	golang.org/x/net v0.58.0
 	google.golang.org/protobuf v1.36.11
 )

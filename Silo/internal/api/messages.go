@@ -100,7 +100,7 @@ func (m serverMessage) visibleTo(id Identity, now time.Time) bool {
 	}
 	switch m.Audience {
 	case "admins":
-		return id.isAdmin()
+		return id.Admin
 	case "users":
 		return slices.Contains(m.TargetUserIds, strconv.Itoa(id.UserID))
 	}

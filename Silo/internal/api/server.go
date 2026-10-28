@@ -97,11 +97,13 @@ func stringify(v any) string {
 // Identity is who Silo says is calling. The host stamps these headers itself
 // and never forwards client-sent X-Silo-* headers, so they can be trusted.
 type Identity struct {
-	UserID         int
-	Admin          bool
-	UserName       string
-	ProfileName    string
-	PrimaryProfile bool
+	UserID int
+	// Admin is Silo's acting-admin decision: an admin account through its
+	// primary profile, the rule Silo's own admin API applies.
+	Admin       bool
+	UserName    string
+	ProfileID   string
+	ProfileName string
 }
 
 func identityFrom(r *http.Request) (Identity, bool) {
@@ -110,18 +112,13 @@ func identityFrom(r *http.Request) (Identity, bool) {
 		return Identity{}, false
 	}
 	return Identity{
-		UserID:         id,
-		Admin:          r.Header.Get("X-Silo-User-Role") == "admin",
-		UserName:       r.Header.Get("X-Silo-User-Name"),
-		ProfileName:    r.Header.Get("X-Silo-Profile-Name"),
-		PrimaryProfile: r.Header.Get("X-Silo-Profile-Primary") == "true",
+		UserID:      id,
+		Admin:       r.Header.Get("X-Silo-User-Role") == "admin",
+		UserName:    r.Header.Get("X-Silo-User-Name"),
+		ProfileID:   r.Header.Get("X-Silo-Profile-Id"),
+		ProfileName: r.Header.Get("X-Silo-Profile-Name"),
 	}, true
 }
-
-// isAdmin applies the rule Silo's own admin API does: an admin account acting
-// through its primary profile. Silo's plugin proxy marks every request from an
-// admin account as admin, a child profile's included.
-func (id Identity) isAdmin() bool { return id.Admin && id.PrimaryProfile }
 
 type identityKey struct{}
 
@@ -145,7 +142,7 @@ func (s *Server) user(next http.HandlerFunc) http.HandlerFunc {
 
 func (s *Server) admin(next http.HandlerFunc) http.HandlerFunc {
 	return s.user(func(w http.ResponseWriter, r *http.Request) {
-		if !callerOf(r).isAdmin() {
+		if !callerOf(r).Admin {
 			writeError(w, http.StatusForbidden, "Only a Silo admin can do this.")
 			return
 		}

@@ -17,10 +17,14 @@ import (
 
 type M = settings.M
 
-// Moonbase's "user" is a Silo profile. Silo tells plugins the account id and
-// the profile's name but not its id, so settings are keyed by both and a
-// renamed profile starts over.
+// Moonbase's "user" is a Silo profile, keyed by the account and the profile
+// id Silo verified. Without an id (a Silo release from before it forwarded
+// one, or an account with no profile selected) the profile's name stands in.
 func settingsKey(id Identity) string {
+	if id.ProfileID != "" {
+		h := sha256.Sum256([]byte(id.ProfileID))
+		return fmt.Sprintf("p/%d/%x", id.UserID, h[:8])
+	}
 	h := sha256.Sum256([]byte(id.ProfileName))
 	return fmt.Sprintf("s/%d/%x", id.UserID, h[:8])
 }
@@ -31,15 +35,18 @@ func settingsKey(id Identity) string {
 const keyIndex = "s/index"
 
 type indexEntry struct {
-	UserID   int    `json:"userId"`
-	Profile  string `json:"profile"`
-	UserName string `json:"userName,omitempty"`
-	Admin    bool   `json:"admin,omitempty"`
+	UserID    int    `json:"userId"`
+	ProfileID string `json:"profileId,omitempty"`
+	Profile   string `json:"profile"`
+	UserName  string `json:"userName,omitempty"`
+	Admin     bool   `json:"admin,omitempty"`
 }
 
-func (e indexEntry) key() string {
-	return settingsKey(Identity{UserID: e.UserID, ProfileName: e.Profile})
+func (e indexEntry) identity() Identity {
+	return Identity{UserID: e.UserID, ProfileID: e.ProfileID, ProfileName: e.Profile}
 }
+
+func (e indexEntry) key() string { return settingsKey(e.identity()) }
 
 func (s *Server) settingsRoutes() {
 	m := s.mux
@@ -121,8 +128,8 @@ func (s *Server) storeEnvelope(ctx context.Context, id Identity, env M) error {
 	if _, err := s.loadJSON(ctx, keyIndex, &index); err != nil {
 		return err
 	}
-	entry := indexEntry{UserID: id.UserID, Profile: id.ProfileName, UserName: id.UserName, Admin: id.Admin}
-	at := slices.IndexFunc(index, func(e indexEntry) bool { return e.UserID == id.UserID && e.Profile == id.ProfileName })
+	entry := indexEntry{UserID: id.UserID, ProfileID: id.ProfileID, Profile: id.ProfileName, UserName: id.UserName, Admin: id.Admin}
+	at := slices.IndexFunc(index, func(e indexEntry) bool { return e.key() == entry.key() })
 	if env == nil && at < 0 {
 		// Nothing stored, and writing an empty value would use up a key.
 		return nil
@@ -385,7 +392,7 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 			env = M{"schemaVersion": 2, "syncEnabled": true, "global": defaults,
 				"lastUpdated": time.Now().UnixMilli(), "lastUpdatedBy": by}
 		} else {
-			existing, err := s.loadEnvelope(ctx, Identity{UserID: e.UserID, ProfileName: e.Profile})
+			existing, err := s.loadEnvelope(ctx, e.identity())
 			if err != nil {
 				logError(r, "push defaults", err)
 				failed++
