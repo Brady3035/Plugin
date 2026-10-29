@@ -10,7 +10,7 @@ import (
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 )
 
-// Moonbase 1.0.0 also offered its settings on Silo's own plugin form, which
+// Earlier releases also offered their settings on Silo's own plugin form, which
 // Silo still keeps and hands over through Configure. The Moonbase page is
 // now the only place to set them. Until it is first saved, the values from
 // the old form are read under its settings (mergeConfig), and that save

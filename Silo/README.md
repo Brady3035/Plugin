@@ -41,7 +41,7 @@ Moonbase is set up on the **Moonbase** page, which opens from the menu at the to
 
 The Moonbase page is the Jellyfin admin page itself, with the same tabs, fields, search and Save button, in Jellyfin's dark style. `web/host.js` stands in for the Jellyfin dashboard it expects. It says "Silo" where the Jellyfin copy says "Jellyfin", and sections for features Silo can't run say so at the top. Lists it would fill from the library stay empty, because Silo doesn't let plugins read library items, and the user picker lists accounts that have synced settings.
 
-Moonbase 1.0.0 also put most settings on Silo's own plugin form. Silo keeps what was saved there, and Moonbase reads it until the Moonbase page is first saved, which keeps those values with the page's settings from then on.
+Earlier releases also put most settings on Silo's own plugin form. Silo keeps what was saved there, and Moonbase reads it until the Moonbase page is first saved, which keeps those values with the page's settings from then on.
 
 Defaults reach every user who hasn't changed that setting. When an admin changes a default, users on the old default move to the new one, and so does everyone when there was no default before (the apps store every value they hold, so a value from then is the app's own default rather than a choice).
 
@@ -73,7 +73,7 @@ These come from Silo's plugin API, not from the plugin.
 
 ## Data, backups and removal
 
-Moonbase's settings, synced profiles and messages live in Silo's per-plugin instance state. Silo encrypts it and stores them in its Postgres database. It's included in a database backup and needs the server's `SECRET_KEY` to restore. Upgrades keep it. Uninstalling the plugin deletes it.
+Moonbase's settings, synced profiles and messages live in Silo's per-plugin instance state. Silo encrypts it and stores it in its Postgres database, so it’s included in a database backup and needs the server's `SECRET_KEY` to restore. Upgrades keep it. Uninstalling the plugin deletes it.
 
 ## Logs
 

@@ -422,7 +422,7 @@ func TestAdminPageServesTheJellyfinPage(t *testing.T) {
 	}
 }
 
-// Values saved on Silo's form under Moonbase 1.0.0 still count until the
+// Values saved on Silo's form by earlier releases still count until the
 // page is first saved.
 func TestOldFormValuesReachTheRoutes(t *testing.T) {
 	s := newTestServer()
