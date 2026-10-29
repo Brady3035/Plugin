@@ -23,6 +23,10 @@
     <PackageReference Include="System.Text.Json" Version="8.0.5">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
+    <!-- Emby's IResponse hands out a PipeWriter, and the host ships the assembly. -->
+    <PackageReference Include="System.IO.Pipelines" Version="8.0.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
     <!-- Not host-provided: must ship in the plugin folder. -->
     <PackageReference Include="SharpCompress" Version="1.0.0" />
   </ItemGroup>
@@ -46,6 +50,7 @@
     <Compile Include="../../shared/Tmdb/*.cs" Link="Tmdb/%(Filename)%(Extension)" />
     <Compile Include="../../shared/Anime/*.cs" Link="Anime/%(Filename)%(Extension)" />
     <Compile Include="../../shared/Romm/*.cs" Link="Romm/%(Filename)%(Extension)" />
+    <Compile Include="../../shared/Games/*.cs" Link="Games/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../../shared/Seasonal/seasonal-holidays.json" LogicalName="Moonfin.Seasonal.holidays.json" />
   </ItemGroup>
 
