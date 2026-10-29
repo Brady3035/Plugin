@@ -1,6 +1,6 @@
 package api
 
-// formFields are the settings Moonbase 1.0.0 put on Silo's own plugin form,
+// formFields are the settings earlier releases put on Silo's own plugin form,
 // as its form generator wrote them. Kept only to read values saved there
 // (see legacy_form.go).
 var formFields = []formField{
