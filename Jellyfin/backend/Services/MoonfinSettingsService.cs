@@ -1130,16 +1130,17 @@ public class MoonfinSettingsService
     }
 
     /// <summary>
-    /// Merges the supplied admin defaults into the global profile of every user that
-    /// already has a settings file. Only fields set on the defaults are applied; each
-    /// user's other global values and device profile overrides are preserved. Users
-    /// without a settings file are not touched (they already resolve to admin defaults).
+    /// Merges the supplied admin defaults into the global and device profiles of every user
+    /// that already has a settings file. Only fields set on the defaults are applied, and each
+    /// user keeps their values for the rest. Users without a settings file are not touched
+    /// (they already resolve to admin defaults).
     /// </summary>
     public async Task<int> MergeDefaultsToAllUsersAsync(MoonfinSettingsProfile defaults)
     {
         ArgumentNullException.ThrowIfNull(defaults);
 
-        if (!HasAnyProfileValues(defaults))
+        var setDefaults = SetDefaultsOnly(defaults);
+        if (!HasAnyProfileValues(setDefaults))
         {
             return 0;
         }
@@ -1157,14 +1158,7 @@ public class MoonfinSettingsService
 
             try
             {
-                // SaveProfileAsync mutates what it is handed, and the caller passes the live
-                // admin defaults, so sharing it leaves one user's hidden items in those defaults.
-                await SaveProfileAsync(
-                    userId,
-                    "global",
-                    CloneProfile(defaults),
-                    "admin-default-merge",
-                    notifySettingsChanged: false);
+                await MergeDefaultsIntoProfilesAsync(userId, setDefaults);
                 usersUpdated++;
             }
             catch (Exception ex)
@@ -1177,20 +1171,63 @@ public class MoonfinSettingsService
     }
 
     /// <summary>
-    /// Merges the supplied admin defaults into a single user's global profile, keeping
-    /// their other values and device profile overrides.
+    /// Merges the supplied admin defaults into a single user's global and device profiles,
+    /// keeping their values for every setting the defaults leave unset.
     /// </summary>
     public async Task MergeDefaultsToUserAsync(Guid userId, MoonfinSettingsProfile defaults)
     {
         ArgumentNullException.ThrowIfNull(defaults);
 
-        if (!HasAnyProfileValues(defaults))
+        var setDefaults = SetDefaultsOnly(defaults);
+        if (!HasAnyProfileValues(setDefaults))
         {
             return;
         }
 
-        // Cloned for the same reason as the all-users path.
-        await SaveProfileAsync(userId, "global", CloneProfile(defaults), "admin-default-merge");
+        await MergeDefaultsIntoProfilesAsync(userId, setDefaults);
+        NotifySettingsChanged(userId);
+    }
+
+    /// <summary>
+    /// A device profile wins over global, so a default only reaches a user once it's in every
+    /// profile they have. Device profiles the user doesn't have aren't created.
+    /// </summary>
+    private async Task MergeDefaultsIntoProfilesAsync(Guid userId, MoonfinSettingsProfile setDefaults)
+    {
+        var existing = await GetUserSettingsAsync(userId);
+        foreach (var profileName in MoonfinUserSettings.ValidProfiles)
+        {
+            if (profileName != "global" && existing?.GetProfile(profileName) == null)
+            {
+                continue;
+            }
+
+            // SaveProfileAsync mutates what it is handed, so each profile gets its own copy.
+            await SaveProfileAsync(
+                userId,
+                profileName,
+                CloneProfile(setDefaults),
+                "admin-default-merge",
+                notifySettingsChanged: false);
+        }
+    }
+
+    /// <summary>
+    /// A copy of the defaults without their empty lists. XmlSerializer loads every list the admin
+    /// never set as an empty one, so an empty list counts as not set rather than wiping a user's own.
+    /// </summary>
+    private MoonfinSettingsProfile SetDefaultsOnly(MoonfinSettingsProfile defaults)
+    {
+        var copy = CloneProfile(defaults);
+        foreach (var prop in ProfileProps)
+        {
+            if (prop.GetValue(copy) is System.Collections.ICollection { Count: 0 })
+            {
+                prop.SetValue(copy, null);
+            }
+        }
+
+        return copy;
     }
 
     private static bool HasAnyProfileValues(MoonfinSettingsProfile profile)
