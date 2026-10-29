@@ -98,6 +98,9 @@ func (s *Server) externalRoutes() {
 	m.HandleFunc("GET /Moonfin/Tmdb/NextEpisode", s.user(s.handleTmdbNextEpisode))
 	m.HandleFunc("GET /Moonfin/Tmdb/PersonLinks", s.user(s.handleTmdbPersonLinks))
 	m.HandleFunc("GET /Moonfin/Tmdb/Thumb", s.user(s.handleTmdbThumb))
+	m.HandleFunc("GET /Moonfin/Tmdb/Details", s.user(s.handleTmdbDetails))
+	m.HandleFunc("GET /Moonfin/Tmdb/Reviews", s.user(s.handleTmdbReviews))
+	m.HandleFunc("GET /Moonfin/Tmdb/ProductionCompanies", s.user(s.handleTmdbCompanies))
 }
 
 // compact drops nil values, as the Jellyfin host's JSON writer does.
@@ -473,25 +476,11 @@ func (s *Server) handleTmdbThumb(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if id == "" {
-		found, ok := s.ext.cache.get("tmdb-find:"+imdb, 30*24*time.Hour)
-		if !ok {
-			var data map[string][]M
-			if msg := s.tmdb(r.Context(), key, "find/"+url.PathEscape(imdb), url.Values{"external_source": {"imdb_id"}}, &data); msg != "" {
-				http.NotFound(w, r)
-				return
-			}
-			found = ""
-			for _, kind := range [][2]string{{"movie_results", "movie"}, {"tv_results", "tv"}} {
-				if hits := data[kind[0]]; len(hits) > 0 {
-					if n, ok := num(hits[0]["id"]); ok {
-						found = kind[1] + ":" + strconv.FormatInt(int64(n), 10)
-						break
-					}
-				}
-			}
-			s.ext.cache.set("tmdb-find:"+imdb, found)
+		var asked bool
+		if typ, id, asked = s.tmdbFind(r.Context(), key, imdb); !asked {
+			http.NotFound(w, r)
+			return
 		}
-		typ, id, _ = strings.Cut(found.(string), ":")
 	}
 	path, ok := s.ext.cache.get("tmdb-thumb:"+typ+":"+id, 7*24*time.Hour)
 	if !ok && id != "" {
@@ -516,6 +505,30 @@ func (s *Server) handleTmdbThumb(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.NotFound(w, r)
+}
+
+// tmdbFind looks a title up on TMDB by IMDb id. ok is false when TMDB
+// couldn't be asked; an unknown title is ok with an empty id.
+func (s *Server) tmdbFind(ctx context.Context, key, imdb string) (typ, id string, ok bool) {
+	found, hit := s.ext.cache.get("tmdb-find:"+imdb, 30*24*time.Hour)
+	if !hit {
+		var data map[string][]M
+		if msg := s.tmdb(ctx, key, "find/"+url.PathEscape(imdb), url.Values{"external_source": {"imdb_id"}}, &data); msg != "" {
+			return "", "", false
+		}
+		found = ""
+		for _, kind := range [][2]string{{"movie_results", "movie"}, {"tv_results", "tv"}} {
+			if hits := data[kind[0]]; len(hits) > 0 {
+				if n, ok := num(hits[0]["id"]); ok {
+					found = kind[1] + ":" + strconv.FormatInt(int64(n), 10)
+					break
+				}
+			}
+		}
+		s.ext.cache.set("tmdb-find:"+imdb, found)
+	}
+	typ, id, _ = strings.Cut(found.(string), ":")
+	return typ, id, true
 }
 
 func pickBackdrop(details M) string {

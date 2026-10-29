@@ -18,6 +18,7 @@ func (s *Server) handlePing(w http.ResponseWriter, r *http.Request) {
 		"tmdbAvailable":            cfg.TmdbAPIKey != "",
 		"tmdbThumbsSupported":      true,
 		"tmdbPersonLinksSupported": true,
+		"tmdbReviewsSupported":     true,
 		"messagesSupported":        true,
 		"recommendationsSupported": false,
 		"clientLogSupported":       false,
