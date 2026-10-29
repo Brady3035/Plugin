@@ -198,7 +198,7 @@ func (s *Server) handlePostSettings(w http.ResponseWriter, r *http.Request) {
 	clientID, _ := body["clientid"].(string)
 	s.save(w, r, func(env M) M {
 		cfg := s.config(r.Context())
-		return settings.SaveEnvelope(env, incoming, mode, clientID, serverKeys(cfg), cfg.Defaults, time.Now())
+		return settings.SaveEnvelope(env, incoming, mode, clientID, serverKeys(cfg), cfg.DefaultsFor, time.Now())
 	})
 }
 
@@ -223,7 +223,7 @@ func (s *Server) handlePostProfile(w http.ResponseWriter, r *http.Request) {
 func (s *Server) saveProfile(w http.ResponseWriter, r *http.Request, name string, incoming M, clientID string, extra M) {
 	s.save(w, r, func(env M) M {
 		cfg := s.config(r.Context())
-		return settings.SaveProfile(env, name, incoming, clientID, serverKeys(cfg), cfg.Defaults, time.Now())
+		return settings.SaveProfile(env, name, incoming, clientID, serverKeys(cfg), cfg.DefaultsFor(name), time.Now())
 	}, extra)
 }
 
@@ -301,7 +301,7 @@ func (s *Server) resolve(r *http.Request, name string, record bool) (M, error) {
 		return nil, err
 	}
 	cfg := configFrom(stored)
-	resolved := settings.Resolve(env, name, cfg.Defaults, serverKeys(cfg))
+	resolved := settings.Resolve(env, name, cfg.DefaultsFor(name), serverKeys(cfg))
 	if record && env != nil && settings.RecordBaseline(env, name, resolved) {
 		if err := s.storeEnvelope(r.Context(), id, env); err != nil {
 			logError(r, "record hidden content baseline", err)
@@ -375,14 +375,17 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, M{"error": "Settings sync is disabled"})
 		return
 	}
-	defaults := cfg.Defaults
-	if defaults == nil {
+	if cfg.Defaults == nil && len(cfg.DeviceDefaults) == 0 {
 		writeJSON(w, http.StatusBadRequest, M{"error": "No default user settings configured"})
 		return
 	}
 	by := "admin-reset-all"
 	if only != 0 {
 		by = "admin-reset-user"
+	}
+	defaults := map[string]M{}
+	for _, p := range settings.Profiles {
+		defaults[p] = cfg.DefaultsFor(p)
 	}
 	affected, failed := 0, 0
 	for _, e := range index {
@@ -405,7 +408,7 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 			if existing == nil {
 				continue
 			}
-			if settings.Forget(existing, func(k string, _ any) bool { _, ok := defaults[k]; return ok }) {
+			if settings.Forget(existing, func(p, k string, _ any) bool { _, ok := defaults[p][k]; return ok }) {
 				existing["lastUpdated"] = time.Now().UnixMilli()
 				existing["lastUpdatedBy"] = "admin-default-merge"
 			}

@@ -1351,7 +1351,18 @@
 
                         <div style="background-color: rgba(0, 164, 220, 0.1); border: 1px solid rgba(0, 164, 220, 0.3); border-radius: 10px; padding: 0.8em 1.2em; margin-bottom: 1.2em; font-size: 0.9em;">
                             <strong>How it works:</strong> These are the lowest-priority fallback. Resolution order:
-                            User's device profile &rarr; User's global settings &rarr; <strong>These admin defaults</strong> &rarr; Built-in defaults.
+                            User's device profile &rarr; User's global settings &rarr; <strong>Your defaults for that device</strong> &rarr; <strong>Your defaults for all devices</strong> &rarr; Built-in defaults.
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="DefaultsLayer">Defaults For</label>
+                            <select id="DefaultsLayer" is="emby-select">
+                                <option value="global">All devices</option>
+                                <option value="desktop">Desktop</option>
+                                <option value="mobile">Mobile</option>
+                                <option value="tv">TV</option>
+                            </select>
+                            <div class="fieldDescription">A device starts out showing your all-devices values. Anything you change there applies to that device only; set it back to the all-devices value, or to Not set, to follow all devices again. Save stores every device.</div>
                         </div>
 
                         <div style="background-color: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 10px; padding: 0.8em 1.2em; margin-bottom: 1.2em; font-size: 0.9em;">
@@ -6853,7 +6864,19 @@
                     loadGameLibraryPicker(config.GameLibraryIds || []);
                     initGameCores();
 
-                    var defaults = config.DefaultUserSettings || {};
+                    var devices = config.DefaultDeviceSettings || {};
+                    DEFAULTS_LAYERS = {
+                        global: config.DefaultUserSettings || {},
+                        desktop: devices.desktop || {},
+                        mobile: devices.mobile || {},
+                        tv: devices.tv || {}
+                    };
+                    showDefaultsLayer('global');
+
+                    Dashboard.hideLoadingMsg();
+                });
+
+                function fillDefaultsForm(defaults) {
                     setSelectValue('#DefaultInterfaceStyle', defaults.interfaceStyle, 'Configured style');
                     setSelectValue('#DefaultVisualTheme', defaults.customThemeId ? 'custom:' + defaults.customThemeId : defaults.visualTheme, 'Configured theme');
                     setSelectValue('#DefaultDetailScreenStyle', defaults.detailScreenStyle, 'Configured style');
@@ -7134,12 +7157,11 @@
                             loadAdminLibraryPicker(defaults.mediaBarLibraryIds || []);
                         }
                     }
-                    sourceSelect.addEventListener('change', togglePickerVisibility);
+                    // Assigned rather than added, since every layer switch fills the form again.
+                    sourceSelect.onchange = togglePickerVisibility;
                     togglePickerVisibility();
                     applyFieldDependencies();
-
-                    Dashboard.hideLoadingMsg();
-                });
+                }
 
                 function loadAdminCollectionPicker(selectedIds) {
                     var picker = document.querySelector('#DefaultCollectionPicker');
@@ -7604,6 +7626,392 @@
                     });
                 }
 
+                // The defaults form shows one layer at a time: every device, or one device's
+                // defaults over them. A device layer keeps only what differs from every device.
+                var DEFAULTS_LAYERS = { global: {}, desktop: {}, mobile: {}, tv: {} };
+                var defaultsLayer = 'global';
+
+                function defaultsView(name) {
+                    var all = DEFAULTS_LAYERS.global;
+                    if (name === 'global') return all;
+                    var own = DEFAULTS_LAYERS[name] || {};
+                    var view = Object.assign({}, all);
+                    // A device's home layout replaces the shared one whole, as on the server.
+                    if (own.homeSections != null || own.homeRowOrder != null) {
+                        delete view.homeSections;
+                        delete view.homeRowOrder;
+                    }
+                    return Object.assign(view, own);
+                }
+
+                // Server JSON comes back with sorted keys, so compare that way.
+                function canonicalJson(value) {
+                    if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(',') + ']';
+                    if (value && typeof value === 'object') {
+                        return '{' + Object.keys(value).sort().map(function(k) {
+                            return JSON.stringify(k) + ':' + canonicalJson(value[k]);
+                        }).join(',') + '}';
+                    }
+                    return JSON.stringify(value == null ? null : value);
+                }
+
+                function commitDefaultsForm() {
+                    var all = DEFAULTS_LAYERS.global;
+                    if (defaultsLayer === 'global') {
+                        readDefaultsForm(all);
+                        return;
+                    }
+                    var shown = readDefaultsForm(Object.assign({}, defaultsView(defaultsLayer)));
+                    var own = {};
+                    Object.keys(shown).forEach(function(k) {
+                        if (shown[k] != null && canonicalJson(shown[k]) !== canonicalJson(all[k])) own[k] = shown[k];
+                    });
+                    if (own.homeSections != null || own.homeRowOrder != null) {
+                        own.homeSections = shown.homeSections;
+                        own.homeRowOrder = shown.homeRowOrder;
+                    }
+                    DEFAULTS_LAYERS[defaultsLayer] = own;
+                }
+
+                function showDefaultsLayer(name) {
+                    defaultsLayer = name;
+                    document.querySelector('#DefaultsLayer').value = name;
+                    fillDefaultsForm(defaultsView(name));
+                }
+
+                var defaultsLayerSelect = document.querySelector('#DefaultsLayer');
+                if (defaultsLayerSelect && !defaultsLayerSelect.dataset.bound) {
+                    defaultsLayerSelect.dataset.bound = 'true';
+                    defaultsLayerSelect.addEventListener('change', function() {
+                        commitDefaultsForm();
+                        showDefaultsLayer(defaultsLayerSelect.value);
+                    });
+                }
+
+                function readDefaultsForm(d) {
+                    d.interfaceStyle = document.querySelector('#DefaultInterfaceStyle').value || null;
+                    var defaultTheme = document.querySelector('#DefaultVisualTheme').value;
+                    var customTheme = defaultTheme.indexOf('custom:') === 0;
+                    d.visualTheme = (!customTheme && defaultTheme) || null;
+                    d.customThemeId = customTheme ? defaultTheme.slice(7) : null;
+                    d.detailScreenStyle = document.querySelector('#DefaultDetailScreenStyle').value || null;
+                    d.detailExpandedTabs = getNullableBoolSelect('#DefaultDetailExpandedTabs');
+                    d.detailShowTechnicalDetails = getNullableBoolSelect('#DefaultDetailShowTechnicalDetails');
+                    d.recommendationSystemSource = document.querySelector('#DefaultRecommendationSystemSource').value || null;
+                    d.recommendationsApplyParentalRatingCap = getNullableBoolSelect('#DefaultRecommendationsApplyParentalRatingCap');
+                    // Clients read a different key per form factor, so one arrangement covers all three.
+                    var metaVal = getButtonPickerValue('#DefaultDetailMetadataList');
+                    d.detailMetadataOrderTv = metaVal.order;
+                    d.detailMetadataOrderMobile = metaVal.order;
+                    d.detailMetadataOrderDesktop = metaVal.order;
+                    d.hiddenDetailMetadataTv = metaVal.hidden;
+                    d.hiddenDetailMetadataMobile = metaVal.hidden;
+                    d.hiddenDetailMetadataDesktop = metaVal.hidden;
+                    var btnVal = getButtonPickerValue('#DefaultDetailButtonsList');
+                    d.detailButtonOrderTv = btnVal.order;
+                    d.detailButtonOrderMobile = btnVal.order;
+                    d.detailButtonOrderDesktop = btnVal.order;
+                    d.hiddenDetailButtonsTv = btnVal.hidden;
+                    d.hiddenDetailButtonsMobile = btnVal.hidden;
+                    d.hiddenDetailButtonsDesktop = btnVal.hidden;
+                    var sectionVal = getButtonPickerValue('#DefaultDetailSectionsList');
+                    d.hiddenDetailSectionsTv = sectionVal.hidden;
+                    d.hiddenDetailSectionsMobile = sectionVal.hidden;
+                    d.hiddenDetailSectionsDesktop = sectionVal.hidden;
+                    d.focusColor = document.querySelector('#DefaultFocusColor').value || null;
+                    d.clockBehavior = document.querySelector('#DefaultClockBehavior').value || null;
+                    d.use24HourClock = getNullableBoolSelect('#DefaultUse24HourClock');
+                    d.desktopUiScale = document.querySelector('#DefaultDesktopUiScale').value || null;
+                    d.homeBackdropEnabled = getNullableBoolSelect('#DefaultHomeBackdropEnabled');
+                    d.detailsBackdropEnabled = getNullableBoolSelect('#DefaultDetailsBackdropEnabled');
+                    d.showBookDiscoverTab = getNullableBoolSelect('#DefaultShowBookDiscoverTab');
+                    d.browsingBlur = getNullableRangeInputAsText('#DefaultBrowsingBlur');
+                    d.detailsScreenBlur = getNullableRangeInputAsText('#DefaultDetailsScreenBlur');
+                    d.themeMusicEnabled = getNullableBoolSelect('#DefaultThemeMusicEnabled');
+                    d.themeMusicOnHomeRows = getNullableBoolSelect('#DefaultThemeMusicOnHomeRows');
+                    d.themeMusicLoop = getNullableBoolSelect('#DefaultThemeMusicLoop');
+                    d.themeMusicVolume = getNullableRangeInput('#DefaultThemeMusicVolume');
+                    d.watchedIndicator = document.querySelector('#DefaultWatchedIndicator').value || null;
+                    d.cardFocusExpansion = getNullableBoolSelect('#DefaultCardFocusExpansion');
+                    d.screensaverMode = document.querySelector('#DefaultScreensaverMode').value || null;
+                    d.screensaverBackdrop = document.querySelector('#DefaultScreensaverBackdrop').value || null;
+                    d.screensaverComponent = document.querySelector('#DefaultScreensaverComponent').value || null;
+                    d.screensaverMovement = document.querySelector('#DefaultScreensaverMovement').value || null;
+                    d.screensaverPosition = document.querySelector('#DefaultScreensaverPosition').value || null;
+                    d.screensaverSize = document.querySelector('#DefaultScreensaverSize').value || null;
+                    d.screensaverContentType = document.querySelector('#DefaultScreensaverContentType').value || null;
+                    if (document.querySelector('#DefaultScreensaverLibraryPicker .screensaverLibraryCb') != null) {
+                        var screensaverLibraryCbs = document.querySelectorAll('#DefaultScreensaverLibraryPicker .screensaverLibraryCb:checked');
+                        var screensaverLibraryIds = [];
+                        for (var sli = 0; sli < screensaverLibraryCbs.length; sli++) {
+                            screensaverLibraryIds.push(screensaverLibraryCbs[sli].dataset.value);
+                        }
+                        d.screensaverLibraryIds = screensaverLibraryIds.length > 0 ? screensaverLibraryIds : null;
+                    }
+                    if (document.querySelector('#DefaultScreensaverCollectionPicker .screensaverCollectionCb') != null) {
+                        var screensaverCollectionCbs = document.querySelectorAll('#DefaultScreensaverCollectionPicker .screensaverCollectionCb:checked');
+                        var screensaverCollectionIds = [];
+                        for (var sci = 0; sci < screensaverCollectionCbs.length; sci++) {
+                            screensaverCollectionIds.push(screensaverCollectionCbs[sci].dataset.value);
+                        }
+                        d.screensaverCollectionIds = screensaverCollectionIds.length > 0 ? screensaverCollectionIds : null;
+                    }
+                    if (document.querySelector('#DefaultScreensaverGenrePicker .screensaverGenreCb') != null) {
+                        var screensaverGenreCbs = document.querySelectorAll('#DefaultScreensaverGenrePicker .screensaverGenreCb:checked');
+                        var screensaverGenreNames = [];
+                        for (var sgi = 0; sgi < screensaverGenreCbs.length; sgi++) {
+                            screensaverGenreNames.push(screensaverGenreCbs[sgi].dataset.value);
+                        }
+                        d.screensaverExcludedGenres = screensaverGenreNames.length > 0 ? screensaverGenreNames : null;
+                    }
+                    d.loadingAnimationImage = document.querySelector('#DefaultLoadingAnimationImage').value || null;
+                    d.loadingAnimationPosition = document.querySelector('#DefaultLoadingAnimationPosition').value || null;
+                    d.loadingAnimationSize = document.querySelector('#DefaultLoadingAnimationSize').value || null;
+                    d.loadingAnimationSpeed = document.querySelector('#DefaultLoadingAnimationSpeed').value || null;
+                    d.showLoadingAnimationText = getNullableBoolSelect('#DefaultShowLoadingAnimationText');
+
+                    d.navbarPosition = document.querySelector('#DefaultNavbarPosition').value || null;
+                    d.navbarColor = document.querySelector('#DefaultNavbarColor').value || null;
+                    d.navbarOpacity = getNullableRangeInput('#DefaultNavbarOpacity');
+                    d.navbarAlwaysExpanded = getNullableBoolSelect('#DefaultNavbarAlwaysExpanded');
+                    d.bottomNavbarStyle = document.querySelector('#DefaultBottomNavbarStyle').value || null;
+                    d.bottomNavbarTabs = getBottomNavbarTabSelects();
+                    d.enableFolderView = getNullableBoolSelect('#DefaultEnableFolderView');
+                    d.showSeerrButton = getNullableBoolSelect('#DefaultShowSeerrButton');
+                    d.showLiveTvButton = getNullableBoolSelect('#DefaultShowLiveTvButton');
+                    d.showDownloadsButton = getNullableBoolSelect('#DefaultShowDownloadsButton');
+                    d.showServerMessagesButton = getNullableBoolSelect('#DefaultShowServerMessagesButton');
+                    d.showFriendsButton = getNullableBoolSelect('#DefaultShowFriendsButton');
+
+                    d.mediaBarSourceType = document.querySelector('#DefaultMediaBarSourceType').value || null;
+                    var genreIds = [];
+                    var genreCbs = document.querySelectorAll('#DefaultGenrePicker .adminGenreCb:checked');
+                    for (var gi = 0; gi < genreCbs.length; gi++) {
+                        genreIds.push(genreCbs[gi].dataset.id);
+                    }
+                    d.mediaBarExcludedGenres = genreIds.length > 0 ? genreIds : null;
+                    d.mediaBarMode = document.querySelector('#DefaultMediaBarMode').value || null;
+                    d.mediaBarContentType = document.querySelector('#DefaultMediaBarContentType').value || null;
+                    d.mediaBarItemCount = getNullableIntInput('#DefaultMediaBarItemCount');
+                    d.mediaBarAutoAdvance = getNullableBoolSelect('#DefaultMediaBarAutoAdvance');
+                    d.mediaBarIntervalMs = getNullableIntInput('#DefaultMediaBarIntervalMs');
+                    d.mediaBarTrailerPreview = getNullableBoolSelect('#DefaultMediaBarTrailerPreview');
+                    d.mediaBarTrailerAudio = getNullableBoolSelect('#DefaultMediaBarTrailerAudio');
+                    d.trailerVolume = getNullableRangeInput('#DefaultTrailerVolume');
+                    d.mediaBarTrailerCaptions = getNullableBoolSelect('#DefaultMediaBarTrailerCaptions');
+                    d.episodePreviewEnabled = getNullableBoolSelect('#DefaultEpisodePreviewEnabled');
+                    d.previewAudioEnabled = getNullableBoolSelect('#DefaultPreviewAudioEnabled');
+                    d.previewVolume = getNullableRangeInput('#DefaultPreviewVolume');
+                    d.seasonalSurprise = document.querySelector('#DefaultSeasonalSurprise').value || null;
+                    d.seasonalDensity = document.querySelector('#DefaultSeasonalDensity').value || null;
+                    d.seasonalRowEnabled = getNullableBoolSelect('#DefaultSeasonalRowEnabled');
+                    d.seasonalRowCountry = document.querySelector('#DefaultSeasonalRowCountry').value || null;
+                    d.seasonalRowHiddenHolidays = readSeasonalHiddenHolidays();
+
+                    // Clients store this one as text, unlike the millisecond fields below.
+                    d.resumeSubtractDuration = document.querySelector('#DefaultResumeSubtractDuration').value || null;
+                    d.unpauseRewindDuration = getNullableIntInput('#DefaultUnpauseRewindDuration');
+                    d.skipBackLength = getNullableIntInput('#DefaultSkipBackLength');
+                    d.skipForwardLength = getNullableIntInput('#DefaultSkipForwardLength');
+
+                    d.defaultAudioLanguage = document.querySelector('#DefaultDefaultAudioLanguage').value.trim() || null;
+                    d.fallbackAudioLanguage = document.querySelector('#DefaultFallbackAudioLanguage').value.trim() || null;
+                    d.preferDefaultAudioTrack = getNullableBoolSelect('#DefaultPreferDefaultAudioTrack');
+                    d.preferAudioDescription = getNullableBoolSelect('#DefaultPreferAudioDescription');
+
+                    d.subtitleMode = document.querySelector('#DefaultSubtitleMode').value || null;
+                    d.defaultSubtitleLanguage = document.querySelector('#DefaultDefaultSubtitleLanguage').value.trim() || null;
+                    d.fallbackSubtitleLanguage = document.querySelector('#DefaultFallbackSubtitleLanguage').value.trim() || null;
+                    d.preferSdhSubtitles = getNullableBoolSelect('#DefaultPreferSdhSubtitles');
+                    d.preferTextSubtitles = getNullableBoolSelect('#DefaultPreferTextSubtitles');
+                    d.preferExternalSubtitles = getNullableBoolSelect('#DefaultPreferExternalSubtitles');
+
+                    d.cinemaModeEnabled = getNullableBoolSelect('#DefaultCinemaModeEnabled');
+                    d.autoplayNextEpisode = getNullableBoolSelect('#DefaultAutoplayNextEpisode');
+                    d.nextUpTimeout = getNullableIntInput('#DefaultNextUpTimeout');
+                    d.stillWatchingBehavior = document.querySelector('#DefaultStillWatchingBehavior').value || null;
+                    d.mediaSegmentActions = getSegmentActionsValue();
+                    d.mediaSegmentCountdown = document.querySelector('#DefaultMediaSegmentCountdown').value || null;
+                    d.mediaSegmentAutoHide = document.querySelector('#DefaultMediaSegmentAutoHide').value || null;
+                    d.replaceSkipOutroWithNextUp = getNullableBoolSelect('#DefaultReplaceSkipOutroWithNextUp');
+                    d.cinemaModeEpisodesEnabled = getNullableBoolSelect('#DefaultCinemaModeEpisodesEnabled');
+
+                    if (document.querySelector('#DefaultCollectionPicker .adminCollectionCb') != null) {
+                        var collectionCbs = document.querySelectorAll('#DefaultCollectionPicker .adminCollectionCb:checked');
+                        var collectionIds = [];
+                        for (var ci = 0; ci < collectionCbs.length; ci++) {
+                            collectionIds.push(collectionCbs[ci].dataset.id);
+                        }
+                        d.mediaBarCollectionIds = collectionIds.length > 0 ? collectionIds : null;
+                    }
+                    if (document.querySelector('#DefaultLibraryPicker .adminLibraryCb') != null) {
+                        var libraryCbs = document.querySelectorAll('#DefaultLibraryPicker .adminLibraryCb:checked');
+                        var libraryIds = [];
+                        for (var li = 0; li < libraryCbs.length; li++) {
+                            libraryIds.push(libraryCbs[li].dataset.id);
+                        }
+                        d.mediaBarLibraryIds = libraryIds.length > 0 ? libraryIds : null;
+                    }
+
+
+                    d.homeRowsStyle = document.querySelector('#DefaultHomeRowsStyle').value || null;
+                    d.modernCardsOnMyMediaRow = getNullableBoolSelect('#DefaultModernCardsOnMyMediaRow');
+                    d.fullScreenRows = getNullableBoolSelect('#DefaultFullScreenRows');
+                    d.homeRowInfoOverlay = getNullableBoolSelect('#DefaultHomeRowInfoOverlay');
+                    d.classicHomeRowsPadding = getNullableRangeInput('#DefaultClassicHomeRowsPadding');
+                    d.modernHomeRowsPadding = getNullableRangeInput('#DefaultModernHomeRowsPadding');
+                    d.posterSize = document.querySelector('#DefaultPosterSize').value || null;
+                    d.homeImageTypeContinueWatching = document.querySelector('#DefaultHomeImageTypeContinueWatching').value || null;
+                    d.homeRowImageTypes = getHomeRowImageTypesValue();
+                    d.displayFavoritesRows = getNullableBoolSelect('#DefaultDisplayFavoritesRows');
+                    d.favoritesRowSortBy = document.querySelector('#DefaultFavoritesRowSortBy').value || null;
+                    d.displayCollectionsRows = getNullableBoolSelect('#DefaultDisplayCollectionsRows');
+                    d.collectionsRowSortBy = document.querySelector('#DefaultCollectionsRowSortBy').value || null;
+                    d.displayGenresRows = getNullableBoolSelect('#DefaultDisplayGenresRows');
+                    d.genresRowSortBy = document.querySelector('#DefaultGenresRowSortBy').value || null;
+                    d.displayPlaylistsRows = getNullableBoolSelect('#DefaultDisplayPlaylistsRows');
+                    d.playlistsRowSortBy = document.querySelector('#DefaultPlaylistsRowSortBy').value || null;
+                    d.displayAudioRows = getNullableBoolSelect('#DefaultDisplayAudioRows');
+                    d.audioRowsSortBy = document.querySelector('#DefaultAudioRowsSortBy').value || null;
+                    d.displayRewatchRow = getNullableBoolSelect('#DefaultDisplayRewatchRow');
+                    d.rewatchSortBy = document.querySelector('#DefaultRewatchSortBy').value || null;
+                    d.displaySinceYouWatchedRows = getNullableBoolSelect('#DefaultDisplaySinceYouWatchedRows');
+                    d.homeImageUseSeriesImage = getNullableBoolSelect('#DefaultHomeImageUseSeriesImage');
+                    var pluginSourcesAtLoad = HOME_LAYOUT_STATE.pluginSourcesAtLoad || {};
+                    HOME_LAYOUT_STATE.sections.forEach(function(section) {
+                        var toggle = HOME_LAYOUT_ROW_TOGGLES[section.pluginSource];
+                        if (!toggle || d[toggle.setting] === true) return;
+                        if (pluginSourcesAtLoad[section.pluginSource]) return;
+                        d[toggle.setting] = true;
+                        // Keep the select in step, otherwise it goes on reading No
+                        // until the page is reloaded.
+                        setNullableBoolSelect(toggle.select, true);
+                    });
+                    var homeSections = getHomeSectionsValue();
+                    d.homeSections = homeSections;
+                    d.homeRowOrder = getHomeRowOrderValue(homeSections);
+                    d.mergeContinueWatchingNextUp = getNullableBoolSelect('#DefaultMergeContinueWatchingNextUp');
+                    d.nextUpMaxDays = getNullableIntInput('#DefaultNextUpMaxDays');
+
+                    d.enableMultiServerLibraries = getNullableBoolSelect('#DefaultEnableMultiServerLibraries');
+                    d.mergeRecentRowsByType = getNullableBoolSelect('#DefaultMergeRecentRowsByType');
+                    d.recentlyReleasedSeriesType = document.querySelector('#DefaultRecentlyReleasedSeriesType').value || null;
+                    d.groupItemsIntoCollections = getNullableBoolSelect('#DefaultGroupItemsIntoCollections');
+                    d.showMediaDetailsOnLibraryPage = getNullableBoolSelect('#DefaultShowMediaDetailsOnLibraryPage');
+                    d.useDetailedSubHeadings = getNullableBoolSelect('#DefaultUseDetailedSubHeadings');
+                    d.hideBackdropsInLibraries = getNullableBoolSelect('#DefaultHideBackdropsInLibraries');
+
+                    d.showShuffleButton = getNullableBoolSelect('#DefaultShowShuffleButton');
+                    d.showGenresButton = getNullableBoolSelect('#DefaultShowGenresButton');
+                    d.showFavoritesButton = getNullableBoolSelect('#DefaultShowFavoritesButton');
+                    d.showSyncPlayButton = getNullableBoolSelect('#DefaultShowSyncPlayButton');
+                    d.showLibrariesInToolbar = getNullableBoolSelect('#DefaultShowLibrariesInToolbar');
+                    d.mdblistEnabled = getNullableBoolSelect('#DefaultMdblistEnabled');
+                    d.tmdbEpisodeRatingsEnabled = getNullableBoolSelect('#DefaultTmdbEpisodeRatingsEnabled');
+                    d.mdblistShowRatingBadges = getNullableBoolSelect('#DefaultMdblistShowRatingBadges');
+                    d.mdblistShowRatingNames = getNullableBoolSelect('#DefaultMdblistShowRatingNames');
+                    d.mdblistRatingSources = getRatingSourcesValue();
+                    d.seerrBlockNsfw = getNullableBoolSelect('#DefaultSeerrBlockNsfw');
+                    d.seerrShowMissingCollectionItems = getNullableBoolSelect('#DefaultSeerrShowMissingCollectionItems');
+                    d.showSeerrAvailabilityBadges = getNullableBoolSelect('#DefaultShowSeerrAvailabilityBadges');
+                    // seerrRows carries more than the ordering, so merge rather than replace.
+                    var seerrRows = Object.assign({}, d.seerrRows || {});
+                    seerrRows.rowOrder = getSeerrDiscoveryRowOrder();
+                    d.seerrRows = seerrRows;
+
+                    d.confirmExit = getNullableBoolSelect('#DefaultConfirmExit');
+                    d.updateNotificationsEnabled = getNullableBoolSelect('#DefaultUpdateNotificationsEnabled');
+                    d.hideDetailsMediaDescription = getNullableBoolSelect('#DefaultHideDetailsMediaDescription');
+                    d.detailTrailersExternal = getNullableBoolSelect('#DefaultDetailTrailersExternal');
+                    d.detailUseSeriesThumbnails = getNullableBoolSelect('#DefaultDetailUseSeriesThumbnails');
+                    d.personPageGroupItems = getNullableBoolSelect('#DefaultPersonPageGroupItems');
+                    d.homeRowsImageTypeOverride = getNullableBoolSelect('#DefaultHomeRowsImageTypeOverride');
+                    d.hideHomeMediaDescription = getNullableBoolSelect('#DefaultHideHomeMediaDescription');
+                    d.collectionsRowShowEpisodes = getNullableBoolSelect('#DefaultCollectionsRowShowEpisodes');
+                    d.playlistsRowShowEpisodes = getNullableBoolSelect('#DefaultPlaylistsRowShowEpisodes');
+                    d.displayStudiosRows = getNullableBoolSelect('#DefaultDisplayStudiosRows');
+                    d.rewatchIncludeMovies = getNullableBoolSelect('#DefaultRewatchIncludeMovies');
+                    d.rewatchIncludeShows = getNullableBoolSelect('#DefaultRewatchIncludeShows');
+                    d.rewatchIncludeCollections = getNullableBoolSelect('#DefaultRewatchIncludeCollections');
+                    d.sinceYouWatchedIncludeWatched = getNullableBoolSelect('#DefaultSinceYouWatchedIncludeWatched');
+                    d.sinceYouWatched1Enabled = getNullableBoolSelect('#DefaultSinceYouWatched1Enabled');
+                    d.sinceYouWatched2Enabled = getNullableBoolSelect('#DefaultSinceYouWatched2Enabled');
+                    d.sinceYouWatched3Enabled = getNullableBoolSelect('#DefaultSinceYouWatched3Enabled');
+                    d.sinceYouWatched4Enabled = getNullableBoolSelect('#DefaultSinceYouWatched4Enabled');
+                    d.sinceYouWatched5Enabled = getNullableBoolSelect('#DefaultSinceYouWatched5Enabled');
+                    d.displayAudioLatest = getNullableBoolSelect('#DefaultDisplayAudioLatest');
+                    d.displayAudioLastPlayed = getNullableBoolSelect('#DefaultDisplayAudioLastPlayed');
+                    d.displayAudioFavorites = getNullableBoolSelect('#DefaultDisplayAudioFavorites');
+                    d.displayAudioPlaylists = getNullableBoolSelect('#DefaultDisplayAudioPlaylists');
+                    d.displayAudioAlbumArtists = getNullableBoolSelect('#DefaultDisplayAudioAlbumArtists');
+                    d.displayAudioArtists = getNullableBoolSelect('#DefaultDisplayAudioArtists');
+                    d.displayAudioAlbums = getNullableBoolSelect('#DefaultDisplayAudioAlbums');
+                    d.imdbTop250MoviesEnabled = getNullableBoolSelect('#DefaultImdbTop250MoviesEnabled');
+                    d.imdbTop250TvShowsEnabled = getNullableBoolSelect('#DefaultImdbTop250TvShowsEnabled');
+                    d.imdbMostPopularMoviesEnabled = getNullableBoolSelect('#DefaultImdbMostPopularMoviesEnabled');
+                    d.imdbMostPopularTvShowsEnabled = getNullableBoolSelect('#DefaultImdbMostPopularTvShowsEnabled');
+                    d.imdbTopEnglishMoviesEnabled = getNullableBoolSelect('#DefaultImdbTopEnglishMoviesEnabled');
+                    d.imdbLowestRatedMoviesEnabled = getNullableBoolSelect('#DefaultImdbLowestRatedMoviesEnabled');
+                    d.tmdbTrendingAllWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingAllWeeklyEnabled');
+                    d.tmdbTrendingMovieDailyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingMovieDailyEnabled');
+                    d.tmdbTrendingMovieWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingMovieWeeklyEnabled');
+                    d.tmdbTrendingTvDailyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingTvDailyEnabled');
+                    d.tmdbTrendingTvWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingTvWeeklyEnabled');
+                    d.tmdbPopularMoviesEnabled = getNullableBoolSelect('#DefaultTmdbPopularMoviesEnabled');
+                    d.tmdbPopularTvEnabled = getNullableBoolSelect('#DefaultTmdbPopularTvEnabled');
+                    d.tmdbTopRatedMoviesEnabled = getNullableBoolSelect('#DefaultTmdbTopRatedMoviesEnabled');
+                    d.tmdbTopRatedTvEnabled = getNullableBoolSelect('#DefaultTmdbTopRatedTvEnabled');
+                    d.tmdbNowPlayingMoviesEnabled = getNullableBoolSelect('#DefaultTmdbNowPlayingMoviesEnabled');
+                    d.tmdbUpcomingMoviesEnabled = getNullableBoolSelect('#DefaultTmdbUpcomingMoviesEnabled');
+                    d.tmdbAiringTodayTvEnabled = getNullableBoolSelect('#DefaultTmdbAiringTodayTvEnabled');
+                    d.tmdbOnTheAirTvEnabled = getNullableBoolSelect('#DefaultTmdbOnTheAirTvEnabled');
+                    d.enableRadarrCalendar = getNullableBoolSelect('#DefaultEnableRadarrCalendar');
+                    d.enableSonarrCalendar = getNullableBoolSelect('#DefaultEnableSonarrCalendar');
+                    d.mergeRadarrSonarrCalendars = getNullableBoolSelect('#DefaultMergeRadarrSonarrCalendars');
+                    d.radarrCalendarShowCinema = getNullableBoolSelect('#DefaultRadarrCalendarShowCinema');
+                    d.radarrCalendarShowDigital = getNullableBoolSelect('#DefaultRadarrCalendarShowDigital');
+                    d.radarrCalendarShowPhysical = getNullableBoolSelect('#DefaultRadarrCalendarShowPhysical');
+                    d.radarrCalendarShowDate = getNullableBoolSelect('#DefaultRadarrCalendarShowDate');
+                    d.sonarrCalendarShowDate = getNullableBoolSelect('#DefaultSonarrCalendarShowDate');
+                    d.sonarrCalendarShowEpisodeInfo = getNullableBoolSelect('#DefaultSonarrCalendarShowEpisodeInfo');
+                    d.personalRatingStyle = document.querySelector('#DefaultPersonalRatingStyle').value || null;
+                    d.personPageSortOption = document.querySelector('#DefaultPersonPageSortOption').value || null;
+                    d.shuffleContentType = document.querySelector('#DefaultShuffleContentType').value || null;
+                    d.homeRowsImageType = document.querySelector('#DefaultHomeRowsImageType').value || null;
+                    d.mediaTypeBadgeBehavior = document.querySelector('#DefaultMediaTypeBadgeBehavior').value || null;
+                    d.audioRowsSortOrder = document.querySelector('#DefaultAudioRowsSortOrder').value || null;
+                    d.collectionsRowSortOrder = document.querySelector('#DefaultCollectionsRowSortOrder').value || null;
+                    d.favoritesRowSortOrder = document.querySelector('#DefaultFavoritesRowSortOrder').value || null;
+                    d.genresRowSortOrder = document.querySelector('#DefaultGenresRowSortOrder').value || null;
+                    d.genresRowItemFilter = document.querySelector('#DefaultGenresRowItemFilter').value || null;
+                    d.playlistsRowSortOrder = document.querySelector('#DefaultPlaylistsRowSortOrder').value || null;
+                    d.studiosRowSortBy = document.querySelector('#DefaultStudiosRowSortBy').value || null;
+                    d.studiosRowSortOrder = document.querySelector('#DefaultStudiosRowSortOrder').value || null;
+                    d.sinceYouWatchedSource = document.querySelector('#DefaultSinceYouWatchedSource').value || null;
+                    d.sinceYouWatchedSourceType = document.querySelector('#DefaultSinceYouWatchedSourceType').value || null;
+                    d.sinceYouWatchedSourceItem = document.querySelector('#DefaultSinceYouWatchedSourceItem').value || null;
+                    d.libraryStyle = document.querySelector('#DefaultLibraryStyle').value || null;
+                    d.bookLibraryStyle = document.querySelector('#DefaultBookLibraryStyle').value || null;
+                    d.musicLibraryStyle = document.querySelector('#DefaultMusicLibraryStyle').value || null;
+                    d.libraryPosterSize = document.querySelector('#DefaultLibraryPosterSize').value || null;
+                    d.playlistPosterSize = document.querySelector('#DefaultPlaylistPosterSize').value || null;
+                    d.favoritesViewStyle = document.querySelector('#DefaultFavoritesViewStyle').value || null;
+                    d.allGenresImageType = document.querySelector('#DefaultAllGenresImageType').value || null;
+                    d.audioSortOption = document.querySelector('#DefaultAudioSortOption').value || null;
+                    d.liveTvChannelSortBy = document.querySelector('#DefaultLiveTvChannelSortBy').value || null;
+                    d.epgMobileView = document.querySelector('#DefaultEpgMobileView').value || null;
+                    d.mediaBarOverlayColor = document.querySelector('#DefaultMediaBarOverlayColor').value || null;
+                    d.mediaBarOpacity = getNullableRangeInput('#DefaultMediaBarOpacity');
+                    var osdVal = getButtonPickerValue('#DefaultOsdButtonsList');
+                    d.osdButtonOrderTv = osdVal.order;
+                    d.osdButtonOrderMobile = osdVal.order;
+                    d.osdButtonOrderDesktop = osdVal.order;
+                    d.hiddenOsdButtonsTv = osdVal.hidden;
+                    d.hiddenOsdButtonsMobile = osdVal.hidden;
+                    d.hiddenOsdButtonsDesktop = osdVal.hidden;
+                    return d;
+                }
+
                 function submit() {
                     return ApiClient.getPluginConfiguration(MoonfinConfig.pluginUniqueId).then(function(config) {
                         config.EnableSettingsSync = document.querySelector('#EnableSettingsSync').checked;
@@ -7651,327 +8059,13 @@
                             document.querySelectorAll('.gameLibraryCb:checked')
                         ).map(function (cb) { return cb.getAttribute('data-id'); });
 
-                        config.DefaultUserSettings = config.DefaultUserSettings || {};
-                        config.DefaultUserSettings.interfaceStyle = document.querySelector('#DefaultInterfaceStyle').value || null;
-                        var defaultTheme = document.querySelector('#DefaultVisualTheme').value;
-                        var customTheme = defaultTheme.indexOf('custom:') === 0;
-                        config.DefaultUserSettings.visualTheme = (!customTheme && defaultTheme) || null;
-                        config.DefaultUserSettings.customThemeId = customTheme ? defaultTheme.slice(7) : null;
-                        config.DefaultUserSettings.detailScreenStyle = document.querySelector('#DefaultDetailScreenStyle').value || null;
-                        config.DefaultUserSettings.detailExpandedTabs = getNullableBoolSelect('#DefaultDetailExpandedTabs');
-                        config.DefaultUserSettings.detailShowTechnicalDetails = getNullableBoolSelect('#DefaultDetailShowTechnicalDetails');
-                        config.DefaultUserSettings.recommendationSystemSource = document.querySelector('#DefaultRecommendationSystemSource').value || null;
-                        config.DefaultUserSettings.recommendationsApplyParentalRatingCap = getNullableBoolSelect('#DefaultRecommendationsApplyParentalRatingCap');
-                        // Clients read a different key per form factor, so one arrangement covers all three.
-                        var metaVal = getButtonPickerValue('#DefaultDetailMetadataList');
-                        config.DefaultUserSettings.detailMetadataOrderTv = metaVal.order;
-                        config.DefaultUserSettings.detailMetadataOrderMobile = metaVal.order;
-                        config.DefaultUserSettings.detailMetadataOrderDesktop = metaVal.order;
-                        config.DefaultUserSettings.hiddenDetailMetadataTv = metaVal.hidden;
-                        config.DefaultUserSettings.hiddenDetailMetadataMobile = metaVal.hidden;
-                        config.DefaultUserSettings.hiddenDetailMetadataDesktop = metaVal.hidden;
-                        var btnVal = getButtonPickerValue('#DefaultDetailButtonsList');
-                        config.DefaultUserSettings.detailButtonOrderTv = btnVal.order;
-                        config.DefaultUserSettings.detailButtonOrderMobile = btnVal.order;
-                        config.DefaultUserSettings.detailButtonOrderDesktop = btnVal.order;
-                        config.DefaultUserSettings.hiddenDetailButtonsTv = btnVal.hidden;
-                        config.DefaultUserSettings.hiddenDetailButtonsMobile = btnVal.hidden;
-                        config.DefaultUserSettings.hiddenDetailButtonsDesktop = btnVal.hidden;
-                        var sectionVal = getButtonPickerValue('#DefaultDetailSectionsList');
-                        config.DefaultUserSettings.hiddenDetailSectionsTv = sectionVal.hidden;
-                        config.DefaultUserSettings.hiddenDetailSectionsMobile = sectionVal.hidden;
-                        config.DefaultUserSettings.hiddenDetailSectionsDesktop = sectionVal.hidden;
-                        config.DefaultUserSettings.focusColor = document.querySelector('#DefaultFocusColor').value || null;
-                        config.DefaultUserSettings.clockBehavior = document.querySelector('#DefaultClockBehavior').value || null;
-                        config.DefaultUserSettings.use24HourClock = getNullableBoolSelect('#DefaultUse24HourClock');
-                        config.DefaultUserSettings.desktopUiScale = document.querySelector('#DefaultDesktopUiScale').value || null;
-                        config.DefaultUserSettings.homeBackdropEnabled = getNullableBoolSelect('#DefaultHomeBackdropEnabled');
-                        config.DefaultUserSettings.detailsBackdropEnabled = getNullableBoolSelect('#DefaultDetailsBackdropEnabled');
-                        config.DefaultUserSettings.showBookDiscoverTab = getNullableBoolSelect('#DefaultShowBookDiscoverTab');
-                        config.DefaultUserSettings.browsingBlur = getNullableRangeInputAsText('#DefaultBrowsingBlur');
-                        config.DefaultUserSettings.detailsScreenBlur = getNullableRangeInputAsText('#DefaultDetailsScreenBlur');
-                        config.DefaultUserSettings.themeMusicEnabled = getNullableBoolSelect('#DefaultThemeMusicEnabled');
-                        config.DefaultUserSettings.themeMusicOnHomeRows = getNullableBoolSelect('#DefaultThemeMusicOnHomeRows');
-                        config.DefaultUserSettings.themeMusicLoop = getNullableBoolSelect('#DefaultThemeMusicLoop');
-                        config.DefaultUserSettings.themeMusicVolume = getNullableRangeInput('#DefaultThemeMusicVolume');
-                        config.DefaultUserSettings.watchedIndicator = document.querySelector('#DefaultWatchedIndicator').value || null;
-                        config.DefaultUserSettings.cardFocusExpansion = getNullableBoolSelect('#DefaultCardFocusExpansion');
-                        config.DefaultUserSettings.screensaverMode = document.querySelector('#DefaultScreensaverMode').value || null;
-                        config.DefaultUserSettings.screensaverBackdrop = document.querySelector('#DefaultScreensaverBackdrop').value || null;
-                        config.DefaultUserSettings.screensaverComponent = document.querySelector('#DefaultScreensaverComponent').value || null;
-                        config.DefaultUserSettings.screensaverMovement = document.querySelector('#DefaultScreensaverMovement').value || null;
-                        config.DefaultUserSettings.screensaverPosition = document.querySelector('#DefaultScreensaverPosition').value || null;
-                        config.DefaultUserSettings.screensaverSize = document.querySelector('#DefaultScreensaverSize').value || null;
-                        config.DefaultUserSettings.screensaverContentType = document.querySelector('#DefaultScreensaverContentType').value || null;
-                        if (document.querySelector('#DefaultScreensaverLibraryPicker .screensaverLibraryCb') != null) {
-                            var screensaverLibraryCbs = document.querySelectorAll('#DefaultScreensaverLibraryPicker .screensaverLibraryCb:checked');
-                            var screensaverLibraryIds = [];
-                            for (var sli = 0; sli < screensaverLibraryCbs.length; sli++) {
-                                screensaverLibraryIds.push(screensaverLibraryCbs[sli].dataset.value);
-                            }
-                            config.DefaultUserSettings.screensaverLibraryIds = screensaverLibraryIds.length > 0 ? screensaverLibraryIds : null;
-                        }
-                        if (document.querySelector('#DefaultScreensaverCollectionPicker .screensaverCollectionCb') != null) {
-                            var screensaverCollectionCbs = document.querySelectorAll('#DefaultScreensaverCollectionPicker .screensaverCollectionCb:checked');
-                            var screensaverCollectionIds = [];
-                            for (var sci = 0; sci < screensaverCollectionCbs.length; sci++) {
-                                screensaverCollectionIds.push(screensaverCollectionCbs[sci].dataset.value);
-                            }
-                            config.DefaultUserSettings.screensaverCollectionIds = screensaverCollectionIds.length > 0 ? screensaverCollectionIds : null;
-                        }
-                        if (document.querySelector('#DefaultScreensaverGenrePicker .screensaverGenreCb') != null) {
-                            var screensaverGenreCbs = document.querySelectorAll('#DefaultScreensaverGenrePicker .screensaverGenreCb:checked');
-                            var screensaverGenreNames = [];
-                            for (var sgi = 0; sgi < screensaverGenreCbs.length; sgi++) {
-                                screensaverGenreNames.push(screensaverGenreCbs[sgi].dataset.value);
-                            }
-                            config.DefaultUserSettings.screensaverExcludedGenres = screensaverGenreNames.length > 0 ? screensaverGenreNames : null;
-                        }
-                        config.DefaultUserSettings.loadingAnimationImage = document.querySelector('#DefaultLoadingAnimationImage').value || null;
-                        config.DefaultUserSettings.loadingAnimationPosition = document.querySelector('#DefaultLoadingAnimationPosition').value || null;
-                        config.DefaultUserSettings.loadingAnimationSize = document.querySelector('#DefaultLoadingAnimationSize').value || null;
-                        config.DefaultUserSettings.loadingAnimationSpeed = document.querySelector('#DefaultLoadingAnimationSpeed').value || null;
-                        config.DefaultUserSettings.showLoadingAnimationText = getNullableBoolSelect('#DefaultShowLoadingAnimationText');
-
-                        config.DefaultUserSettings.navbarPosition = document.querySelector('#DefaultNavbarPosition').value || null;
-                        config.DefaultUserSettings.navbarColor = document.querySelector('#DefaultNavbarColor').value || null;
-                        config.DefaultUserSettings.navbarOpacity = getNullableRangeInput('#DefaultNavbarOpacity');
-                        config.DefaultUserSettings.navbarAlwaysExpanded = getNullableBoolSelect('#DefaultNavbarAlwaysExpanded');
-                        config.DefaultUserSettings.bottomNavbarStyle = document.querySelector('#DefaultBottomNavbarStyle').value || null;
-                        config.DefaultUserSettings.bottomNavbarTabs = getBottomNavbarTabSelects();
-                        config.DefaultUserSettings.enableFolderView = getNullableBoolSelect('#DefaultEnableFolderView');
-                        config.DefaultUserSettings.showSeerrButton = getNullableBoolSelect('#DefaultShowSeerrButton');
-                        config.DefaultUserSettings.showLiveTvButton = getNullableBoolSelect('#DefaultShowLiveTvButton');
-                        config.DefaultUserSettings.showDownloadsButton = getNullableBoolSelect('#DefaultShowDownloadsButton');
-                        config.DefaultUserSettings.showServerMessagesButton = getNullableBoolSelect('#DefaultShowServerMessagesButton');
-                        config.DefaultUserSettings.showFriendsButton = getNullableBoolSelect('#DefaultShowFriendsButton');
-
-                        config.DefaultUserSettings.mediaBarSourceType = document.querySelector('#DefaultMediaBarSourceType').value || null;
-                        var genreIds = [];
-                        var genreCbs = document.querySelectorAll('#DefaultGenrePicker .adminGenreCb:checked');
-                        for (var gi = 0; gi < genreCbs.length; gi++) {
-                            genreIds.push(genreCbs[gi].dataset.id);
-                        }
-                        config.DefaultUserSettings.mediaBarExcludedGenres = genreIds.length > 0 ? genreIds : null;
-                        config.DefaultUserSettings.mediaBarMode = document.querySelector('#DefaultMediaBarMode').value || null;
-                        config.DefaultUserSettings.mediaBarContentType = document.querySelector('#DefaultMediaBarContentType').value || null;
-                        config.DefaultUserSettings.mediaBarItemCount = getNullableIntInput('#DefaultMediaBarItemCount');
-                        config.DefaultUserSettings.mediaBarAutoAdvance = getNullableBoolSelect('#DefaultMediaBarAutoAdvance');
-                        config.DefaultUserSettings.mediaBarIntervalMs = getNullableIntInput('#DefaultMediaBarIntervalMs');
-                        config.DefaultUserSettings.mediaBarTrailerPreview = getNullableBoolSelect('#DefaultMediaBarTrailerPreview');
-                        config.DefaultUserSettings.mediaBarTrailerAudio = getNullableBoolSelect('#DefaultMediaBarTrailerAudio');
-                        config.DefaultUserSettings.trailerVolume = getNullableRangeInput('#DefaultTrailerVolume');
-                        config.DefaultUserSettings.mediaBarTrailerCaptions = getNullableBoolSelect('#DefaultMediaBarTrailerCaptions');
-                        config.DefaultUserSettings.episodePreviewEnabled = getNullableBoolSelect('#DefaultEpisodePreviewEnabled');
-                        config.DefaultUserSettings.previewAudioEnabled = getNullableBoolSelect('#DefaultPreviewAudioEnabled');
-                        config.DefaultUserSettings.previewVolume = getNullableRangeInput('#DefaultPreviewVolume');
-                        config.DefaultUserSettings.seasonalSurprise = document.querySelector('#DefaultSeasonalSurprise').value || null;
-                        config.DefaultUserSettings.seasonalDensity = document.querySelector('#DefaultSeasonalDensity').value || null;
-                        config.DefaultUserSettings.seasonalRowEnabled = getNullableBoolSelect('#DefaultSeasonalRowEnabled');
-                        config.DefaultUserSettings.seasonalRowCountry = document.querySelector('#DefaultSeasonalRowCountry').value || null;
-                        config.DefaultUserSettings.seasonalRowHiddenHolidays = readSeasonalHiddenHolidays();
-
-                        // Clients store this one as text, unlike the millisecond fields below.
-                        config.DefaultUserSettings.resumeSubtractDuration = document.querySelector('#DefaultResumeSubtractDuration').value || null;
-                        config.DefaultUserSettings.unpauseRewindDuration = getNullableIntInput('#DefaultUnpauseRewindDuration');
-                        config.DefaultUserSettings.skipBackLength = getNullableIntInput('#DefaultSkipBackLength');
-                        config.DefaultUserSettings.skipForwardLength = getNullableIntInput('#DefaultSkipForwardLength');
-
-                        config.DefaultUserSettings.defaultAudioLanguage = document.querySelector('#DefaultDefaultAudioLanguage').value.trim() || null;
-                        config.DefaultUserSettings.fallbackAudioLanguage = document.querySelector('#DefaultFallbackAudioLanguage').value.trim() || null;
-                        config.DefaultUserSettings.preferDefaultAudioTrack = getNullableBoolSelect('#DefaultPreferDefaultAudioTrack');
-                        config.DefaultUserSettings.preferAudioDescription = getNullableBoolSelect('#DefaultPreferAudioDescription');
-
-                        config.DefaultUserSettings.subtitleMode = document.querySelector('#DefaultSubtitleMode').value || null;
-                        config.DefaultUserSettings.defaultSubtitleLanguage = document.querySelector('#DefaultDefaultSubtitleLanguage').value.trim() || null;
-                        config.DefaultUserSettings.fallbackSubtitleLanguage = document.querySelector('#DefaultFallbackSubtitleLanguage').value.trim() || null;
-                        config.DefaultUserSettings.preferSdhSubtitles = getNullableBoolSelect('#DefaultPreferSdhSubtitles');
-                        config.DefaultUserSettings.preferTextSubtitles = getNullableBoolSelect('#DefaultPreferTextSubtitles');
-                        config.DefaultUserSettings.preferExternalSubtitles = getNullableBoolSelect('#DefaultPreferExternalSubtitles');
-
-                        config.DefaultUserSettings.cinemaModeEnabled = getNullableBoolSelect('#DefaultCinemaModeEnabled');
-                        config.DefaultUserSettings.autoplayNextEpisode = getNullableBoolSelect('#DefaultAutoplayNextEpisode');
-                        config.DefaultUserSettings.nextUpTimeout = getNullableIntInput('#DefaultNextUpTimeout');
-                        config.DefaultUserSettings.stillWatchingBehavior = document.querySelector('#DefaultStillWatchingBehavior').value || null;
-                        config.DefaultUserSettings.mediaSegmentActions = getSegmentActionsValue();
-                        config.DefaultUserSettings.mediaSegmentCountdown = document.querySelector('#DefaultMediaSegmentCountdown').value || null;
-                        config.DefaultUserSettings.mediaSegmentAutoHide = document.querySelector('#DefaultMediaSegmentAutoHide').value || null;
-                        config.DefaultUserSettings.replaceSkipOutroWithNextUp = getNullableBoolSelect('#DefaultReplaceSkipOutroWithNextUp');
-                        config.DefaultUserSettings.cinemaModeEpisodesEnabled = getNullableBoolSelect('#DefaultCinemaModeEpisodesEnabled');
-
-                        if (document.querySelector('#DefaultCollectionPicker .adminCollectionCb') != null) {
-                            var collectionCbs = document.querySelectorAll('#DefaultCollectionPicker .adminCollectionCb:checked');
-                            var collectionIds = [];
-                            for (var ci = 0; ci < collectionCbs.length; ci++) {
-                                collectionIds.push(collectionCbs[ci].dataset.id);
-                            }
-                            config.DefaultUserSettings.mediaBarCollectionIds = collectionIds.length > 0 ? collectionIds : null;
-                        }
-                        if (document.querySelector('#DefaultLibraryPicker .adminLibraryCb') != null) {
-                            var libraryCbs = document.querySelectorAll('#DefaultLibraryPicker .adminLibraryCb:checked');
-                            var libraryIds = [];
-                            for (var li = 0; li < libraryCbs.length; li++) {
-                                libraryIds.push(libraryCbs[li].dataset.id);
-                            }
-                            config.DefaultUserSettings.mediaBarLibraryIds = libraryIds.length > 0 ? libraryIds : null;
-                        }
-
-
-                        config.DefaultUserSettings.homeRowsStyle = document.querySelector('#DefaultHomeRowsStyle').value || null;
-                        config.DefaultUserSettings.modernCardsOnMyMediaRow = getNullableBoolSelect('#DefaultModernCardsOnMyMediaRow');
-                        config.DefaultUserSettings.fullScreenRows = getNullableBoolSelect('#DefaultFullScreenRows');
-                        config.DefaultUserSettings.homeRowInfoOverlay = getNullableBoolSelect('#DefaultHomeRowInfoOverlay');
-                        config.DefaultUserSettings.classicHomeRowsPadding = getNullableRangeInput('#DefaultClassicHomeRowsPadding');
-                        config.DefaultUserSettings.modernHomeRowsPadding = getNullableRangeInput('#DefaultModernHomeRowsPadding');
-                        config.DefaultUserSettings.posterSize = document.querySelector('#DefaultPosterSize').value || null;
-                        config.DefaultUserSettings.homeImageTypeContinueWatching = document.querySelector('#DefaultHomeImageTypeContinueWatching').value || null;
-                        config.DefaultUserSettings.homeRowImageTypes = getHomeRowImageTypesValue();
-                        config.DefaultUserSettings.displayFavoritesRows = getNullableBoolSelect('#DefaultDisplayFavoritesRows');
-                        config.DefaultUserSettings.favoritesRowSortBy = document.querySelector('#DefaultFavoritesRowSortBy').value || null;
-                        config.DefaultUserSettings.displayCollectionsRows = getNullableBoolSelect('#DefaultDisplayCollectionsRows');
-                        config.DefaultUserSettings.collectionsRowSortBy = document.querySelector('#DefaultCollectionsRowSortBy').value || null;
-                        config.DefaultUserSettings.displayGenresRows = getNullableBoolSelect('#DefaultDisplayGenresRows');
-                        config.DefaultUserSettings.genresRowSortBy = document.querySelector('#DefaultGenresRowSortBy').value || null;
-                        config.DefaultUserSettings.displayPlaylistsRows = getNullableBoolSelect('#DefaultDisplayPlaylistsRows');
-                        config.DefaultUserSettings.playlistsRowSortBy = document.querySelector('#DefaultPlaylistsRowSortBy').value || null;
-                        config.DefaultUserSettings.displayAudioRows = getNullableBoolSelect('#DefaultDisplayAudioRows');
-                        config.DefaultUserSettings.audioRowsSortBy = document.querySelector('#DefaultAudioRowsSortBy').value || null;
-                        config.DefaultUserSettings.displayRewatchRow = getNullableBoolSelect('#DefaultDisplayRewatchRow');
-                        config.DefaultUserSettings.rewatchSortBy = document.querySelector('#DefaultRewatchSortBy').value || null;
-                        config.DefaultUserSettings.displaySinceYouWatchedRows = getNullableBoolSelect('#DefaultDisplaySinceYouWatchedRows');
-                        config.DefaultUserSettings.homeImageUseSeriesImage = getNullableBoolSelect('#DefaultHomeImageUseSeriesImage');
-                        var pluginSourcesAtLoad = HOME_LAYOUT_STATE.pluginSourcesAtLoad || {};
-                        HOME_LAYOUT_STATE.sections.forEach(function(section) {
-                            var toggle = HOME_LAYOUT_ROW_TOGGLES[section.pluginSource];
-                            if (!toggle || config.DefaultUserSettings[toggle.setting] === true) return;
-                            if (pluginSourcesAtLoad[section.pluginSource]) return;
-                            config.DefaultUserSettings[toggle.setting] = true;
-                            // Keep the select in step, otherwise it goes on reading No
-                            // until the page is reloaded.
-                            setNullableBoolSelect(toggle.select, true);
-                        });
-                        var homeSections = getHomeSectionsValue();
-                        config.DefaultUserSettings.homeSections = homeSections;
-                        config.DefaultUserSettings.homeRowOrder = getHomeRowOrderValue(homeSections);
-                        config.DefaultUserSettings.mergeContinueWatchingNextUp = getNullableBoolSelect('#DefaultMergeContinueWatchingNextUp');
-                        config.DefaultUserSettings.nextUpMaxDays = getNullableIntInput('#DefaultNextUpMaxDays');
-
-                        config.DefaultUserSettings.enableMultiServerLibraries = getNullableBoolSelect('#DefaultEnableMultiServerLibraries');
-                        config.DefaultUserSettings.mergeRecentRowsByType = getNullableBoolSelect('#DefaultMergeRecentRowsByType');
-                        config.DefaultUserSettings.recentlyReleasedSeriesType = document.querySelector('#DefaultRecentlyReleasedSeriesType').value || null;
-                        config.DefaultUserSettings.groupItemsIntoCollections = getNullableBoolSelect('#DefaultGroupItemsIntoCollections');
-                        config.DefaultUserSettings.showMediaDetailsOnLibraryPage = getNullableBoolSelect('#DefaultShowMediaDetailsOnLibraryPage');
-                        config.DefaultUserSettings.useDetailedSubHeadings = getNullableBoolSelect('#DefaultUseDetailedSubHeadings');
-                        config.DefaultUserSettings.hideBackdropsInLibraries = getNullableBoolSelect('#DefaultHideBackdropsInLibraries');
-
-                        config.DefaultUserSettings.showShuffleButton = getNullableBoolSelect('#DefaultShowShuffleButton');
-                        config.DefaultUserSettings.showGenresButton = getNullableBoolSelect('#DefaultShowGenresButton');
-                        config.DefaultUserSettings.showFavoritesButton = getNullableBoolSelect('#DefaultShowFavoritesButton');
-                        config.DefaultUserSettings.showSyncPlayButton = getNullableBoolSelect('#DefaultShowSyncPlayButton');
-                        config.DefaultUserSettings.showLibrariesInToolbar = getNullableBoolSelect('#DefaultShowLibrariesInToolbar');
-                        config.DefaultUserSettings.mdblistEnabled = getNullableBoolSelect('#DefaultMdblistEnabled');
-                        config.DefaultUserSettings.tmdbEpisodeRatingsEnabled = getNullableBoolSelect('#DefaultTmdbEpisodeRatingsEnabled');
-                        config.DefaultUserSettings.mdblistShowRatingBadges = getNullableBoolSelect('#DefaultMdblistShowRatingBadges');
-                        config.DefaultUserSettings.mdblistShowRatingNames = getNullableBoolSelect('#DefaultMdblistShowRatingNames');
-                        config.DefaultUserSettings.mdblistRatingSources = getRatingSourcesValue();
-                        config.DefaultUserSettings.seerrBlockNsfw = getNullableBoolSelect('#DefaultSeerrBlockNsfw');
-                        config.DefaultUserSettings.seerrShowMissingCollectionItems = getNullableBoolSelect('#DefaultSeerrShowMissingCollectionItems');
-                        config.DefaultUserSettings.showSeerrAvailabilityBadges = getNullableBoolSelect('#DefaultShowSeerrAvailabilityBadges');
-                        // seerrRows carries more than the ordering, so merge rather than replace.
-                        var seerrRows = Object.assign({}, config.DefaultUserSettings.seerrRows || {});
-                        seerrRows.rowOrder = getSeerrDiscoveryRowOrder();
-                        config.DefaultUserSettings.seerrRows = seerrRows;
-
-                        config.DefaultUserSettings.confirmExit = getNullableBoolSelect('#DefaultConfirmExit');
-                        config.DefaultUserSettings.updateNotificationsEnabled = getNullableBoolSelect('#DefaultUpdateNotificationsEnabled');
-                        config.DefaultUserSettings.hideDetailsMediaDescription = getNullableBoolSelect('#DefaultHideDetailsMediaDescription');
-                        config.DefaultUserSettings.detailTrailersExternal = getNullableBoolSelect('#DefaultDetailTrailersExternal');
-                        config.DefaultUserSettings.detailUseSeriesThumbnails = getNullableBoolSelect('#DefaultDetailUseSeriesThumbnails');
-                        config.DefaultUserSettings.personPageGroupItems = getNullableBoolSelect('#DefaultPersonPageGroupItems');
-                        config.DefaultUserSettings.homeRowsImageTypeOverride = getNullableBoolSelect('#DefaultHomeRowsImageTypeOverride');
-                        config.DefaultUserSettings.hideHomeMediaDescription = getNullableBoolSelect('#DefaultHideHomeMediaDescription');
-                        config.DefaultUserSettings.collectionsRowShowEpisodes = getNullableBoolSelect('#DefaultCollectionsRowShowEpisodes');
-                        config.DefaultUserSettings.playlistsRowShowEpisodes = getNullableBoolSelect('#DefaultPlaylistsRowShowEpisodes');
-                        config.DefaultUserSettings.displayStudiosRows = getNullableBoolSelect('#DefaultDisplayStudiosRows');
-                        config.DefaultUserSettings.rewatchIncludeMovies = getNullableBoolSelect('#DefaultRewatchIncludeMovies');
-                        config.DefaultUserSettings.rewatchIncludeShows = getNullableBoolSelect('#DefaultRewatchIncludeShows');
-                        config.DefaultUserSettings.rewatchIncludeCollections = getNullableBoolSelect('#DefaultRewatchIncludeCollections');
-                        config.DefaultUserSettings.sinceYouWatchedIncludeWatched = getNullableBoolSelect('#DefaultSinceYouWatchedIncludeWatched');
-                        config.DefaultUserSettings.sinceYouWatched1Enabled = getNullableBoolSelect('#DefaultSinceYouWatched1Enabled');
-                        config.DefaultUserSettings.sinceYouWatched2Enabled = getNullableBoolSelect('#DefaultSinceYouWatched2Enabled');
-                        config.DefaultUserSettings.sinceYouWatched3Enabled = getNullableBoolSelect('#DefaultSinceYouWatched3Enabled');
-                        config.DefaultUserSettings.sinceYouWatched4Enabled = getNullableBoolSelect('#DefaultSinceYouWatched4Enabled');
-                        config.DefaultUserSettings.sinceYouWatched5Enabled = getNullableBoolSelect('#DefaultSinceYouWatched5Enabled');
-                        config.DefaultUserSettings.displayAudioLatest = getNullableBoolSelect('#DefaultDisplayAudioLatest');
-                        config.DefaultUserSettings.displayAudioLastPlayed = getNullableBoolSelect('#DefaultDisplayAudioLastPlayed');
-                        config.DefaultUserSettings.displayAudioFavorites = getNullableBoolSelect('#DefaultDisplayAudioFavorites');
-                        config.DefaultUserSettings.displayAudioPlaylists = getNullableBoolSelect('#DefaultDisplayAudioPlaylists');
-                        config.DefaultUserSettings.displayAudioAlbumArtists = getNullableBoolSelect('#DefaultDisplayAudioAlbumArtists');
-                        config.DefaultUserSettings.displayAudioArtists = getNullableBoolSelect('#DefaultDisplayAudioArtists');
-                        config.DefaultUserSettings.displayAudioAlbums = getNullableBoolSelect('#DefaultDisplayAudioAlbums');
-                        config.DefaultUserSettings.imdbTop250MoviesEnabled = getNullableBoolSelect('#DefaultImdbTop250MoviesEnabled');
-                        config.DefaultUserSettings.imdbTop250TvShowsEnabled = getNullableBoolSelect('#DefaultImdbTop250TvShowsEnabled');
-                        config.DefaultUserSettings.imdbMostPopularMoviesEnabled = getNullableBoolSelect('#DefaultImdbMostPopularMoviesEnabled');
-                        config.DefaultUserSettings.imdbMostPopularTvShowsEnabled = getNullableBoolSelect('#DefaultImdbMostPopularTvShowsEnabled');
-                        config.DefaultUserSettings.imdbTopEnglishMoviesEnabled = getNullableBoolSelect('#DefaultImdbTopEnglishMoviesEnabled');
-                        config.DefaultUserSettings.imdbLowestRatedMoviesEnabled = getNullableBoolSelect('#DefaultImdbLowestRatedMoviesEnabled');
-                        config.DefaultUserSettings.tmdbTrendingAllWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingAllWeeklyEnabled');
-                        config.DefaultUserSettings.tmdbTrendingMovieDailyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingMovieDailyEnabled');
-                        config.DefaultUserSettings.tmdbTrendingMovieWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingMovieWeeklyEnabled');
-                        config.DefaultUserSettings.tmdbTrendingTvDailyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingTvDailyEnabled');
-                        config.DefaultUserSettings.tmdbTrendingTvWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingTvWeeklyEnabled');
-                        config.DefaultUserSettings.tmdbPopularMoviesEnabled = getNullableBoolSelect('#DefaultTmdbPopularMoviesEnabled');
-                        config.DefaultUserSettings.tmdbPopularTvEnabled = getNullableBoolSelect('#DefaultTmdbPopularTvEnabled');
-                        config.DefaultUserSettings.tmdbTopRatedMoviesEnabled = getNullableBoolSelect('#DefaultTmdbTopRatedMoviesEnabled');
-                        config.DefaultUserSettings.tmdbTopRatedTvEnabled = getNullableBoolSelect('#DefaultTmdbTopRatedTvEnabled');
-                        config.DefaultUserSettings.tmdbNowPlayingMoviesEnabled = getNullableBoolSelect('#DefaultTmdbNowPlayingMoviesEnabled');
-                        config.DefaultUserSettings.tmdbUpcomingMoviesEnabled = getNullableBoolSelect('#DefaultTmdbUpcomingMoviesEnabled');
-                        config.DefaultUserSettings.tmdbAiringTodayTvEnabled = getNullableBoolSelect('#DefaultTmdbAiringTodayTvEnabled');
-                        config.DefaultUserSettings.tmdbOnTheAirTvEnabled = getNullableBoolSelect('#DefaultTmdbOnTheAirTvEnabled');
-                        config.DefaultUserSettings.enableRadarrCalendar = getNullableBoolSelect('#DefaultEnableRadarrCalendar');
-                        config.DefaultUserSettings.enableSonarrCalendar = getNullableBoolSelect('#DefaultEnableSonarrCalendar');
-                        config.DefaultUserSettings.mergeRadarrSonarrCalendars = getNullableBoolSelect('#DefaultMergeRadarrSonarrCalendars');
-                        config.DefaultUserSettings.radarrCalendarShowCinema = getNullableBoolSelect('#DefaultRadarrCalendarShowCinema');
-                        config.DefaultUserSettings.radarrCalendarShowDigital = getNullableBoolSelect('#DefaultRadarrCalendarShowDigital');
-                        config.DefaultUserSettings.radarrCalendarShowPhysical = getNullableBoolSelect('#DefaultRadarrCalendarShowPhysical');
-                        config.DefaultUserSettings.radarrCalendarShowDate = getNullableBoolSelect('#DefaultRadarrCalendarShowDate');
-                        config.DefaultUserSettings.sonarrCalendarShowDate = getNullableBoolSelect('#DefaultSonarrCalendarShowDate');
-                        config.DefaultUserSettings.sonarrCalendarShowEpisodeInfo = getNullableBoolSelect('#DefaultSonarrCalendarShowEpisodeInfo');
-                        config.DefaultUserSettings.personalRatingStyle = document.querySelector('#DefaultPersonalRatingStyle').value || null;
-                        config.DefaultUserSettings.personPageSortOption = document.querySelector('#DefaultPersonPageSortOption').value || null;
-                        config.DefaultUserSettings.shuffleContentType = document.querySelector('#DefaultShuffleContentType').value || null;
-                        config.DefaultUserSettings.homeRowsImageType = document.querySelector('#DefaultHomeRowsImageType').value || null;
-                        config.DefaultUserSettings.mediaTypeBadgeBehavior = document.querySelector('#DefaultMediaTypeBadgeBehavior').value || null;
-                        config.DefaultUserSettings.audioRowsSortOrder = document.querySelector('#DefaultAudioRowsSortOrder').value || null;
-                        config.DefaultUserSettings.collectionsRowSortOrder = document.querySelector('#DefaultCollectionsRowSortOrder').value || null;
-                        config.DefaultUserSettings.favoritesRowSortOrder = document.querySelector('#DefaultFavoritesRowSortOrder').value || null;
-                        config.DefaultUserSettings.genresRowSortOrder = document.querySelector('#DefaultGenresRowSortOrder').value || null;
-                        config.DefaultUserSettings.genresRowItemFilter = document.querySelector('#DefaultGenresRowItemFilter').value || null;
-                        config.DefaultUserSettings.playlistsRowSortOrder = document.querySelector('#DefaultPlaylistsRowSortOrder').value || null;
-                        config.DefaultUserSettings.studiosRowSortBy = document.querySelector('#DefaultStudiosRowSortBy').value || null;
-                        config.DefaultUserSettings.studiosRowSortOrder = document.querySelector('#DefaultStudiosRowSortOrder').value || null;
-                        config.DefaultUserSettings.sinceYouWatchedSource = document.querySelector('#DefaultSinceYouWatchedSource').value || null;
-                        config.DefaultUserSettings.sinceYouWatchedSourceType = document.querySelector('#DefaultSinceYouWatchedSourceType').value || null;
-                        config.DefaultUserSettings.sinceYouWatchedSourceItem = document.querySelector('#DefaultSinceYouWatchedSourceItem').value || null;
-                        config.DefaultUserSettings.libraryStyle = document.querySelector('#DefaultLibraryStyle').value || null;
-                        config.DefaultUserSettings.bookLibraryStyle = document.querySelector('#DefaultBookLibraryStyle').value || null;
-                        config.DefaultUserSettings.musicLibraryStyle = document.querySelector('#DefaultMusicLibraryStyle').value || null;
-                        config.DefaultUserSettings.libraryPosterSize = document.querySelector('#DefaultLibraryPosterSize').value || null;
-                        config.DefaultUserSettings.playlistPosterSize = document.querySelector('#DefaultPlaylistPosterSize').value || null;
-                        config.DefaultUserSettings.favoritesViewStyle = document.querySelector('#DefaultFavoritesViewStyle').value || null;
-                        config.DefaultUserSettings.allGenresImageType = document.querySelector('#DefaultAllGenresImageType').value || null;
-                        config.DefaultUserSettings.audioSortOption = document.querySelector('#DefaultAudioSortOption').value || null;
-                        config.DefaultUserSettings.liveTvChannelSortBy = document.querySelector('#DefaultLiveTvChannelSortBy').value || null;
-                        config.DefaultUserSettings.epgMobileView = document.querySelector('#DefaultEpgMobileView').value || null;
-                        config.DefaultUserSettings.mediaBarOverlayColor = document.querySelector('#DefaultMediaBarOverlayColor').value || null;
-                        config.DefaultUserSettings.mediaBarOpacity = getNullableRangeInput('#DefaultMediaBarOpacity');
-                        var osdVal = getButtonPickerValue('#DefaultOsdButtonsList');
-                        config.DefaultUserSettings.osdButtonOrderTv = osdVal.order;
-                        config.DefaultUserSettings.osdButtonOrderMobile = osdVal.order;
-                        config.DefaultUserSettings.osdButtonOrderDesktop = osdVal.order;
-                        config.DefaultUserSettings.hiddenOsdButtonsTv = osdVal.hidden;
-                        config.DefaultUserSettings.hiddenOsdButtonsMobile = osdVal.hidden;
-                        config.DefaultUserSettings.hiddenOsdButtonsDesktop = osdVal.hidden;
+                        commitDefaultsForm();
+                        config.DefaultUserSettings = DEFAULTS_LAYERS.global;
+                        config.DefaultDeviceSettings = {
+                            desktop: DEFAULTS_LAYERS.desktop,
+                            mobile: DEFAULTS_LAYERS.mobile,
+                            tv: DEFAULTS_LAYERS.tv
+                        };
 
                         // Messages live in this object but are managed through their own
                         // endpoints, so the copy read at the top of submit() is already stale.

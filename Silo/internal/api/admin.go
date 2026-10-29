@@ -139,6 +139,15 @@ func (s *Server) handlePostConfiguration(w http.ResponseWriter, r *http.Request)
 	if d, ok := body["DefaultUserSettings"].(M); ok {
 		body["DefaultUserSettings"] = settings.Clean(d)
 	}
+	if d, ok := body["DefaultDeviceSettings"].(M); ok {
+		devices := M{}
+		for _, p := range settings.Profiles[1:] {
+			if m, ok := d[p].(M); ok {
+				devices[p] = settings.Clean(m)
+			}
+		}
+		body["DefaultDeviceSettings"] = devices
+	}
 	ctx := r.Context()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -153,7 +162,8 @@ func (s *Server) handlePostConfiguration(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// keyDefaultsSeen holds the admin defaults users were last moved onto.
+// keyDefaultsSeen holds the admin defaults users were last moved onto, by
+// profile.
 const keyDefaultsSeen = "s/defaults-seen"
 
 // followChangedDefaults moves users onto each default the admin changed
@@ -163,19 +173,37 @@ const keyDefaultsSeen = "s/defaults-seen"
 // is the app's own default, not a choice). Values a user picked against an
 // earlier default are kept. The first run only records the defaults.
 func (s *Server) followChangedDefaults(ctx context.Context) error {
-	after := s.config(ctx).Defaults
+	cfg := s.config(ctx)
+	after := M{}
+	for _, p := range settings.Profiles {
+		after[p] = nonNil(cfg.DefaultsFor(p))
+	}
 	var before M
 	found, err := s.loadJSON(ctx, keyDefaultsSeen, &before)
 	if err != nil {
 		return err
 	}
 	if !found {
-		return s.saveJSON(ctx, keyDefaultsSeen, nonNil(after))
+		return s.saveJSON(ctx, keyDefaultsSeen, after)
 	}
-	changed := M{}
-	for k, v := range after {
-		if old, ok := before[k]; !ok || !settings.SameValue(old, v) {
-			changed[k] = v
+	if _, byProfile := before["global"].(M); !byProfile {
+		// Recorded before device defaults, when every profile had the same.
+		flat := before
+		before = M{}
+		for _, p := range settings.Profiles {
+			before[p] = flat
+		}
+	}
+	changed := map[string]M{}
+	for _, p := range settings.Profiles {
+		was, _ := before[p].(M)
+		for k, v := range after[p].(M) {
+			if old, ok := was[k]; !ok || !settings.SameValue(old, v) {
+				if changed[p] == nil {
+					changed[p] = M{}
+				}
+				changed[p][k] = v
+			}
 		}
 	}
 	if len(changed) == 0 {
@@ -192,11 +220,11 @@ func (s *Server) followChangedDefaults(ctx context.Context) error {
 			errs = append(errs, err)
 			continue
 		}
-		follows := func(k string, v any) bool {
-			if _, ok := changed[k]; !ok {
+		follows := func(p, k string, v any) bool {
+			if _, ok := changed[p][k]; !ok {
 				return false
 			}
-			old, had := before[k]
+			old, had := before[p].(M)[k]
 			return !had || settings.SameValue(old, v)
 		}
 		if settings.Forget(env, follows) {
@@ -207,7 +235,7 @@ func (s *Server) followChangedDefaults(ctx context.Context) error {
 	}
 	// Recorded even after a failure, so a later save doesn't take a user's
 	// value from this round for one from before it.
-	errs = append(errs, s.saveJSON(ctx, keyDefaultsSeen, nonNil(after)))
+	errs = append(errs, s.saveJSON(ctx, keyDefaultsSeen, after))
 	return errors.Join(errs...)
 }
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Moonfin-Client/Plugin/Silo/internal/pluginconfig"
+	"github.com/Moonfin-Client/Plugin/Silo/internal/settings"
 )
 
 // Config is what the routes need from the plugin configuration.
@@ -17,6 +18,15 @@ type Config struct {
 	SeerrDisplayName   string
 	// Defaults is DefaultUserSettings, the admin's defaults for every profile.
 	Defaults M
+	// DeviceDefaults is DefaultDeviceSettings, the admin's defaults for the
+	// desktop, mobile and tv profiles, laid over Defaults.
+	DeviceDefaults M
+}
+
+// DefaultsFor is the admin's defaults for one profile.
+func (c Config) DefaultsFor(profile string) M {
+	device, _ := c.DeviceDefaults[profile].(M)
+	return settings.LayerDefaults(c.Defaults, device)
 }
 
 // keyFormMoved marks settings saved since the Moonbase page became the only
@@ -85,6 +95,7 @@ func configFrom(c M) Config {
 	cfg.TmdbAPIKey = strings.TrimSpace(str(c["TmdbApiKey"]))
 	cfg.SeerrDisplayName = strings.TrimSpace(str(c["SeerrDisplayName"]))
 	cfg.Defaults, _ = c["DefaultUserSettings"].(M)
+	cfg.DeviceDefaults, _ = c["DefaultDeviceSettings"].(M)
 	return cfg
 }
 

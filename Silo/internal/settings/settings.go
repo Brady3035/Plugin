@@ -10,6 +10,7 @@ package settings
 import (
 	"cmp"
 	"encoding/json"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -85,8 +86,9 @@ func SaveProfile(env M, name string, incoming M, clientID string, keys ServerKey
 
 // SaveEnvelope builds the envelope to store from a whole incoming one.
 // mergeMode "merge" merges it into existing the way SaveProfile does per
-// profile. Anything else replaces it.
-func SaveEnvelope(existing, incoming M, mergeMode, clientID string, keys ServerKeys, defaults M, now time.Time) M {
+// profile. Anything else replaces it. defaults gives the admin's defaults
+// for a profile.
+func SaveEnvelope(existing, incoming M, mergeMode, clientID string, keys ServerKeys, defaults func(profile string) M, now time.Time) M {
 	for _, p := range Profiles {
 		if m, ok := incoming[p].(M); ok {
 			incoming[p] = Clean(m)
@@ -107,7 +109,7 @@ func SaveEnvelope(existing, incoming M, mergeMode, clientID string, keys ServerK
 			continue
 		}
 		if in, ok := v.(M); ok && slices.Contains(Profiles, k) {
-			dropInherited(existing, k, in, defaults)
+			dropInherited(existing, k, in, defaults(k))
 			if ex, ok := existing[k].(M); ok {
 				mergeProfile(ex, in)
 				continue
@@ -159,13 +161,13 @@ func SameValue(a, b any) bool {
 // Forget removes from every profile of env the keys match picks, so the
 // admin defaults show through for them. Picking either home layout key
 // removes both. It reports whether env changed.
-func Forget(env M, match func(key string, value any) bool) bool {
+func Forget(env M, match func(profile, key string, value any) bool) bool {
 	changed := false
 	for _, p := range Profiles {
 		profile, _ := env[p].(M)
 		layout := false
 		for k, v := range profile {
-			if isHideField(k) || !match(k, v) {
+			if isHideField(k) || !match(p, k, v) {
 				continue
 			}
 			delete(profile, k)
@@ -227,7 +229,27 @@ func stripServerKeys(env M, keys ServerKeys) {
 	}
 }
 
-// Resolve flattens the device profile over global over the admin defaults.
+// LayerDefaults lays the admin's defaults for one device over their defaults
+// for every device. A device's home layout replaces the shared one whole.
+func LayerDefaults(all, device M) M {
+	if len(device) == 0 {
+		return all
+	}
+	out := maps.Clone(all)
+	if out == nil {
+		out = M{}
+	}
+	if slices.ContainsFunc(layoutKeys, func(k string) bool { return device[k] != nil }) {
+		for _, k := range layoutKeys {
+			delete(out, k)
+		}
+	}
+	maps.Copy(out, device)
+	return out
+}
+
+// Resolve flattens the device profile over global over the admin defaults
+// (LayerDefaults for that profile).
 func Resolve(env M, name string, defaults M, keys ServerKeys) M {
 	var device M
 	if name != "global" {
