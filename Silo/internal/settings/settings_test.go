@@ -19,6 +19,22 @@ func decode(t *testing.T, s string) M {
 	return m
 }
 
+func noDefaults(string) M { return nil }
+
+func TestLayerDefaults(t *testing.T) {
+	all := decode(t, `{"a":1,"b":1,"homeSections":[1],"homeRowOrder":["x"]}`)
+	if got := LayerDefaults(all, nil); !reflect.DeepEqual(got, all) {
+		t.Fatalf("no device defaults must leave the shared ones: %v", got)
+	}
+	got := LayerDefaults(all, decode(t, `{"a":2,"homeSections":[2]}`))
+	if want := decode(t, `{"a":2,"b":1,"homeSections":[2]}`); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	if all["a"] != 1.0 {
+		t.Fatal("the shared defaults must not change")
+	}
+}
+
 func TestCleanNormalizesKeysAndAliases(t *testing.T) {
 	got := Clean(decode(t, `{"SeerrEnabled":true,"jellyseerrBlockNsfw":false,"jellyseerrEnabled":false,"x":null}`))
 	want := M{"seerrEnabled": true, "seerrBlockNsfw": false}
@@ -125,14 +141,14 @@ func TestIsLaterHide(t *testing.T) {
 
 func TestSaveEnvelopeMergeAndReplace(t *testing.T) {
 	env := SaveProfile(nil, "global", M{"a": 1.0}, "c", ServerKeys{}, nil, now)
-	merged := SaveEnvelope(env, decode(t, `{"tv":{"b":2},"hiddenContentBaselines":{"x":{}}}`), "merge", "c", ServerKeys{}, nil, now)
+	merged := SaveEnvelope(env, decode(t, `{"tv":{"b":2},"hiddenContentBaselines":{"x":{}}}`), "merge", "c", ServerKeys{}, noDefaults, now)
 	if merged["global"].(M)["a"] != 1.0 || merged["tv"].(M)["b"] != 2.0 {
 		t.Fatalf("merge lost data: %v", merged)
 	}
 	if _, ok := merged["hiddenContentBaselines"]; ok {
 		t.Fatal("clients must not write baselines")
 	}
-	replaced := SaveEnvelope(env, decode(t, `{"tv":{"b":2}}`), "replace", "c", ServerKeys{}, nil, now)
+	replaced := SaveEnvelope(env, decode(t, `{"tv":{"b":2}}`), "replace", "c", ServerKeys{}, noDefaults, now)
 	if len(replaced["global"].(M)) != 0 {
 		t.Fatalf("replace must drop old profiles: %v", replaced["global"])
 	}

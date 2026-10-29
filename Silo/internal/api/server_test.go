@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -188,6 +189,48 @@ func TestDefaultsReachUsersWhoNeverChangedThem(t *testing.T) {
 	}
 	if got := resolved(other); got["style"] != "modern" || got["thumbs"] != true {
 		t.Fatalf("a value picked against the old default must stay: %v", got)
+	}
+}
+
+func TestDeviceDefaults(t *testing.T) {
+	s := newTestServer()
+	// Defaults seen in the format from before device defaults.
+	if err := s.saveJSON(context.Background(), keyDefaultsSeen, map[string]any{"style": "classic"}); err != nil {
+		t.Fatal(err)
+	}
+	saveConfig(t, s, map[string]any{
+		"DefaultUserSettings":   map[string]any{"style": "classic", "size": "m"},
+		"DefaultDeviceSettings": map[string]any{"tv": map[string]any{"style": "modern", "x": nil}, "bogus": map[string]any{"a": 1}},
+	})
+	if _, cfg := call(t, s, adminMain, "GET", "/Moonfin/Admin/Configuration", "", nil); !reflect.DeepEqual(cfg["DefaultDeviceSettings"], map[string]any{"tv": map[string]any{"style": "modern"}}) {
+		t.Fatalf("device defaults must keep only cleaned device profiles: %v", cfg["DefaultDeviceSettings"])
+	}
+	resolved := func(c caller, profile string) map[string]any {
+		_, got := call(t, s, c, "GET", "/Moonfin/Settings/Resolved/"+profile, "", nil)
+		return got
+	}
+	if tv, mobile := resolved(userMain, "tv"), resolved(userMain, "mobile"); tv["style"] != "modern" || tv["size"] != "m" || mobile["style"] != "classic" {
+		t.Fatalf("tv must get its own default over the shared ones: tv %v mobile %v", tv, mobile)
+	}
+
+	// The tv app sends the tv default back, which must not be stored.
+	call(t, s, userMain, "POST", "/Moonfin/Settings/Profile/tv", `{"profile":{"style":"modern"}}`, nil)
+	call(t, s, other, "POST", "/Moonfin/Settings/Profile/tv", `{"profile":{"style":"spotlight"}}`, nil)
+	if _, env := call(t, s, userMain, "GET", "/Moonfin/Settings", "", nil); env["tv"].(map[string]any)["style"] != nil {
+		t.Fatalf("a value equal to the device default must not be stored: %v", env)
+	}
+
+	call(t, s, other, "POST", "/Moonfin/Settings/Profile/tv", `{"profile":{"theme":"dark"}}`, nil)
+	call(t, s, other, "POST", "/Moonfin/Settings/Profile/mobile", `{"profile":{"theme":"dark"}}`, nil)
+	saveConfig(t, s, map[string]any{
+		"DefaultUserSettings":   map[string]any{"style": "classic", "size": "m"},
+		"DefaultDeviceSettings": map[string]any{"tv": map[string]any{"style": "retro", "theme": "light"}},
+	})
+	if got := resolved(other, "tv"); got["style"] != "spotlight" || got["theme"] != "light" {
+		t.Fatalf("tv must keep a pick against the old default and take a new one: %v", got)
+	}
+	if got := resolved(other, "mobile"); got["theme"] != "dark" {
+		t.Fatalf("a tv default must leave mobile alone: %v", got)
 	}
 }
 
