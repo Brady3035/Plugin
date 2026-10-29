@@ -5,7 +5,7 @@ This is the Silo backend of Moonbase, the server plugin for the Moonfin apps. It
 It covers the parts of Moonbase that Silo's plugin API can support:
 
 - Settings sync: each Silo profile keeps its own Moonfin settings across devices, with admin defaults.
-- MDBList ratings and the TMDB episode, season, next episode, person link and thumbnail routes.
+- MDBList ratings and the TMDB episode, season, next episode, person link, thumbnail, review, production company and title details routes. Studio logos link to TMDB rather than being served by the plugin, and details are in English.
 - Server messages from the admin.
 - Custom themes the admin uploads, up to 5 (see Settings).
 - The Moonbase admin settings, on the Moonbase page.
