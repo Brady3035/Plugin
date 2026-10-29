@@ -571,7 +571,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { parent: 'DefaultNavbarPosition', off: ['top', 'left'], fields: ['DefaultBottomNavbarStyle', 'DefaultBottomNavbarTab1'] },
         { parent: 'DefaultNavbarPosition', off: ['bottom'], fields: ['DefaultNavbarAlwaysExpanded'] },
         { parent: 'DefaultShowShuffleButton', fields: ['DefaultShuffleContentType'] },
-        { parent: 'DefaultSeasonalSurprise', off: ['none'], fields: ['DefaultSeasonalDensity'] },
+        { parent: 'DefaultSeasonalSurprise', off: ['none'], fields: ['DefaultSeasonalDensity', 'DefaultSeasonalFollower'] },
         { parent: 'DefaultLoadingAnimationImage', off: ['none'], fields: ['DefaultLoadingAnimationPosition', 'DefaultLoadingAnimationSize', 'DefaultLoadingAnimationSpeed', 'DefaultShowLoadingAnimationText'] },
         { parent: 'DefaultScreensaverComponent', off: ['none'], fields: ['DefaultScreensaverMovement', 'DefaultScreensaverSize'] },
         { parent: 'DefaultScreensaverMovement', off: ['slow', 'moderate', 'fast', 'ultra'], fields: ['DefaultScreensaverPosition'] },
@@ -2488,6 +2488,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             setNullableRangeInput(view, '#DefaultPreviewVolume', defaults.previewVolume, '%');
             setSelectValue(view, '#DefaultSeasonalSurprise', defaults.seasonalSurprise, 'Configured surprise');
             setSelectValue(view, '#DefaultSeasonalDensity', defaults.seasonalDensity, 'Configured density');
+            setNullableBoolSelect(view, '#DefaultSeasonalFollower', defaults.seasonalFollower);
             setNullableBoolSelect(view, '#DefaultSeasonalRowEnabled', defaults.seasonalRowEnabled);
             setSelectValue(view, '#DefaultSeasonalRowCountry', defaults.seasonalRowCountry, 'Configured country');
             renderSeasonalHolidayChecks(view, defaults.seasonalRowHiddenHolidays);
@@ -2881,6 +2882,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             d.previewVolume = getNullableRangeInput(view, '#DefaultPreviewVolume');
             d.seasonalSurprise = view.querySelector('#DefaultSeasonalSurprise').value || null;
             d.seasonalDensity = view.querySelector('#DefaultSeasonalDensity').value || null;
+            d.seasonalFollower = getNullableBoolSelect(view, '#DefaultSeasonalFollower');
             d.seasonalRowEnabled = getNullableBoolSelect(view, '#DefaultSeasonalRowEnabled');
             d.seasonalRowCountry = view.querySelector('#DefaultSeasonalRowCountry').value || null;
             d.seasonalRowHiddenHolidays = readSeasonalHiddenHolidays(view);

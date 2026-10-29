@@ -257,6 +257,9 @@ public class MoonfinSettingsProfile
     [JsonPropertyName("seasonalDensity")]
     public string? SeasonalDensity { get; set; }
 
+    [JsonPropertyName("seasonalFollower")]
+    public bool? SeasonalFollower { get; set; }
+
     [JsonPropertyName("seasonalRowEnabled")]
     public bool? SeasonalRowEnabled { get; set; }
 

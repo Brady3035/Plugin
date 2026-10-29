@@ -1850,6 +1850,15 @@
                                     <option value="heavy">Heavy</option>
                                 </select>
                             </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultSeasonalFollower">Focus Follower</label>
+                                <select id="DefaultSeasonalFollower" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <div class="fieldDescription">A holiday piece, like Halloween's planchette, follows what is selected on Home. In the desktop layout it replaces the mouse pointer.</div>
+                            </div>
 
                             <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Loading Animation</h4>
                             <div class="inputContainer">
@@ -4409,7 +4418,7 @@
                 { parent: 'DefaultNavbarPosition', off: ['top', 'left'], fields: ['DefaultBottomNavbarStyle', 'DefaultBottomNavbarTab1'] },
                 { parent: 'DefaultNavbarPosition', off: ['bottom'], fields: ['DefaultNavbarAlwaysExpanded'] },
                 { parent: 'DefaultShowShuffleButton', fields: ['DefaultShuffleContentType'] },
-                { parent: 'DefaultSeasonalSurprise', off: ['none'], fields: ['DefaultSeasonalDensity'] },
+                { parent: 'DefaultSeasonalSurprise', off: ['none'], fields: ['DefaultSeasonalDensity', 'DefaultSeasonalFollower'] },
                 { parent: 'DefaultLoadingAnimationImage', off: ['none'], fields: ['DefaultLoadingAnimationPosition', 'DefaultLoadingAnimationSize', 'DefaultLoadingAnimationSpeed', 'DefaultShowLoadingAnimationText'] },
                 { parent: 'DefaultScreensaverComponent', off: ['none'], fields: ['DefaultScreensaverMovement', 'DefaultScreensaverSize'] },
                 { parent: 'DefaultScreensaverMovement', off: ['slow', 'moderate', 'fast', 'ultra'], fields: ['DefaultScreensaverPosition'] },
@@ -7369,6 +7378,7 @@
                     setNullableRangeInput('#DefaultPreviewVolume', defaults.previewVolume, '%');
                     setSelectValue('#DefaultSeasonalSurprise', defaults.seasonalSurprise, 'Configured surprise');
                     setSelectValue('#DefaultSeasonalDensity', defaults.seasonalDensity, 'Configured density');
+                    setNullableBoolSelect('#DefaultSeasonalFollower', defaults.seasonalFollower);
                     setNullableBoolSelect('#DefaultSeasonalRowEnabled', defaults.seasonalRowEnabled);
                     setSelectValue('#DefaultSeasonalRowCountry', defaults.seasonalRowCountry, 'Configured country');
                     renderSeasonalHolidayChecks(defaults.seasonalRowHiddenHolidays);
@@ -8304,6 +8314,7 @@
                         config.DefaultUserSettings.previewVolume = getNullableRangeInput('#DefaultPreviewVolume');
                         config.DefaultUserSettings.seasonalSurprise = document.querySelector('#DefaultSeasonalSurprise').value || null;
                         config.DefaultUserSettings.seasonalDensity = document.querySelector('#DefaultSeasonalDensity').value || null;
+                        config.DefaultUserSettings.seasonalFollower = getNullableBoolSelect('#DefaultSeasonalFollower');
                         config.DefaultUserSettings.seasonalRowEnabled = getNullableBoolSelect('#DefaultSeasonalRowEnabled');
                         config.DefaultUserSettings.seasonalRowCountry = document.querySelector('#DefaultSeasonalRowCountry').value || null;
                         config.DefaultUserSettings.seasonalRowHiddenHolidays = readSeasonalHiddenHolidays();
