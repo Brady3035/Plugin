@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -504,5 +505,69 @@ func TestPageSaveKeepsTheOldFormValues(t *testing.T) {
 	}
 	if _, shown := again[keyFormMoved]; shown {
 		t.Fatal("the marker is internal")
+	}
+}
+
+func theme(t *testing.T, id, name string) string {
+	t.Helper()
+	raw, err := os.ReadFile("testdata/theme.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	_ = json.Unmarshal(raw, &m)
+	m["id"], m["displayName"] = id, name
+	out, _ := json.Marshal(m)
+	return string(out)
+}
+
+func TestThemes(t *testing.T) {
+	s := newTestServer()
+	if code, _ := call(t, s, userMain, "POST", "/Moonfin/Admin/Themes", theme(t, "dusk", "Dusk"), nil); code != http.StatusForbidden {
+		t.Fatalf("only an admin may upload, got %d", code)
+	}
+	if code, got := call(t, s, adminMain, "POST", "/Moonfin/Admin/Themes", `{"id":"x"}`, nil); code != 400 || len(got["errors"].([]any)) == 0 {
+		t.Fatalf("an invalid theme must be refused with its errors: %d %v", code, got)
+	}
+	if code, _ := call(t, s, adminMain, "POST", "/Moonfin/Admin/Themes", theme(t, "moonfin", "Mine"), nil); code != 400 {
+		t.Fatal("a built-in theme id must be refused")
+	}
+	for i, name := range []string{"Eve", "Dawn", "Cobalt", "Birch", "Amber"} {
+		if code, got := call(t, s, adminMain, "POST", "/Moonfin/Admin/Themes", theme(t, fmt.Sprintf("t%d", i), name), nil); code != 200 || got["success"] != true {
+			t.Fatalf("upload %s = %d %v", name, code, got)
+		}
+	}
+	if code, got := call(t, s, adminMain, "POST", "/Moonfin/Admin/Themes", theme(t, "t5", "Extra"), nil); code != 400 {
+		t.Fatalf("a sixth theme must be refused: %d %v", code, got)
+	}
+	if code, _ := call(t, s, adminMain, "POST", "/Moonfin/Admin/Themes", theme(t, "t0", "Eve 2"), nil); code != 200 {
+		t.Fatal("replacing a theme must work at the limit")
+	}
+
+	resp, _ := s.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/Moonfin/Themes", Headers: userKids.headers()})
+	var list []map[string]any
+	if err := json.Unmarshal(resp.GetBody(), &list); err != nil || len(list) != 5 || list[0]["displayName"] != "Amber" || list[4]["displayName"] != "Eve 2" {
+		t.Fatalf("themes = %d %v", len(list), err)
+	}
+	if code, got := call(t, s, userKids, "GET", "/Moonfin/Themes/T3", "", nil); code != 200 || got["displayName"] != "Birch" {
+		t.Fatalf("one theme = %d %v", code, got)
+	}
+	_, admin := call(t, s, adminMain, "GET", "/Moonfin/Admin/Themes", "", nil)
+	if items := admin["items"].([]any); len(items) != 5 || items[0].(map[string]any)["checksumSha256"] == "" {
+		t.Fatalf("admin list = %v", admin)
+	}
+	raw, _, _ := s.kv.Get(context.Background(), keyThemes)
+	if len(raw) > 4<<10 {
+		t.Errorf("five themes take %d bytes stored, want them compressed", len(raw))
+	}
+
+	if code, _ := call(t, s, adminMain, "DELETE", "/Moonfin/Admin/Themes/t3", "", nil); code != 200 {
+		t.Fatal("delete failed")
+	}
+	if code, _ := call(t, s, userKids, "GET", "/Moonfin/Themes/t3", "", nil); code != 404 {
+		t.Fatal("a deleted theme must be gone")
+	}
+	if code, _ := call(t, s, adminMain, "DELETE", "/Moonfin/Admin/Themes/t3", "", nil); code != 404 {
+		t.Fatal("deleting a missing theme must answer 404")
 	}
 }

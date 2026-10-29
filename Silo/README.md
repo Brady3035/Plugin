@@ -7,7 +7,8 @@ It covers the parts of Moonbase that Silo's plugin API can support:
 - Settings sync: each Silo profile keeps its own Moonfin settings across devices, with admin defaults.
 - MDBList ratings and the TMDB episode, season, next episode, person link and thumbnail routes.
 - Server messages from the admin.
-- The Moonbase admin settings, in Silo's own plugin settings and on the Moonbase page.
+- Custom themes the admin uploads, up to 5 (see Settings).
+- The Moonbase admin settings, on the Moonbase page.
 
 The rest needs things Silo's plugin API doesn't offer. See Known limits below.
 
@@ -47,6 +48,8 @@ Defaults reach every user who hasn't changed that setting. When an admin changes
 
 Silo signs a plugin page in for five minutes and renews that while the page keeps calling its routes and the Silo sign-in is still good. The page pings Moonbase each minute to keep it signed in. If Save fails anyway, the page says so and keeps what you tried to save. Open Moonbase again in the same browser tab within an hour and those changes come back, ready to save.
 
+Custom themes are uploaded on the Moonbase page's Themes section and checked the way the Jellyfin plugin checks them. Moonbase on Silo keeps up to 5, gzipped together under one storage key, and refuses an upload that wouldn't fit even compressed. Apps pick up a new or changed theme the next time they sign in.
+
 Both API keys reach every signed-in user through `Settings/Resolved`, the same as on Jellyfin, since Moonfin calls TMDB directly with the key for some rows. Don't use keys here you wouldn't hand to your users.
 
 ## Where the routes are
@@ -68,7 +71,7 @@ These come from Silo's plugin API, not from the plugin.
 - **No library items.** Silo lets plugins list the libraries an account may see, but not the items in them. So similar items, the seasonal row and the media bar aren't available, and the Moonbase page's library pickers stay empty.
 - **No plugin icon.** Silo's plugin pages don't take icons from plugins, so Moonbase shows as "MO".
 - **Admin routes need the primary profile.** Silo marks a request as admin only for an admin account acting through its primary profile, the rule its own admin API uses.
-- **Storage is small.** Silo gives each plugin 256 keys of up to 256 KiB. Each profile with synced settings takes one key, so a server can hold settings for about 240 profiles.
+- **Storage is small.** Silo gives each plugin 256 keys of up to 256 KiB. Each profile with synced settings takes one key. The settings, messages, themes and a few indexes take the rest, so a server can hold settings for about 240 profiles.
 - **Deleted users leave their settings behind.** Silo doesn't tell plugins when an account or profile is deleted. Remove them with **Remove Selected User's Data** on the Moonbase page's Actions tab.
 
 ## Data, backups and removal

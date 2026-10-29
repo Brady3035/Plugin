@@ -272,7 +272,7 @@
         'Studio Logos': 'Not available on Silo. These settings do nothing on Silo.',
         'Anime Filler & Recap Markers': 'Silo doesn’t let plugins read its library, so this isn’t available on Silo.',
         'Retro Games (EmulatorJS)': 'Silo doesn’t let plugins read game files, so this isn’t available on Silo.',
-        'Uploaded Themes': 'Custom themes aren’t available on Silo.',
+        'Uploaded Themes': 'Moonbase on Silo keeps up to 5 themes. Apps pick up a new or changed theme the next time they sign in.',
         'Web Plugin Status': 'Silo’s own web app can’t load Moonfin add-ons, so this doesn’t apply on Silo.',
         'Active Downloads': 'Silo doesn’t share its transcodes with plugins, so this isn’t available on Silo.',
         'MDBList Integration': 'Ratings work on Silo. The official MDBList lists don’t.'

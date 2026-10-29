@@ -37,14 +37,6 @@ func (s *Server) adminRoutes() {
 	m.HandleFunc("DELETE /Moonfin/Admin/Users/{userId}", s.admin(s.handleDeleteUser))
 	m.HandleFunc("GET /Moonfin/MdbList/KeyInfo", s.admin(s.handleMdbListKeyInfo))
 	m.HandleFunc("POST /Moonfin/MdbList/ClearCache", s.admin(s.handleMdbListClearCache))
-	// Moonbase on Silo has no custom themes. Empty lists keep the page and the
-	// apps on their usual "no themes" state instead of an error.
-	m.HandleFunc("GET /Moonfin/Admin/Themes", s.admin(func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, M{"items": []any{}})
-	}))
-	m.HandleFunc("GET /Moonfin/Themes", s.sync(func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, []any{})
-	}))
 }
 
 var adminPageBody = sync.OnceValue(func() string {
@@ -120,8 +112,13 @@ func (s *Server) handleGetConfiguration(w http.ResponseWriter, r *http.Request) 
 		storageFailed(w, r, err)
 		return
 	}
+	themes, err := s.loadThemes(r.Context())
+	if err != nil {
+		storageFailed(w, r, err)
+		return
+	}
 	out["Messages"] = messages
-	out["UploadedThemes"] = []any{}
+	out["UploadedThemes"] = sortedThemes(themes.Items)
 	out["HasServiceAccount"] = false
 	out["PushEnabled"] = false
 	writeJSON(w, http.StatusOK, out)
