@@ -53,6 +53,7 @@ func (s *Server) routes() {
 	s.externalRoutes()
 	s.messageRoutes()
 	s.adminRoutes()
+	s.themeRoutes()
 }
 
 // Handle is the http_routes.v1 entry point.
