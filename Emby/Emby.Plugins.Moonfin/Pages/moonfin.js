@@ -1565,7 +1565,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { id: 'playlists', label: 'Playlists' },
         { id: 'genres', label: 'Genres' },
         { id: 'seerr', label: 'Seerr' },
-        { id: 'external', label: 'External Lists' }
+        { id: 'external', label: 'External Lists' },
+        { id: 'custom', label: 'Custom Lists' }
     ];
 
     var HOME_LAYOUT_SEERR_TYPES = {
@@ -1601,7 +1602,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
                 selectedIndex: null,
                 activeTab: 'builtin',
                 search: '',
-                available: { builtin: [], collections: [], playlists: [], genres: [], seerr: [], external: [] }
+                available: { builtin: [], collections: [], playlists: [], genres: [], seerr: [], external: [] },
+                customList: { sortOrder: 'desc', editingSection: null, busy: false }
             };
         }
         return view.__moonfinHomeLayout;
@@ -1629,6 +1631,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         if (section.pluginSource === 'playlists') return 'Playlist';
         if (section.pluginSource === 'genres') return 'Genre';
         if (section.pluginSource === 'hss') return 'HSS';
+        if (section.pluginSource === 'custom') return 'Custom List';
         return 'Dynamic';
     }
 
@@ -1641,6 +1644,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         if (section.pluginSource === 'collections') return 'homeLayoutBadge-collections';
         if (section.pluginSource === 'playlists') return 'homeLayoutBadge-playlists';
         if (section.pluginSource === 'genres') return 'homeLayoutBadge-genres';
+        if (section.pluginSource === 'custom') return 'homeLayoutBadge-custom';
         return 'homeLayoutBadge-dynamic';
     }
 
@@ -1811,6 +1815,9 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
     function removeHomeLayoutSection(view, index) {
         var state = getHomeLayoutState(view);
         if (index < 0 || index >= state.sections.length) return;
+        if (state.sections[index] === customListState(view).editingSection) {
+            resetCustomListForm(view);
+        }
         state.sections.splice(index, 1);
         if (state.sections.length === 0) {
             state.selectedIndex = null;
@@ -1862,14 +1869,18 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         }
 
         state.sections.forEach(function (section, index) {
+            var editable = isCustomListSection(section);
             var row = document.createElement('div');
-            row.className = 'homeLayoutRow' + (state.selectedIndex === index ? ' is-selected' : '');
+            row.className = 'homeLayoutRow' +
+                (editable ? ' has-edit' : '') +
+                (state.selectedIndex === index ? ' is-selected' : '');
             row.dataset.index = String(index);
             row.innerHTML =
                 '<div class="homeLayoutRowText">' +
                 '<div class="homeLayoutRowTitle">' + esc(homeSectionLabel(section)) + '</div>' +
                 '<span class="homeLayoutBadge ' + homeSectionBadgeClass(section) + '">' + esc(homeSectionMeta(section)) + '</span>' +
                 '</div>' +
+                (editable ? '<button type="button" class="homeLayoutIconButton" data-action="edit" title="Edit">&#x270E;</button>' : '') +
                 '<button type="button" class="homeLayoutIconButton" data-action="up" title="Move up"' + (index === 0 ? ' disabled' : '') + '>&#x2191;</button>' +
                 '<button type="button" class="homeLayoutIconButton" data-action="down" title="Move down"' + (index === state.sections.length - 1 ? ' disabled' : '') + '>&#x2193;</button>' +
                 '<button type="button" class="homeLayoutIconButton" data-action="remove" title="Remove">&#x2715;</button>';
@@ -1882,6 +1893,19 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         var container = view.querySelector('#DefaultHomeAvailableRows');
         if (!container) return;
         var tab = state.activeTab;
+
+        // Custom lists are made with a form rather than picked from a catalog.
+        var isCustomTab = tab === 'custom';
+        var customForm = view.querySelector('#DefaultHomeCustomListForm');
+        var searchInput = view.querySelector('#DefaultHomeAvailableSearch');
+        container.style.display = isCustomTab ? 'none' : '';
+        if (searchInput) searchInput.style.display = isCustomTab ? 'none' : '';
+        if (customForm) customForm.style.display = isCustomTab ? '' : 'none';
+        if (isCustomTab) {
+            refreshCustomListForm(view);
+            return;
+        }
+
         var search = (state.search || '').toLowerCase();
         var keys = currentHomeLayoutKeys(state);
         var candidates = (state.available[tab] || []).filter(function (candidate) {
@@ -1942,6 +1966,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         state.selectedIndex = state.sections.length > 0 ? state.sections.length - 1 : null;
         renumberHomeLayoutSections(state);
         bindHomeLayoutEditorEvents(view);
+        bindCustomListForm(view);
+        resetCustomListForm(view);
         renderHomeSectionsEditor(view);
         loadHomeLayoutDynamicRows(view);
     }
@@ -1966,6 +1992,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
                     return;
                 }
                 var action = actionButton.dataset.action;
+                if (action === 'edit') editCustomListSection(view, index);
                 if (action === 'up') moveHomeLayoutSection(view, index, -1);
                 if (action === 'down') moveHomeLayoutSection(view, index, 1);
                 if (action === 'remove') removeHomeLayoutSection(view, index);
@@ -2102,6 +2129,350 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
                         setHomeLayoutAvailable(view, 'genres', []);
                     });
             });
+    }
+
+    // ── Custom lists ────────────────────────────────────────────────────────
+    // The form mirrors Add Custom Home Row in the apps, and writes the same row they do,
+    // so a list an admin adds here loads in every app the way a user's own would.
+
+    var CUSTOM_LIST_TYPES = {
+        tmdb: [['user_list', 'List from TMDB List ID or URL'], ['movie_collection', 'Collection from TMDB Collection ID or URL']],
+        letterboxd: [['user_diary', 'Diary']],
+        mdblist: [['list_url', 'List from URL'], ['user_list', 'List from User ID']]
+    };
+
+    var CUSTOM_LIST_SORT_ORDERS = {
+        title: [['asc', 'A to Z'], ['desc', 'Z to A']],
+        year: [['desc', 'Newest First'], ['asc', 'Earliest First']],
+        popularity: [['desc', 'Most Popular First'], ['asc', 'Least Popular First']],
+        rating: [['desc', 'Highest First'], ['asc', 'Lowest First']]
+    };
+
+    function customListState(view) {
+        return getHomeLayoutState(view).customList;
+    }
+
+    function customListEl(view, id) {
+        return view.querySelector('#' + id);
+    }
+
+    function showCustomListEl(view, id, shown) {
+        var el = customListEl(view, id);
+        if (el) el.style.display = shown ? '' : 'none';
+    }
+
+    function isCustomListSection(section) {
+        return !!section && section.kind === 'pluginDynamic' && section.pluginSource === 'custom';
+    }
+
+    function setCustomListOptions(select, options, value) {
+        select.innerHTML = options.map(function (option) {
+            return '<option value="' + esc(option[0]) + '">' + esc(option[1]) + '</option>';
+        }).join('');
+        var known = options.some(function (option) { return option[0] === value; });
+        select.value = known ? value : options[0][0];
+    }
+
+    function refreshCustomListForm(view, preferredType) {
+        var sourceSelect = customListEl(view, 'DefaultCustomListSource');
+        var typeSelect = customListEl(view, 'DefaultCustomListType');
+        if (!sourceSelect || !typeSelect) return;
+
+        var source = sourceSelect.value;
+        var types = CUSTOM_LIST_TYPES[source];
+        setCustomListOptions(typeSelect, types, preferredType || typeSelect.value);
+        var type = typeSelect.value;
+        showCustomListEl(view, 'DefaultCustomListTypeField', types.length > 1);
+
+        showCustomListEl(view, 'DefaultCustomListLetterboxdField', source === 'letterboxd');
+        showCustomListEl(view, 'DefaultCustomListTmdbField', source === 'tmdb');
+        showCustomListEl(view, 'DefaultCustomListMdblistUrlField', source === 'mdblist' && type === 'list_url');
+        showCustomListEl(view, 'DefaultCustomListMdblistUserField', source === 'mdblist' && type !== 'list_url');
+        var isCollection = type === 'movie_collection';
+        customListEl(view, 'DefaultCustomListTmdbIdLabel').textContent = isCollection ? 'TMDB Collection ID or URL' : 'TMDB List ID or URL';
+        customListEl(view, 'DefaultCustomListTmdbId').placeholder = isCollection
+            ? '12345 OR https://www.themoviedb.org/collection/12345'
+            : '12345 OR https://www.themoviedb.org/list/12345';
+
+        var sortOrders = CUSTOM_LIST_SORT_ORDERS[customListEl(view, 'DefaultCustomListSortBy').value];
+        showCustomListEl(view, 'DefaultCustomListSortOrderField', !!sortOrders);
+        if (sortOrders) {
+            setCustomListOptions(customListEl(view, 'DefaultCustomListSortOrder'), sortOrders, customListState(view).sortOrder);
+        }
+
+        showCustomListEl(view, 'DefaultCustomListUserRatingsField', source === 'letterboxd');
+
+        // The server's keys cover users who haven't set their own.
+        var tmdbKey = ((customListEl(view, 'TmdbApiKey') || {}).value || '').trim();
+        var mdblistKey = ((customListEl(view, 'MdblistApiKey') || {}).value || '').trim();
+        var warning = '';
+        if (source === 'letterboxd' && !tmdbKey) {
+            warning = 'Letterboxd lists need a TMDB API key to resolve their titles. Set one on the Integrations tab, or users need their own.';
+        } else if (source === 'tmdb' && !tmdbKey) {
+            warning = 'TMDB lists need a TMDB API key. Set one on the Integrations tab, or users need their own.';
+        } else if (source === 'mdblist' && !mdblistKey) {
+            warning = 'MDBList lists need an MDBList API key. Set one on the Integrations tab, or users need their own.';
+        }
+        var warningEl = customListEl(view, 'DefaultCustomListKeyWarning');
+        warningEl.textContent = warning;
+        warningEl.style.display = warning ? '' : 'none';
+    }
+
+    function showCustomListResult(view, message, isError) {
+        var result = customListEl(view, 'DefaultCustomListResult');
+        if (!result) return;
+        result.textContent = message || '';
+        result.classList.toggle('is-error', !!isError);
+        result.style.display = message ? '' : 'none';
+    }
+
+    function setCustomListBusy(view, busy) {
+        customListState(view).busy = busy;
+        customListEl(view, 'DefaultCustomListSave').disabled = busy;
+        customListEl(view, 'DefaultCustomListCancel').disabled = busy;
+    }
+
+    function updateCustomListButtons(view) {
+        var editing = !!customListState(view).editingSection;
+        customListEl(view, 'DefaultCustomListSave').textContent = editing ? 'Save Changes' : 'Add to Layout';
+        showCustomListEl(view, 'DefaultCustomListCancel', editing);
+    }
+
+    function clearCustomListFields(view) {
+        ['DefaultCustomListLetterboxdUser', 'DefaultCustomListTmdbId', 'DefaultCustomListMdblistUrl',
+            'DefaultCustomListMdblistUser', 'DefaultCustomListMdblistList', 'DefaultCustomListName'].forEach(function (id) {
+            customListEl(view, id).value = '';
+        });
+    }
+
+    function resetCustomListForm(view) {
+        if (!customListEl(view, 'DefaultCustomListSource')) return;
+        var form = customListState(view);
+        form.editingSection = null;
+        form.sortOrder = 'desc';
+        clearCustomListFields(view);
+        customListEl(view, 'DefaultCustomListSource').value = 'tmdb';
+        customListEl(view, 'DefaultCustomListSortBy').value = 'none';
+        customListEl(view, 'DefaultCustomListUserRatings').checked = false;
+        showCustomListResult(view, '', false);
+        updateCustomListButtons(view);
+        refreshCustomListForm(view, 'user_list');
+    }
+
+    function fillCustomListForm(view, section) {
+        var rowConfig = {};
+        try {
+            rowConfig = JSON.parse(section.pluginAdditionalData || '{}') || {};
+        } catch (e) {
+            rowConfig = {};
+        }
+
+        var source = rowConfig.source || 'tmdb';
+        var type = rowConfig.type || 'user_list';
+        // The apps no longer offer IMDb here and open an old IMDb row as a TMDB list.
+        if (source === 'imdb') {
+            source = 'tmdb';
+            type = 'user_list';
+        }
+        if (!CUSTOM_LIST_TYPES[source]) source = 'tmdb';
+        var params = rowConfig.params || {};
+
+        clearCustomListFields(view);
+        customListEl(view, 'DefaultCustomListSource').value = source;
+        if (source === 'letterboxd') {
+            customListEl(view, 'DefaultCustomListLetterboxdUser').value = params.user || '';
+        } else if (source === 'tmdb') {
+            customListEl(view, 'DefaultCustomListTmdbId').value = params.id || '';
+        } else if (source === 'mdblist') {
+            customListEl(view, 'DefaultCustomListMdblistUser').value = params.username || '';
+            if (type === 'list_url') {
+                customListEl(view, 'DefaultCustomListMdblistUrl').value = params.username && params.listname
+                    ? 'https://mdblist.com/lists/' + params.username + '/' + params.listname
+                    : '';
+            } else {
+                customListEl(view, 'DefaultCustomListMdblistList').value = params.listname || '';
+            }
+        }
+
+        var sortBy = rowConfig.sort_by || 'none';
+        var sortBySelect = customListEl(view, 'DefaultCustomListSortBy');
+        sortBySelect.value = sortBy;
+        if (sortBySelect.value !== sortBy) sortBySelect.value = 'none';
+        customListState(view).sortOrder = rowConfig.sort_order === 'asc' ? 'asc' : 'desc';
+        customListEl(view, 'DefaultCustomListUserRatings').checked = rowConfig.show_user_ratings === true;
+        customListEl(view, 'DefaultCustomListName').value = section.pluginDisplayText || '';
+        showCustomListResult(view, '', false);
+        refreshCustomListForm(view, type);
+    }
+
+    function customListParams(view, source, type) {
+        var params = {};
+        if (source === 'letterboxd') {
+            params.user = customListEl(view, 'DefaultCustomListLetterboxdUser').value.trim().toLowerCase();
+        } else if (source === 'tmdb') {
+            var rawId = customListEl(view, 'DefaultCustomListTmdbId').value.trim();
+            if (rawId.indexOf('/') !== -1 || rawId.indexOf('http') === 0) {
+                if (rawId.charAt(rawId.length - 1) === '/') rawId = rawId.slice(0, -1);
+                var idParts = rawId.split('/');
+                rawId = idParts[idParts.length - 1];
+            }
+            params.id = rawId;
+        } else if (source === 'mdblist') {
+            if (type === 'list_url') {
+                // Takes https://mdblist.com/lists/{username}/{listname} with an optional trailing
+                // slash, query or fragment. Anchoring on /lists/ keeps extra path segments out.
+                var rawUrl = customListEl(view, 'DefaultCustomListMdblistUrl').value.trim();
+                var queryStart = rawUrl.search(/[?#]/);
+                if (queryStart >= 0) rawUrl = rawUrl.slice(0, queryStart);
+                while (rawUrl.charAt(rawUrl.length - 1) === '/') rawUrl = rawUrl.slice(0, -1);
+                var urlParts = rawUrl.split('/').filter(function (part) { return part.length > 0; });
+                var parsedUser = '';
+                var parsedList = '';
+                var listsIndex = urlParts.lastIndexOf('lists');
+                if (listsIndex >= 0 && urlParts.length >= listsIndex + 3) {
+                    parsedUser = urlParts[listsIndex + 1];
+                    parsedList = urlParts[listsIndex + 2];
+                } else if (urlParts.length >= 2) {
+                    parsedList = urlParts[urlParts.length - 1];
+                    parsedUser = urlParts[urlParts.length - 2];
+                }
+                params.username = parsedUser;
+                params.listname = parsedList;
+            } else {
+                params.username = customListEl(view, 'DefaultCustomListMdblistUser').value.trim();
+                params.listname = customListEl(view, 'DefaultCustomListMdblistList').value.trim();
+            }
+        }
+        return params;
+    }
+
+    function customListSourceUrl(source, type, params) {
+        if (source === 'tmdb') {
+            return 'https://www.themoviedb.org/' + (type === 'movie_collection' ? 'collection/' : 'list/') + params.id;
+        }
+        if (source === 'letterboxd') return 'https://letterboxd.com/' + params.user + '/';
+        return 'https://mdblist.com/lists/' + params.username + '/' + params.listname + '/';
+    }
+
+    function saveCustomListRow(view) {
+        var form = customListState(view);
+        if (form.busy) return;
+        var name = customListEl(view, 'DefaultCustomListName').value.trim();
+        if (!name) {
+            showCustomListResult(view, 'Give the row a name first.', true);
+            return;
+        }
+
+        var source = customListEl(view, 'DefaultCustomListSource').value;
+        var type = customListEl(view, 'DefaultCustomListType').value;
+        var params = customListParams(view, source, type);
+        var additionalData = JSON.stringify({
+            source: source,
+            type: type,
+            params: params,
+            sort_by: customListEl(view, 'DefaultCustomListSortBy').value,
+            sort_order: form.sortOrder,
+            show_user_ratings: customListEl(view, 'DefaultCustomListUserRatings').checked
+        });
+
+        // Checked the way the apps check it before saving, so a list that can't load never
+        // reaches anyone's home screen.
+        var url = ApiClient.getUrl('Moonfin/CustomRows/Items', {
+            source: source,
+            type: type,
+            params: JSON.stringify(params)
+        });
+        setCustomListBusy(view, true);
+        showCustomListResult(view, 'Checking the list...', false);
+        fetch(url, { method: 'GET', headers: moonfinAuthHeaders() })
+            .then(parseJsonResponse)
+            .then(function (payload) {
+                if (payload.success === false) throw new Error(payload.error || 'The list could not be fetched.');
+                if (!payload.items || payload.items.length === 0) throw new Error('No results returned.');
+                setCustomListBusy(view, false);
+                commitCustomListRow(view, name, additionalData);
+            })
+            .catch(function (error) {
+                setCustomListBusy(view, false);
+                showCustomListResult(view, 'Couldn\'t fetch items from ' + customListSourceUrl(source, type, params) +
+                    '. ' + ((error && error.message) || error), true);
+            });
+    }
+
+    function commitCustomListRow(view, name, additionalData) {
+        var state = getHomeLayoutState(view);
+        var editing = customListState(view).editingSection;
+        var editingIndex = editing ? state.sections.indexOf(editing) : -1;
+        var section = {
+            kind: 'pluginDynamic',
+            type: 'none',
+            enabled: true,
+            order: 0,
+            serverId: 'custom',
+            pluginSource: 'custom',
+            pluginSection: editingIndex >= 0 && editing.pluginSection ? editing.pluginSection : 'custom_row_' + Date.now(),
+            pluginAdditionalData: additionalData,
+            pluginDisplayText: name
+        };
+
+        if (editingIndex >= 0) {
+            state.sections[editingIndex] = section;
+            state.selectedIndex = editingIndex;
+        } else {
+            var insertIndex = getHomeLayoutInsertIndex(state);
+            state.sections.splice(insertIndex, 0, section);
+            state.selectedIndex = insertIndex;
+        }
+
+        renumberHomeLayoutSections(state);
+        resetCustomListForm(view);
+        showCustomListResult(view, (editingIndex >= 0 ? 'Updated ' : 'Added ') + name + '. Save to keep it.', false);
+        renderHomeSectionsEditor(view);
+        scrollSelectedHomeLayoutRowIntoView(view);
+    }
+
+    function editCustomListSection(view, index) {
+        var state = getHomeLayoutState(view);
+        var section = state.sections[index];
+        if (!isCustomListSection(section)) return;
+        customListState(view).editingSection = section;
+        fillCustomListForm(view, section);
+        updateCustomListButtons(view);
+        state.selectedIndex = index;
+        state.activeTab = 'custom';
+        renderHomeSectionsEditor(view);
+    }
+
+    function bindCustomListForm(view) {
+        var form = customListEl(view, 'DefaultHomeCustomListForm');
+        if (!form || form.dataset.bound) return;
+        form.dataset.bound = 'true';
+
+        customListEl(view, 'DefaultCustomListSource').addEventListener('change', function (event) {
+            refreshCustomListForm(view, CUSTOM_LIST_TYPES[event.target.value][0][0]);
+        });
+        customListEl(view, 'DefaultCustomListType').addEventListener('change', function () {
+            refreshCustomListForm(view);
+        });
+        customListEl(view, 'DefaultCustomListSortBy').addEventListener('change', function (event) {
+            customListState(view).sortOrder = event.target.value === 'title' ? 'asc' : 'desc';
+            refreshCustomListForm(view);
+        });
+        customListEl(view, 'DefaultCustomListSortOrder').addEventListener('change', function (event) {
+            customListState(view).sortOrder = event.target.value;
+        });
+        customListEl(view, 'DefaultCustomListSave').addEventListener('click', function () {
+            saveCustomListRow(view);
+        });
+        customListEl(view, 'DefaultCustomListCancel').addEventListener('click', function () {
+            resetCustomListForm(view);
+        });
+        // Enter would otherwise submit the whole settings form.
+        form.addEventListener('keydown', function (event) {
+            if (event.key !== 'Enter' || event.target.tagName !== 'INPUT') return;
+            event.preventDefault();
+            saveCustomListRow(view);
+        });
     }
 
     function getHomeSectionsValue(view) {
