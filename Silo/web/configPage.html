@@ -1611,8 +1611,9 @@
                                     <option value="neonPulse">Neon Pulse</option>
                                     <option value="glass">Glass</option>
                                     <option value="eightbitHero">8-bit Hero</option>
+                                    <optgroup id="DefaultVisualThemeUploaded" label="Uploaded"></optgroup>
                                 </select>
-                                <div class="fieldDescription">Default overall app style. Keep Not set to let users choose.</div>
+                                <div class="fieldDescription">Default overall app style. Themes uploaded on the Themes tab are listed too. Keep Not set to let users choose.</div>
                             </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultFocusColor">Focus Border Color</label>
@@ -5887,7 +5888,36 @@
                 return [];
             }
 
+            // Uploaded themes go in the App Theme default as "custom:<id>",
+            // which saves as customThemeId instead of visualTheme.
+            function fillDefaultThemeOptions(items) {
+                var group = document.querySelector('#DefaultVisualThemeUploaded');
+                if (!group) {
+                    return;
+                }
+
+                var select = group.parentNode;
+                var current = select.value;
+                group.innerHTML = '';
+                (items || []).forEach(function(item) {
+                    var id = item.id || item.Id || '';
+                    if (!id) return;
+                    var option = document.createElement('option');
+                    option.value = 'custom:' + id;
+                    option.textContent = item.displayName || item.DisplayName || id;
+                    group.appendChild(option);
+                });
+                group.hidden = group.children.length === 0;
+
+                // The config may have loaded first and put in a placeholder.
+                Array.prototype.slice.call(select.querySelectorAll('option[data-dynamic-option]')).forEach(function(option) {
+                    if (option.value === current) option.remove();
+                });
+                setSelectValue('#DefaultVisualTheme', current, 'Configured theme');
+            }
+
             function renderAdminThemesList(items) {
+                fillDefaultThemeOptions(items);
                 var container = document.querySelector('#AdminThemesList');
                 if (!container) {
                     return;
@@ -6825,7 +6855,7 @@
 
                     var defaults = config.DefaultUserSettings || {};
                     setSelectValue('#DefaultInterfaceStyle', defaults.interfaceStyle, 'Configured style');
-                    setSelectValue('#DefaultVisualTheme', defaults.visualTheme, 'Configured theme');
+                    setSelectValue('#DefaultVisualTheme', defaults.customThemeId ? 'custom:' + defaults.customThemeId : defaults.visualTheme, 'Configured theme');
                     setSelectValue('#DefaultDetailScreenStyle', defaults.detailScreenStyle, 'Configured style');
                     setNullableBoolSelect('#DefaultDetailExpandedTabs', defaults.detailExpandedTabs);
                     setNullableBoolSelect('#DefaultDetailShowTechnicalDetails', defaults.detailShowTechnicalDetails);
@@ -7623,7 +7653,10 @@
 
                         config.DefaultUserSettings = config.DefaultUserSettings || {};
                         config.DefaultUserSettings.interfaceStyle = document.querySelector('#DefaultInterfaceStyle').value || null;
-                        config.DefaultUserSettings.visualTheme = document.querySelector('#DefaultVisualTheme').value || null;
+                        var defaultTheme = document.querySelector('#DefaultVisualTheme').value;
+                        var customTheme = defaultTheme.indexOf('custom:') === 0;
+                        config.DefaultUserSettings.visualTheme = (!customTheme && defaultTheme) || null;
+                        config.DefaultUserSettings.customThemeId = customTheme ? defaultTheme.slice(7) : null;
                         config.DefaultUserSettings.detailScreenStyle = document.querySelector('#DefaultDetailScreenStyle').value || null;
                         config.DefaultUserSettings.detailExpandedTabs = getNullableBoolSelect('#DefaultDetailExpandedTabs');
                         config.DefaultUserSettings.detailShowTechnicalDetails = getNullableBoolSelect('#DefaultDetailShowTechnicalDetails');
