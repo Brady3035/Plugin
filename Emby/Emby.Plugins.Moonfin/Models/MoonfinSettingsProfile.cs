@@ -37,6 +37,7 @@ namespace Emby.Plugins.Moonfin.Models
         [JsonPropertyName("showCastButton")] public bool? ShowCastButton { get; set; }
         [JsonPropertyName("showSyncPlayButton")] public bool? ShowSyncPlayButton { get; set; }
         [JsonPropertyName("showLibrariesInToolbar")] public bool? ShowLibrariesInToolbar { get; set; }
+        [JsonPropertyName("showLibrariesIndividually")] public bool? ShowLibrariesIndividually { get; set; }
         [JsonPropertyName("shuffleContentType")] public string? ShuffleContentType { get; set; }
         [JsonPropertyName("mergeContinueWatchingNextUp")] public bool? MergeContinueWatchingNextUp { get; set; }
         [JsonPropertyName("continueWatchingDefaultAction")] public string? ContinueWatchingDefaultAction { get; set; }

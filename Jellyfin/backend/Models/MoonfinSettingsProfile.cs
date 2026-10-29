@@ -133,6 +133,9 @@ public class MoonfinSettingsProfile
     [JsonPropertyName("showLibrariesInToolbar")]
     public bool? ShowLibrariesInToolbar { get; set; }
 
+    [JsonPropertyName("showLibrariesIndividually")]
+    public bool? ShowLibrariesIndividually { get; set; }
+
     [JsonPropertyName("shuffleContentType")]
     public string? ShuffleContentType { get; set; }
 
