@@ -19,14 +19,16 @@ type Config struct {
 	Defaults M
 }
 
-// loadPageConfig reads the settings only the Moonbase page edits, with any
-// key the native form owns removed.
+// keyFormMoved marks settings saved since the Moonbase page became the only
+// place to set them, so the old form's values no longer count.
+const keyFormMoved = "SiloFormMoved"
+
+// loadPageConfig reads the settings the Moonbase page saved.
 func (s *Server) loadPageConfig(ctx context.Context) (M, error) {
 	var c M
 	if _, err := s.loadJSON(ctx, keyConfig, &c); err != nil {
 		return nil, err
 	}
-	stripFormKeys(c)
 	return c, nil
 }
 
@@ -40,18 +42,21 @@ func (s *Server) fullConfig(ctx context.Context) (M, error) {
 	return s.mergeConfig(page), nil
 }
 
-// mergeConfig lays a fresh install's values, then the page-only settings
-// in page, then the native form's values.
+// mergeConfig lays a fresh install's values, then (until the page is first
+// saved) the old form's, then the page's.
 func (s *Server) mergeConfig(page M) M {
-	top, defaults := fromNative(s.nativeConfig())
 	out := pluginconfig.Defaults()
-	maps.Copy(out, page)
-	maps.Copy(out, top)
-	merged, _ := out["DefaultUserSettings"].(M)
-	if merged == nil {
-		merged = M{}
+	merged := M{}
+	if moved, _ := page[keyFormMoved].(bool); !moved {
+		top, defaults := fromNative(s.nativeConfig())
+		maps.Copy(out, top)
+		maps.Copy(merged, defaults)
 	}
-	maps.Copy(merged, defaults)
+	maps.Copy(out, page)
+	delete(out, keyFormMoved)
+	if d, ok := page["DefaultUserSettings"].(M); ok {
+		maps.Copy(merged, d)
+	}
 	if len(merged) > 0 {
 		out["DefaultUserSettings"] = merged
 	} else {
@@ -61,7 +66,7 @@ func (s *Server) mergeConfig(page M) M {
 }
 
 // config reads the configuration. If storage fails it logs and carries on
-// with the native form's values alone, so routes keep working.
+// with the old form's values alone, so routes keep working.
 func (s *Server) config(ctx context.Context) Config {
 	c, err := s.fullConfig(ctx)
 	if err != nil {

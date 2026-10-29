@@ -228,7 +228,6 @@ func (s *Server) saveProfile(w http.ResponseWriter, r *http.Request, name string
 }
 
 func (s *Server) save(w http.ResponseWriter, r *http.Request, apply func(M) M, extra ...M) {
-	s.catchUpDefaults(r)
 	id := callerOf(r)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -287,7 +286,6 @@ func (s *Server) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) resolve(r *http.Request, name string, record bool) (M, error) {
-	s.catchUpDefaults(r)
 	id := callerOf(r)
 	// Only recording a baseline writes, so read-only lookups skip the lock.
 	if record {

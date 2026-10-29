@@ -128,8 +128,8 @@ func (s *Server) handleGetConfiguration(w http.ResponseWriter, r *http.Request) 
 }
 
 // handlePostConfiguration replaces the whole configuration, as Jellyfin's
-// plugin configuration endpoint does. Settings on Silo's native form go back
-// into Silo's store, and the rest into instance state.
+// plugin configuration endpoint does. The page sends back everything it
+// read, the old form's values included, so they're kept from here on.
 func (s *Server) handlePostConfiguration(w http.ResponseWriter, r *http.Request) {
 	var body M
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body == nil {
@@ -145,16 +145,7 @@ func (s *Server) handlePostConfiguration(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	native := toNative(body)
-	for _, e := range entryOrder {
-		if err := s.setConfigEntry(ctx, e, native[e]); err != nil {
-			logError(r, "save plugin settings in Silo", err)
-			writeError(w, http.StatusBadGateway, "Silo didn't save the settings. Check the Silo server log.")
-			return
-		}
-	}
-	s.setNative(native)
-	stripFormKeys(body)
+	body[keyFormMoved] = true
 	if err := s.saveJSON(ctx, keyConfig, body); err != nil {
 		storageFailed(w, r, err)
 		return
@@ -167,19 +158,6 @@ func (s *Server) handlePostConfiguration(w http.ResponseWriter, r *http.Request)
 
 // keyDefaultsSeen holds the admin defaults users were last moved onto.
 const keyDefaultsSeen = "s/defaults-seen"
-
-// catchUpDefaults runs followChangedDefaults once after Silo hands the
-// plugin its settings, which it does when an admin saves Silo's own form.
-func (s *Server) catchUpDefaults(r *http.Request) {
-	if !s.defaultsUnchecked.CompareAndSwap(true, false) {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.followChangedDefaults(r.Context()); err != nil {
-		logError(r, "apply changed defaults to users", err)
-	}
-}
 
 // followChangedDefaults moves users onto each default the admin changed
 // since the last run (the caller holds s.mu): a user's stored value gives

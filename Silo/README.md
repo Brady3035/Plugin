@@ -37,27 +37,15 @@ Uploading a newer file replaces the installed one and keeps its installation id 
 
 ## Settings
 
-Moonbase's settings are in Silo's own plugin page (Integrations > Plugins > Moonbase), in the **Settings** cards, with the same settings, labels, help text and grouping as the Jellyfin admin page:
+Moonbase is set up on the **Moonbase** page, which opens from the menu at the top right of Silo's plugin page (Integrations > Plugins > Moonbase) or from Plugin Apps in the admin menu. It has every setting, along with Messages, Apply Defaults To Users, Broadcast, the MDBList key test and the layout editors.
 
-- **Moonbase**: settings sync and the server-wide MDBList and TMDB keys.
-- One card per feature Silo can't run (Seerr and push notifications, charts, recommendations and studio logos, anime markers, games, web client). Each says why, and keeps its settings folded away.
-- **User Defaults**, one card per sub-tab of the Jellyfin page (Account, General, Appearance, Home Screen, Libraries, Details Page, Playback, Integrations), with that sub-tab's groups as sections (folded on the longer cards) and the same "Not set (user decides)" choices. Each card lists anything of its own that's on the Moonbase page instead.
+The Moonbase page is the Jellyfin admin page itself, with the same tabs, fields, search and Save button, in Jellyfin's dark style. `web/host.js` stands in for the Jellyfin dashboard it expects. It says "Silo" where the Jellyfin copy says "Jellyfin", and sections for features Silo can't run say so at the top. Lists it would fill from the library stay empty, because Silo doesn't let plugins read library items, and the user picker lists accounts that have synced settings.
 
-Fields hide and show with the page's rules where Silo's form can express them. The segment actions, bottom bar tabs and seasonal holidays, which the page builds from several controls, are plain fields here too.
+Moonbase 1.0.0 also put most settings on Silo's own plugin form. Silo keeps what was saved there, and Moonbase reads it until the Moonbase page is first saved, which keeps those values with the page's settings from then on.
 
-`tools/genform` builds that form from `web/configPage.html`, an unedited copy of `Jellyfin/backend/Pages/configPage.html` that's refreshed by hand (see Building). It writes `config_schema.json`, which goes into the manifest, and `internal/api/form_gen.go`, which the plugin uses to read the values. CI fails if they're out of date with the page.
+Defaults reach every user who hasn't changed that setting. When an admin changes a default, users on the old default move to the new one, and so does everyone when there was no default before (the apps store every value they hold, so a value from then is the app's own default rather than a choice).
 
-Saving a card restarts the plugin, which is how Silo hands a plugin new settings. Silo keeps a secret field's stored value when it's saved blank, so use the field's clear option to remove a key. Silo also shows its own Check Connection button on every card, and for Moonbase it answers that connection checks aren't supported.
-
-A few things don't fit Silo's form and stay on the **Moonbase** page, which opens from the menu at the top right of the plugin page or from Plugin Apps in the admin menu:
-
-- Messages, Apply Defaults To Users and Broadcast.
-- Test key and Clear cache for MDBList.
-- Settings with drag-and-drop or pick lists: the home row layout, per-row image types, detail button, player button and metadata order, detail sections, rating sources, Seerr rows, and the library, collection and genre pickers.
-
-The Moonbase page is the Jellyfin admin page itself, with the same tabs, fields, search and Save button, in Jellyfin's dark style. `web/host.js` stands in for the Jellyfin dashboard it expects. It edits the same settings as Silo's form: what it saves goes back into Silo's store, so the two never disagree. It says "Silo" where the Jellyfin copy says "Jellyfin", and sections for features Silo can't run say so at the top. Lists it would fill from the library stay empty, because Silo doesn't let plugins read library items, and the user picker lists accounts that have synced settings.
-
-Silo signs a plugin page in for five minutes and renews that while the page keeps calling its routes and the Silo sign-in is still good. If Save fails anyway, the page says so and keeps what you tried to save. Open Moonbase again in the same browser tab within an hour and those changes come back, ready to save.
+Silo signs a plugin page in for five minutes and renews that while the page keeps calling its routes and the Silo sign-in is still good. The page pings Moonbase each minute to keep it signed in. If Save fails anyway, the page says so and keeps what you tried to save. Open Moonbase again in the same browser tab within an hour and those changes come back, ready to save.
 
 Both API keys reach every signed-in user through `Settings/Resolved`, the same as on Jellyfin, since Moonfin calls TMDB directly with the key for some rows. Don't use keys here you wouldn't hand to your users.
 
@@ -81,11 +69,11 @@ These come from Silo's plugin API, not from the plugin.
 - **No plugin icon.** Silo's plugin pages don't take icons from plugins, so Moonbase shows as "MO".
 - **Admin routes need the primary profile.** Silo marks a request as admin only for an admin account acting through its primary profile, the rule its own admin API uses.
 - **Storage is small.** Silo gives each plugin 256 keys of up to 256 KiB. Each profile with synced settings takes one key, so a server can hold settings for about 240 profiles.
-- **Deleted users leave their settings behind.** Silo doesn't tell plugins when an account or profile is deleted.
+- **Deleted users leave their settings behind.** Silo doesn't tell plugins when an account or profile is deleted. Remove them with **Remove Selected User's Data** on the Moonbase page's Actions tab.
 
 ## Data, backups and removal
 
-Moonbase's settings live in Silo's plugin configuration, and its other data (synced profiles, messages and the settings only the Moonbase page edits) in Silo's per-plugin instance state. Silo encrypts both and stores them in its Postgres database. It's included in a database backup and needs the server's `SECRET_KEY` to restore. Upgrades keep it. Uninstalling the plugin deletes it.
+Moonbase's settings, synced profiles and messages live in Silo's per-plugin instance state. Silo encrypts it and stores them in its Postgres database. It's included in a database backup and needs the server's `SECRET_KEY` to restore. Upgrades keep it. Uninstalling the plugin deletes it.
 
 ## Logs
 
@@ -102,4 +90,4 @@ make dist   # dist/Moonbase.Silo-<version>-linux-{amd64,arm64} and SHA256SUMS
 
 `manifest.json` holds the version. `./dist/Moonbase.Silo-<version>-linux-amd64 manifest` prints the manifest the way Silo reads it at install.
 
-To pick up a newer Jellyfin admin page, copy `Jellyfin/backend/Pages/configPage.html` over `web/configPage.html` unchanged and run `go run ./tools/genform`. If it calls a Jellyfin dashboard function or `ApiClient` method that `web/host.js` doesn't have yet, add it there.
+To pick up a newer Jellyfin admin page, copy `Jellyfin/backend/Pages/configPage.html` over `web/configPage.html` unchanged. If it calls a Jellyfin dashboard function or `ApiClient` method that `web/host.js` doesn't have yet, add it there.

@@ -47,11 +47,6 @@ jobs:
             exit 1
           fi
 
-      - name: Generated settings form is current
-        run: |
-          go run ./tools/genform
-          git diff --exit-code -- config_schema.json internal/api/form_gen.go
-
       - name: Test
         run: make test
 
