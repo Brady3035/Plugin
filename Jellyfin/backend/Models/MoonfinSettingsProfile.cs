@@ -54,6 +54,33 @@ public class MoonfinSettingsProfile
     [JsonPropertyName("tmdbEpisodeRatingsEnabled")]
     public bool? TmdbEpisodeRatingsEnabled { get; set; }
 
+    [JsonPropertyName("homeRowsMdblistEnabled")]
+    public bool? HomeRowsMdblistEnabled { get; set; }
+
+    [JsonPropertyName("homeRowsMdblistRatingSources")]
+    public List<string>? HomeRowsMdblistRatingSources { get; set; }
+
+    [JsonPropertyName("homeRowsTmdbEpisodeRatingsEnabled")]
+    public bool? HomeRowsTmdbEpisodeRatingsEnabled { get; set; }
+
+    [JsonPropertyName("homeRowsMdblistShowRatingNames")]
+    public bool? HomeRowsMdblistShowRatingNames { get; set; }
+
+    [JsonPropertyName("homeRowsMdblistShowRatingBadges")]
+    public bool? HomeRowsMdblistShowRatingBadges { get; set; }
+
+    [JsonPropertyName("mediaBarMdblistEnabled")]
+    public bool? MediaBarMdblistEnabled { get; set; }
+
+    [JsonPropertyName("mediaBarMdblistRatingSources")]
+    public List<string>? MediaBarMdblistRatingSources { get; set; }
+
+    [JsonPropertyName("mediaBarMdblistShowRatingNames")]
+    public bool? MediaBarMdblistShowRatingNames { get; set; }
+
+    [JsonPropertyName("mediaBarMdblistShowRatingBadges")]
+    public bool? MediaBarMdblistShowRatingBadges { get; set; }
+
     [JsonPropertyName("detailsBackdropOpacity")]
     public int? DetailsBackdropOpacity { get; set; }
 

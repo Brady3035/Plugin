@@ -586,6 +586,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         { parent: 'DefaultSinceYouWatchedSource', off: ['online'], fields: ['DefaultSinceYouWatchedIncludeWatched'] },
         { parent: 'DefaultDisplayStudiosRows', fields: ['DefaultStudiosRowSortBy', 'DefaultStudiosRowSortOrder'] },
         { parent: 'DefaultMediaBarMode', off: ['off'], fields: ['DefaultMediaBarContentType', 'DefaultMediaBarItemCount', 'DefaultMediaBarSourceType', 'DefaultCollectionPickerSection', 'DefaultLibraryPickerSection', 'DefaultGenrePicker', 'DefaultMediaBarAutoAdvance', 'DefaultMediaBarOpacity', 'DefaultMediaBarOverlayColor', 'DefaultMediaBarRowPeek', 'DefaultMediaBarTrailerPreview'] },
+        { parent: 'DefaultMediaBarMode', off: ['off', 'bookshelf', 'aya'], fields: ['DefaultMediaBarRatingsHeading', 'DefaultMediaBarMdblistEnabled', 'DefaultMediaBarMdblistRatingSourcesList', 'DefaultMediaBarMdblistShowRatingNames', 'DefaultMediaBarMdblistShowRatingBadges'] },
         { parent: 'DefaultMediaBarAutoAdvance', fields: ['DefaultMediaBarIntervalMs'] },
         { parent: 'DefaultMediaBarTrailerPreview', fields: ['DefaultMediaBarTrailerAudio', 'DefaultTrailerVolume', 'DefaultMediaBarTrailerCaptions'] },
         { parent: 'DefaultHomeRowsStyle', off: ['v1'], fields: ['DefaultModernCardsOnMyMediaRow', 'DefaultModernHomeRowsPadding'] },
@@ -894,8 +895,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             });
     }
 
-    function loadRatingSourcesPicker(view, selectedIds) {
-        var container = view.querySelector('#DefaultMdblistRatingSourcesList');
+    function loadRatingSourcesPicker(view, selectedIds, listSelector) {
+        var container = view.querySelector(listSelector || '#DefaultMdblistRatingSourcesList');
         if (!container) return;
         var selectedSet = {};
         var ordered = [];
@@ -938,8 +939,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
         }
     }
 
-    function getRatingSourcesValue(view) {
-        var items = view.querySelectorAll('#DefaultMdblistRatingSourcesList .mdblistRatingItem');
+    function getRatingSourcesValue(view, listSelector) {
+        var items = view.querySelectorAll((listSelector || '#DefaultMdblistRatingSourcesList') + ' .mdblistRatingItem');
         var result = [];
         items.forEach(function (item) {
             var cb = item.querySelector('input[type=checkbox]');
@@ -2579,6 +2580,15 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             setNullableBoolSelect(view, '#DefaultMdblistShowRatingBadges', defaults.mdblistShowRatingBadges);
             setNullableBoolSelect(view, '#DefaultMdblistShowRatingNames', defaults.mdblistShowRatingNames);
             loadRatingSourcesPicker(view, defaults.mdblistRatingSources || null);
+            setNullableBoolSelect(view, '#DefaultHomeRowsMdblistEnabled', defaults.homeRowsMdblistEnabled);
+            loadRatingSourcesPicker(view, defaults.homeRowsMdblistRatingSources || null, '#DefaultHomeRowsMdblistRatingSourcesList');
+            setNullableBoolSelect(view, '#DefaultHomeRowsTmdbEpisodeRatingsEnabled', defaults.homeRowsTmdbEpisodeRatingsEnabled);
+            setNullableBoolSelect(view, '#DefaultHomeRowsMdblistShowRatingNames', defaults.homeRowsMdblistShowRatingNames);
+            setNullableBoolSelect(view, '#DefaultHomeRowsMdblistShowRatingBadges', defaults.homeRowsMdblistShowRatingBadges);
+            setNullableBoolSelect(view, '#DefaultMediaBarMdblistEnabled', defaults.mediaBarMdblistEnabled);
+            loadRatingSourcesPicker(view, defaults.mediaBarMdblistRatingSources || null, '#DefaultMediaBarMdblistRatingSourcesList');
+            setNullableBoolSelect(view, '#DefaultMediaBarMdblistShowRatingNames', defaults.mediaBarMdblistShowRatingNames);
+            setNullableBoolSelect(view, '#DefaultMediaBarMdblistShowRatingBadges', defaults.mediaBarMdblistShowRatingBadges);
             setNullableBoolSelect(view, '#DefaultSeerrBlockNsfw', defaults.seerrBlockNsfw);
             setNullableBoolSelect(view, '#DefaultSeerrShowMissingCollectionItems', defaults.seerrShowMissingCollectionItems);
             setNullableBoolSelect(view, '#DefaultShowSeerrAvailabilityBadges', defaults.showSeerrAvailabilityBadges);
@@ -2965,6 +2975,15 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             d.mdblistShowRatingBadges = getNullableBoolSelect(view, '#DefaultMdblistShowRatingBadges');
             d.mdblistShowRatingNames = getNullableBoolSelect(view, '#DefaultMdblistShowRatingNames');
             d.mdblistRatingSources = getRatingSourcesValue(view);
+            d.homeRowsMdblistEnabled = getNullableBoolSelect(view, '#DefaultHomeRowsMdblistEnabled');
+            d.homeRowsMdblistRatingSources = getRatingSourcesValue(view, '#DefaultHomeRowsMdblistRatingSourcesList');
+            d.homeRowsTmdbEpisodeRatingsEnabled = getNullableBoolSelect(view, '#DefaultHomeRowsTmdbEpisodeRatingsEnabled');
+            d.homeRowsMdblistShowRatingNames = getNullableBoolSelect(view, '#DefaultHomeRowsMdblistShowRatingNames');
+            d.homeRowsMdblistShowRatingBadges = getNullableBoolSelect(view, '#DefaultHomeRowsMdblistShowRatingBadges');
+            d.mediaBarMdblistEnabled = getNullableBoolSelect(view, '#DefaultMediaBarMdblistEnabled');
+            d.mediaBarMdblistRatingSources = getRatingSourcesValue(view, '#DefaultMediaBarMdblistRatingSourcesList');
+            d.mediaBarMdblistShowRatingNames = getNullableBoolSelect(view, '#DefaultMediaBarMdblistShowRatingNames');
+            d.mediaBarMdblistShowRatingBadges = getNullableBoolSelect(view, '#DefaultMediaBarMdblistShowRatingBadges');
             d.seerrBlockNsfw = getNullableBoolSelect(view, '#DefaultSeerrBlockNsfw');
             d.seerrShowMissingCollectionItems = getNullableBoolSelect(view, '#DefaultSeerrShowMissingCollectionItems');
             d.showSeerrAvailabilityBadges = getNullableBoolSelect(view, '#DefaultShowSeerrAvailabilityBadges');

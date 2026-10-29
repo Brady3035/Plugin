@@ -28,6 +28,15 @@ namespace Emby.Plugins.Moonfin.Services
         private static readonly System.Reflection.PropertyInfo[] ProfileProps = typeof(MoonfinSettingsProfile).GetProperties();
         private static readonly System.Reflection.PropertyInfo[] UserSettingsProps = typeof(MoonfinUserSettings).GetProperties();
 
+        // XmlSerializer loads an unset list default as an empty list, and the admin page never saves
+        // an empty sources list, so an empty one in the admin defaults means the admin left it unset.
+        private static readonly HashSet<string> RatingSourceLists = new HashSet<string>
+        {
+            nameof(MoonfinSettingsProfile.MdblistRatingSources),
+            nameof(MoonfinSettingsProfile.HomeRowsMdblistRatingSources),
+            nameof(MoonfinSettingsProfile.MediaBarMdblistRatingSources),
+        };
+
         public MoonfinSettingsService(ILogger logger)
         {
             _logger = logger;
@@ -155,18 +164,23 @@ namespace Emby.Plugins.Moonfin.Services
             {
                 var value = deviceProfile != null ? prop.GetValue(deviceProfile) : null;
                 if (value == null) value = global != null ? prop.GetValue(global) : null;
-                if (value == null) value = adminDefaults != null ? prop.GetValue(adminDefaults) : null;
+                if (value == null && adminDefaults != null)
+                {
+                    value = prop.GetValue(adminDefaults);
+                    if (value is List<string> { Count: 0 } && RatingSourceLists.Contains(prop.Name)) value = null;
+                }
                 if (value != null) prop.SetValue(resolved, value);
             }
 
             // Normalize the legacy web rating-source id to the client's expected key.
-            if (resolved.MdblistRatingSources != null)
+            foreach (var sources in new[] { resolved.MdblistRatingSources, resolved.HomeRowsMdblistRatingSources, resolved.MediaBarMdblistRatingSources })
             {
-                for (var i = 0; i < resolved.MdblistRatingSources.Count; i++)
+                if (sources == null) continue;
+                for (var i = 0; i < sources.Count; i++)
                 {
-                    if (string.Equals(resolved.MdblistRatingSources[i], "rtAudience", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(sources[i], "rtAudience", StringComparison.OrdinalIgnoreCase))
                     {
-                        resolved.MdblistRatingSources[i] = "tomatoes_audience";
+                        sources[i] = "tomatoes_audience";
                     }
                 }
             }

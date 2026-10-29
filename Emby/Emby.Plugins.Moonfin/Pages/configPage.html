@@ -2556,6 +2556,37 @@
                                 </select>
                                 <div class="fieldDescription">Show closed captions on YouTube trailers when available.</div>
                             </div>
+                            <h4 id="DefaultMediaBarRatingsHeading" style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Media Bar Ratings</h4>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultMediaBarMdblistEnabled">Media Bar MDBList Ratings</label>
+                                <select id="DefaultMediaBarMdblistEnabled" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <div class="fieldDescription">Enable MDBList ratings on the media bar by default (requires server-wide or user API key). Only the Moonfin, MakD, Gallery and Banner styles show ratings.</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused">Media Bar Rating Sources &amp; Order</label>
+                                <div class="fieldDescription">Check which ratings to display and drag or use the arrows to set their order.</div>
+                                <div id="DefaultMediaBarMdblistRatingSourcesList" style="max-height:220px;overflow-y:auto;border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:4px;margin-top:6px;"></div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultMediaBarMdblistShowRatingNames">Media Bar Rating Labels</label>
+                                <select id="DefaultMediaBarMdblistShowRatingNames" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultMediaBarMdblistShowRatingBadges">Media Bar Rating Badges</label>
+                                <select id="DefaultMediaBarMdblistShowRatingBadges" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
                             <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Looks</h4>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultHomeRowsStyle">Row Type</label>
@@ -2700,6 +2731,46 @@
                                     <span id="DefaultPreviewVolume_Val" style="font-weight: 600; min-width: 40px; color: #00a4dc; text-align: right; font-size: 0.95em;">--</span>
                                 </div>
                                 <div class="fieldDescription">How loud media previews on cards play</div>
+                            </div>
+                            <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Home Row Ratings</h4>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultHomeRowsMdblistEnabled">Home Row MDBList Ratings</label>
+                                <select id="DefaultHomeRowsMdblistEnabled" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <div class="fieldDescription">Enable MDBList ratings in the home row info area by default (requires server-wide or user API key).</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused">Home Row Rating Sources &amp; Order</label>
+                                <div class="fieldDescription">Check which ratings to display and drag or use the arrows to set their order.</div>
+                                <div id="DefaultHomeRowsMdblistRatingSourcesList" style="max-height:220px;overflow-y:auto;border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:4px;margin-top:6px;"></div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultHomeRowsTmdbEpisodeRatingsEnabled">Home Row TMDB Episode Ratings</label>
+                                <select id="DefaultHomeRowsTmdbEpisodeRatingsEnabled" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <div class="fieldDescription">Enable TMDB episode ratings in the home row info area by default (requires server-wide or user API key).</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultHomeRowsMdblistShowRatingNames">Home Row Rating Labels</label>
+                                <select id="DefaultHomeRowsMdblistShowRatingNames" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultHomeRowsMdblistShowRatingBadges">Home Row Rating Badges</label>
+                                <select id="DefaultHomeRowsMdblistShowRatingBadges" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
                             </div>
                             <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">External Sources</h4>
                             <div class="fieldDescription" style="margin-bottom:0.75em;">Chart rows the home sections page can offer. IMDb rows need IMDb Charts enabled above, TMDB rows need a TMDB API key.</div>
