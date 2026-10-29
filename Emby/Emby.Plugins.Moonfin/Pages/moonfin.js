@@ -171,7 +171,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
     function homeBackdropStyleOf(defaults) {
         if (defaults.homeBackdropEnabled === false) return 'off';
         if (defaults.homeBackdropEnabled !== true) return '';
-        return defaults.homeBackdropStyle === 'corner' ? 'corner' : 'fullScreen';
+        var style = defaults.homeBackdropStyle;
+        return style === 'corner' || style === 'top' ? style : 'fullScreen';
     }
 
     function setSelectValue(view, selector, value, dynamicLabelPrefix) {

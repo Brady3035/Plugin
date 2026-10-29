@@ -246,8 +246,8 @@ public class MoonfinSettingsProfile
 
     /// <summary>
     /// How TV and desktop apps draw the home backdrop when HomeBackdropEnabled is on: fullScreen
-    /// behind everything, or corner faded out from the top right. Off is written along with the
-    /// switch turned off.
+    /// behind everything, corner faded out from the top right, or top showing only its top half
+    /// faded out toward the middle. Off is written along with the switch turned off.
     /// </summary>
     [JsonPropertyName("homeBackdropStyle")]
     public string? HomeBackdropStyle { get; set; }

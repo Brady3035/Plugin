@@ -1778,8 +1778,9 @@
                                     <option value="off">Off</option>
                                     <option value="fullScreen">Full Screen</option>
                                     <option value="corner">Corner</option>
+                                    <option value="top">Top</option>
                                 </select>
-                                <div class="fieldDescription">Corner fades the backdrop out from the top right on TV and desktop. Phones show it full screen.</div>
+                                <div class="fieldDescription">On TV and desktop, Corner fades the backdrop out from the top right and Top shows only its top half, fading out toward the middle. Phones show it full screen.</div>
                             </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultDetailsBackdropEnabled">Details Screen Backdrop</label>
@@ -4463,7 +4464,8 @@
             function homeBackdropStyleOf(defaults) {
                 if (defaults.homeBackdropEnabled === false) return 'off';
                 if (defaults.homeBackdropEnabled !== true) return '';
-                return defaults.homeBackdropStyle === 'corner' ? 'corner' : 'fullScreen';
+                var style = defaults.homeBackdropStyle;
+                return style === 'corner' || style === 'top' ? style : 'fullScreen';
             }
 
             function setSelectValue(selector, value, dynamicLabelPrefix) {
