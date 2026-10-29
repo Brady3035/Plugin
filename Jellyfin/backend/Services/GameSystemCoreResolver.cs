@@ -139,6 +139,21 @@ internal static class GameSystemCoreResolver
         return DefaultCore;
     }
 
+    /// <summary>
+    /// The core whose libretro set a system's art and RDB records come from. The gb core plays Game
+    /// Boy Color too, but GBC games are cataloged in a set of their own, so a GBC folder looks there.
+    /// </summary>
+    internal static string ArtworkCore(string core, string systemName)
+    {
+        if (!string.Equals(core, "gb", StringComparison.Ordinal))
+        {
+            return core;
+        }
+
+        var normalized = NormalizeSystemName(systemName);
+        return normalized == "gbc" || normalized.Contains("gameboycolor", StringComparison.Ordinal) ? "gbc" : core;
+    }
+
     internal static IReadOnlyList<string> FuzzySuggestCores(string systemName, int maxSuggestions)
     {
         if (maxSuggestions <= 0)

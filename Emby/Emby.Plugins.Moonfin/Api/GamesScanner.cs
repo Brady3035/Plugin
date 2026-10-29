@@ -497,7 +497,18 @@ namespace Emby.Plugins.Moonfin.Api
             var systemDir = FindSystemDir(library, romPath);
             var systemName = systemDir == null ? string.Empty : Path.GetFileName(systemDir);
             var core = ResolveSystemCore(systemName, new List<string> { romPath });
-            return (core, Path.GetFileName(romPath), null, null);
+            return (ArtworkCore(core, systemName), Path.GetFileName(romPath), null, null);
+        }
+
+        /// <summary>
+        /// The core whose libretro set a system's art comes from. The gb core plays Game Boy Color
+        /// too, but GBC games are cataloged in a set of their own, so a GBC folder looks there.
+        /// </summary>
+        internal static string ArtworkCore(string core, string systemName)
+        {
+            if (!string.Equals(core, "gb", StringComparison.Ordinal)) return core;
+            var normalized = NormalizeAlphanumericLower(systemName);
+            return normalized == "gbc" || normalized.Contains("gameboycolor", StringComparison.Ordinal) ? "gbc" : core;
         }
 
         public string? ResolveFilePath(string libraryId, string token, bool allowBios)
