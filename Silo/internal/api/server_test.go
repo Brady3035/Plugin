@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -64,19 +63,7 @@ func (c caller) headers() map[string]string {
 }
 
 func newTestServer() *Server {
-	s := NewServer("1.2.3", store.NewMemKV(), fakeCatalog{})
-	// Stands in for Silo's config store: what the page writes comes back the
-	// way Configure would hand it over after a restart.
-	s.setConfigEntry = func(_ context.Context, key string, value map[string]any) error {
-		next := map[string]M{}
-		for k, v := range s.nativeConfig() {
-			next[k] = v
-		}
-		next[key] = value
-		s.setNative(next)
-		return nil
-	}
-	return s
+	return NewServer("1.2.3", store.NewMemKV(), fakeCatalog{})
 }
 
 func call(t *testing.T, s *Server, c caller, method, path, body string, query map[string]any) (int, map[string]any) {
@@ -200,20 +187,6 @@ func TestDefaultsReachUsersWhoNeverChangedThem(t *testing.T) {
 	}
 	if got := resolved(other); got["style"] != "modern" || got["thumbs"] != true {
 		t.Fatalf("a value picked against the old default must stay: %v", got)
-	}
-
-	// Silo's own form saves restart the plugin with the new values.
-	native := toNative(map[string]any{"DefaultUserSettings": map[string]any{"detailScreenStyle": "classic"}})
-	call(t, s, userMain, "POST", "/Moonfin/Settings/Profile/mobile", `{"profile":{"detailScreenStyle":"modern"}}`, nil)
-	entries := []*pluginv1.ConfigEntry{}
-	for k, v := range native {
-		entries = append(entries, &pluginv1.ConfigEntry{Key: k, Value: mustStruct(t, v)})
-	}
-	if err := s.Configure(context.Background(), entries); err != nil {
-		t.Fatal(err)
-	}
-	if got := resolved(userMain); got["detailScreenStyle"] != "classic" {
-		t.Fatalf("a default first set in Silo's form must reach users: %v", got)
 	}
 }
 
@@ -449,7 +422,9 @@ func TestAdminPageServesTheJellyfinPage(t *testing.T) {
 	}
 }
 
-func TestNativeFormValuesReachTheRoutes(t *testing.T) {
+// Values saved on Silo's form under Moonbase 1.0.0 still count until the
+// page is first saved.
+func TestOldFormValuesReachTheRoutes(t *testing.T) {
 	s := newTestServer()
 	entries := byCard(t, map[string]any{
 		"EnableSettingsSync": true, "TmdbApiKey": "native-key", "SeerrEnabled": true,
@@ -503,84 +478,31 @@ func byCard(t *testing.T, values map[string]any) map[string]map[string]any {
 	return out
 }
 
-// nativeValue reads one form field from what the plugin holds for Silo's form.
-func nativeValue(s *Server, field string) any {
-	i := slices.IndexFunc(formFields, func(f formField) bool { return f.Field == field })
-	return s.nativeConfig()[formFields[i].Entry][field]
-}
-
-func TestPageSaveWritesTheNativeForm(t *testing.T) {
+func TestPageSaveKeepsTheOldFormValues(t *testing.T) {
 	s := newTestServer()
+	var config []*pluginv1.ConfigEntry
+	for k, v := range byCard(t, map[string]any{"TmdbApiKey": "form-key", "navbarPosition": "bottom", "use24HourClock": "true"}) {
+		config = append(config, &pluginv1.ConfigEntry{Key: k, Value: mustStruct(t, v)})
+	}
+	if err := s.Configure(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
 	_, cfg := call(t, s, adminMain, "GET", "/Moonfin/Admin/Configuration", "", nil)
-	cfg["MdblistApiKey"] = "page-key"
-	cfg["EnableSettingsSync"] = false
-	cfg["DefaultUserSettings"] = map[string]any{"navbarPosition": "left", "use24HourClock": false,
-		"mediaBarItemCount": 15, "homeSections": []any{map[string]any{"type": "resume"}},
-		"mediaSegmentActions": "recap:skip", "bottomNavbarTabs": []any{"home", "search"},
-		"seasonalRowHiddenHolidays": []any{"halloween"}}
+	if cfg["TmdbApiKey"] != "form-key" || cfg["DefaultUserSettings"].(map[string]any)["navbarPosition"] != "bottom" {
+		t.Fatalf("the page must read the old form's values: %v", cfg)
+	}
+	delete(cfg["DefaultUserSettings"].(map[string]any), "use24HourClock")
 	saveConfig(t, s, cfg)
 
-	for field, want := range map[string]any{"MdblistApiKey": "page-key", "EnableSettingsSync": false,
-		"navbarPosition": "left", "use24HourClock": "false", "mediaBarItemCount": "15", "confirmExit": "",
-		"mediaSegmentActionRecap": "skip", "mediaSegmentActionIntro": "", "bottomNavbarTab2": "search", "bottomNavbarTab3": ""} {
-		if got := nativeValue(s, field); got != want {
-			t.Errorf("form %s = %#v, want %#v", field, got, want)
-		}
-	}
-	if shown, _ := nativeValue(s, "seasonalRowShownHolidays").([]any); slices.Contains(shown, any("halloween")) || !slices.Contains(shown, any("christmas")) {
-		t.Errorf("the form must tick every holiday but the hidden one: %v", shown)
-	}
-
-	var page M
-	if _, err := s.loadJSON(context.Background(), keyConfig, &page); err != nil {
-		t.Fatal(err)
-	}
-	if _, has := page["MdblistApiKey"]; has {
-		t.Fatal("a form setting must not also be kept with the page settings")
-	}
-	if pd := page["DefaultUserSettings"].(M); len(pd) != 1 || pd["homeSections"] == nil {
-		t.Fatalf("only page-only defaults may stay with the page settings: %v", pd)
-	}
-
 	_, again := call(t, s, adminMain, "GET", "/Moonfin/Admin/Configuration", "", nil)
-	dd := again["DefaultUserSettings"].(map[string]any)
-	if again["MdblistApiKey"] != "page-key" || dd["navbarPosition"] != "left" || dd["mediaBarItemCount"] != 15.0 || dd["homeSections"] == nil ||
-		dd["mediaSegmentActions"] != "recap:skip" || len(dd["bottomNavbarTabs"].([]any)) != 2 {
-		t.Fatalf("the page must read back both halves: %v", again)
+	d := again["DefaultUserSettings"].(map[string]any)
+	if again["TmdbApiKey"] != "form-key" || d["navbarPosition"] != "bottom" {
+		t.Fatalf("a page save must keep what it read: %v", again)
 	}
-	if code, _ := call(t, s, userMain, "GET", "/Moonfin/Settings/Resolved/tv", "", nil); code != 503 {
-		t.Fatal("sync off from the page must turn sync off")
+	if _, back := d["use24HourClock"]; back {
+		t.Fatal("a value cleared on the page must not come back from the old form")
 	}
-}
-
-func TestFormSchemaMatchesTheFieldTable(t *testing.T) {
-	raw, err := os.ReadFile("../../config_schema.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var schema []struct {
-		Key       string `json:"key"`
-		AdminForm struct {
-			Fields []struct {
-				Key string `json:"key"`
-			} `json:"fields"`
-		} `json:"admin_form"`
-	}
-	if err := json.Unmarshal(raw, &schema); err != nil {
-		t.Fatal(err)
-	}
-	inSchema := map[string]bool{}
-	for _, e := range schema {
-		for _, f := range e.AdminForm.Fields {
-			inSchema[e.Key+"/"+f.Key] = true
-		}
-	}
-	for _, f := range formFields {
-		if !inSchema[f.Entry+"/"+f.Field] {
-			t.Errorf("%s/%s is in form_gen.go but not config_schema.json, run go run ./tools/genform", f.Entry, f.Field)
-		}
-	}
-	if len(inSchema) != len(formFields) {
-		t.Errorf("schema has %d fields, table has %d, run go run ./tools/genform", len(inSchema), len(formFields))
+	if _, shown := again[keyFormMoved]; shown {
+		t.Fatal("the marker is internal")
 	}
 }

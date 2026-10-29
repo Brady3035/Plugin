@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
-	"sync/atomic"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 
@@ -32,22 +31,16 @@ type Server struct {
 	// mu serializes every read-modify-write of stored settings.
 	mu sync.Mutex
 
-	// native holds the native settings form's values, as Silo last handed
-	// them over or the Moonbase page last saved them.
+	// native holds what Silo kept from its old plugin form (legacy_form.go).
 	nativeMu sync.RWMutex
 	native   map[string]M
-	// setConfigEntry writes one of the form's entries back to Silo.
-	setConfigEntry func(ctx context.Context, key string, value map[string]any) error
-	// defaultsUnchecked is set while the defaults may have changed since
-	// users were last moved onto them (see catchUpDefaults).
-	defaultsUnchecked atomic.Bool
 }
 
 func NewServer(version string, kv store.KV, catalog Catalog) *Server {
 	if version == "" {
 		version = "0.0.0-dev"
 	}
-	s := &Server{version: version, kv: kv, catalog: catalog, mux: http.NewServeMux(), ext: newExternal(), setConfigEntry: hostSetConfigEntry}
+	s := &Server{version: version, kv: kv, catalog: catalog, mux: http.NewServeMux(), ext: newExternal()}
 	s.routes()
 	return s
 }

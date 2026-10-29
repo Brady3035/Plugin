@@ -7,7 +7,7 @@
     "display_name": "Moonbase",
     "summary": "Server side of the Moonfin apps: settings sync across devices, extra ratings and admin defaults.",
     "description_markdown": "Moonbase is the server plugin for Moonfin. It keeps each profile's Moonfin settings in sync across devices, lets an admin set defaults for everyone, and adds MDBList and TMDB ratings.",
-    "setup_markdown": "1. Install the plugin from a file.\n2. Set it up in **Settings** on this page. Messages, Apply Defaults, Broadcast and the settings that need drag-and-drop are on the **Moonbase** page, in the menu at the top right of this page and under Plugin Apps.\n3. Sign in with a Moonfin app. It finds Moonbase on its own.",
+    "setup_markdown": "1. Install the plugin from a file.\n2. Set it up on the **Moonbase** page, in the menu at the top right of this page and under Plugin Apps.\n3. Sign in with a Moonfin app. It finds Moonbase on its own.",
     "homepage_url": "https://moonfin.io",
     "source_url": "https://github.com/Moonfin-Client/Plugin",
     "support_url": "https://github.com/Moonfin-Client/Plugin/issues",
