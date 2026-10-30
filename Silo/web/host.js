@@ -469,6 +469,10 @@
             } catch (e) { /* the page opens on its first tab */ }
         });
 
+        // Requests on Silo don't go through Moonbase, so they don't rely on sync.
+        root.querySelectorAll('.moonfinChip').forEach(function (chip) {
+            if (chip.textContent.trim() === 'Seerr requests') chip.classList.add('moonbaseHidden');
+        });
         root.querySelectorAll('.moonfinNavSub').forEach(function (sub) {
             sub.textContent = sub.textContent.replace('Seerr, ', '');
         });
