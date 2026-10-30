@@ -648,3 +648,42 @@ func TestThemes(t *testing.T) {
 		t.Fatal("deleting a missing theme must answer 404")
 	}
 }
+
+func TestCollectionOrderIsKeptPerUser(t *testing.T) {
+	kv := store.NewMemKV()
+	s := NewServer("1", testHost(kv))
+	order := func(c caller) []string {
+		var ids []string
+		if err := json.Unmarshal(readAll(t, serve(context.Background(), s, c, "GET", "/Moonfin/Collections/42/Order", "", nil)), &ids); err != nil {
+			t.Fatal(err)
+		}
+		return ids
+	}
+	if got := order(userMain); got == nil || len(got) != 0 {
+		t.Fatalf("no order yet must be an empty list, got %#v", got)
+	}
+	if code, _ := call(t, s, userMain, "POST", "/Moonfin/Collections/42/Order", `[" b ","a","b","",""]`, nil); code != 204 {
+		t.Fatalf("save = %d", code)
+	}
+	if got := order(userMain); !reflect.DeepEqual(got, []string{"b", "a"}) {
+		t.Fatalf("order = %v, want blanks and repeats dropped", got)
+	}
+	if got := order(userKids); len(got) != 0 {
+		t.Fatalf("another profile sees %v", got)
+	}
+	if code, _ := call(t, s, userMain, "POST", "/Moonfin/Collections/42/Order", `[]`, nil); code != 204 || len(order(userMain)) != 0 {
+		t.Fatal("an empty list must clear the order")
+	}
+	if code, _ := call(t, s, userKids, "POST", "/Moonfin/Collections/7/Order", `[]`, nil); code != 204 {
+		t.Fatal("clearing nothing must still succeed")
+	}
+	if _, found, _ := kv.Get(context.Background(), "o/"+settingsKey(Identity{UserID: 3, ProfileID: "31"})+"/7"); found {
+		t.Fatal("clearing an order that was never saved must not use a key")
+	}
+	if code, _ := call(t, s, userMain, "POST", "/Moonfin/Collections/日本/Order", `["x"]`, nil); code != 400 {
+		t.Fatal("an id with no ASCII letters or digits must be refused")
+	}
+	if code, _ := call(t, s, anon, "GET", "/Moonfin/Collections/42/Order", "", nil); code != 401 {
+		t.Fatal("orders need a signed-in caller")
+	}
+}

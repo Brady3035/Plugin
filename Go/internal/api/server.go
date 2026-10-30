@@ -65,6 +65,7 @@ func (s *Server) routes() {
 	s.messageRoutes()
 	s.adminRoutes()
 	s.themeRoutes()
+	s.collectionRoutes()
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
