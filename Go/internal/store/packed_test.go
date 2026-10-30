@@ -156,3 +156,34 @@ func TestPackedManyAtOnce(t *testing.T) {
 		t.Fatal("the other write must still go through")
 	}
 }
+
+// failOn refuses to write one key.
+type failOn struct {
+	KV
+	key string
+}
+
+func (f failOn) Put(ctx context.Context, key string, value []byte) error {
+	if key == f.key {
+		return fmt.Errorf("refused %s", key)
+	}
+	return f.KV.Put(ctx, key, value)
+}
+
+// A value whose old unpacked key can't be cleared is still written: the
+// error says so, and the key isn't listed as unwritten.
+func TestPackedReportsOldKeyLeftBehind(t *testing.T) {
+	ctx := context.Background()
+	mem := NewMemKV()
+	_ = mem.Put(ctx, "p/old", []byte(`{"v":0}`))
+	p := &Packed{KV: failOn{KV: mem, key: "p/old"}, Pack: packAll}
+	failed, err := PutMany(ctx, p, map[string][]byte{"p/old": []byte(`{"v":1}`), "p/new": []byte(`{"v":2}`)})
+	if err == nil || len(failed) != 0 {
+		t.Fatalf("want the cleanup error and nothing unwritten: %v %v", failed, err)
+	}
+	for key, want := range map[string]string{"p/old": `{"v":1}`, "p/new": `{"v":2}`} {
+		if got, _, _ := p.Get(ctx, key); string(got) != want {
+			t.Fatalf("%s = %s, want %s", key, got, want)
+		}
+	}
+}

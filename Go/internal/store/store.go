@@ -210,6 +210,11 @@ func (p *Packed) putMany(ctx context.Context, values map[string][]byte) ([]strin
 	for bucket, keys := range byBucket {
 		if err := p.writeBucket(ctx, bucket, keys, values); err != nil {
 			fail(err, keys...)
+			continue
+		}
+		// The values are saved even if an old key stays behind.
+		if err := p.clearOldKeys(ctx, keys); err != nil && first == nil {
+			first = err
 		}
 	}
 	return failed, first
@@ -240,21 +245,25 @@ func (p *Packed) writeBucket(ctx context.Context, bucket string, keys []string, 
 	if buf.Len() > MaxValueBytes {
 		return fmt.Errorf("%s would be %d bytes, limit %d", bucket, buf.Len(), MaxValueBytes)
 	}
-	if err := p.KV.Put(ctx, bucket, buf.Bytes()); err != nil {
-		return err
-	}
-	// A value from before packing would otherwise come back once this one is
-	// deleted. Writing an existing key never needs a free one.
+	return p.KV.Put(ctx, bucket, buf.Bytes())
+}
+
+// clearOldKeys empties keys' values from before packing, which would
+// otherwise come back once the packed ones are deleted. Writing an existing
+// key never needs a free one. A key it can't clear is tried again on the
+// value's next write.
+func (p *Packed) clearOldKeys(ctx context.Context, keys []string) error {
+	var errs []error
 	for _, key := range keys {
-		if old, found, err := p.KV.Get(ctx, key); err != nil {
-			return err
-		} else if found && len(old) > 0 {
-			if err := p.KV.Put(ctx, key, nil); err != nil {
-				return err
-			}
+		old, found, err := p.KV.Get(ctx, key)
+		if err == nil && found && len(old) > 0 {
+			err = p.KV.Put(ctx, key, nil)
+		}
+		if err != nil {
+			errs = append(errs, fmt.Errorf("clear old %s: %w", key, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // GetMany reads keys from kv, leaving out those not found. A Packed reads
@@ -279,7 +288,8 @@ func GetMany(ctx context.Context, kv KV, keys []string) (map[string][]byte, erro
 // PutMany writes values to kv, an empty value deleting its key. A Packed
 // reads and writes each bucket once rather than once per key. It carries on
 // past a failed write and returns the keys it didn't write and the first
-// error.
+// error. The error can also be about a written value's old unpacked key,
+// which wasn't cleared; that key isn't in the list.
 func PutMany(ctx context.Context, kv KV, values map[string][]byte) ([]string, error) {
 	if p, ok := kv.(*Packed); ok {
 		return p.putMany(ctx, values)
