@@ -129,7 +129,11 @@
         // Silo doesn't tell plugins about its accounts, so this lists the
         // ones that have used Moonfin with this server.
         getUsers: function () {
-            return this.getJSON(getUrl('Moonfin/Admin/Users'));
+            return this.getJSON(getUrl('Moonfin/Admin/Users')).then(function (users) {
+                // After the page has filled its single-user list from them.
+                setTimeout(function () { addProfileOptions(users); });
+                return users;
+            });
         },
         getUserViews: function () {
             return this.getJSON(getUrl('Moonfin/Silo/Whoami')).then(function (who) {
@@ -588,8 +592,33 @@
         bindRemoveUserData();
     });
 
-    // Moonbase on Silo only: removes the stored settings of the account
-    // picked in the page's single-user list.
+    // Moonbase on Silo only: the single-user list also offers each of an
+    // account's profiles, under the account. Picking the account still means
+    // all of its profiles. The option shows the indented label, and its text
+    // names the account too, for the page's messages.
+    function addProfileOptions(users) {
+        var select = document.getElementById('SingleUserSelect');
+        if (!select) return;
+        var current = select.value;
+        select.querySelectorAll('option[data-profile]').forEach(function (o) { o.remove(); });
+        (users || []).forEach(function (user) {
+            var after = Array.prototype.find.call(select.options, function (o) { return o.value === user.Id; });
+            (user.Profiles || []).forEach(function (profile) {
+                if (!after) return;
+                var option = document.createElement('option');
+                option.value = profile.Id;
+                option.dataset.profile = 'true';
+                option.label = '\u00a0\u00a0\u00a0\u00a0\u21b3 ' + profile.Name;
+                option.textContent = user.Name + ' \u203a ' + profile.Name;
+                after.after(option);
+                after = option;
+            });
+        });
+        if (current) select.value = current;
+    }
+
+    // Moonbase on Silo only: removes the stored settings of the account, or
+    // the one profile, picked in the page's single-user list.
     function bindRemoveUserData() {
         var select = document.getElementById('SingleUserSelect');
         var after = document.getElementById('ApplySingleUserResult');
@@ -597,7 +626,7 @@
         var help = document.createElement('div');
         help.className = 'fieldDescription';
         help.style.margin = '1.6em 0 0.4em';
-        help.textContent = 'Or remove everything Moonbase keeps for the selected user, on every profile. Use it for an account deleted from Silo, since Silo doesn’t tell Moonbase about that. If the user signs in again, they start from the defaults.';
+        help.textContent = 'Or remove everything Moonbase keeps for the selected user, on every profile, or for just the selected profile. Use it for an account or profile deleted from Silo, since Silo doesn’t tell Moonbase about that. If they sign in again, they start from the defaults.';
         var button = document.createElement('button');
         button.type = 'button';
         button.className = 'raised emby-button';
@@ -618,10 +647,14 @@
                 return;
             }
             var name = option.textContent;
-            if (!window.confirm('Remove all Moonbase data for ' + name + '?\n\nThis permanently erases their synced settings on every profile.')) return;
+            var target = select.value;
+            var oneProfile = !!option.dataset.profile;
+            if (!window.confirm('Remove all Moonbase data for ' + name + '?\n\nThis permanently erases their synced settings ' + (oneProfile ? 'on this profile.' : 'on every profile.'))) return;
             button.disabled = true;
-            send('DELETE', getUrl('Moonfin/Admin/Users/' + encodeURIComponent(select.value))).then(json).then(function (body) {
-                option.remove();
+            send('DELETE', getUrl('Moonfin/Admin/Users/' + encodeURIComponent(target))).then(json).then(function (body) {
+                Array.prototype.slice.call(select.options).forEach(function (o) {
+                    if (o.value === target || (!oneProfile && o.value.indexOf(target + '~') === 0)) o.remove();
+                });
                 show('Removed ' + name + ' (' + body.profilesRemoved + ' profile' + (body.profilesRemoved === 1 ? '' : 's') + ').');
             }, function (error) {
                 show('Silo didn’t remove the data' + (error && error.status ? ' (status ' + error.status + ').' : '.'), true);

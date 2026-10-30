@@ -247,11 +247,12 @@ func nonNil(m M) M {
 }
 
 // handleDeleteUser removes every profile's settings that a Silo account has
-// stored, for an account that was deleted from Silo or wants a fresh start.
-// Silo doesn't tell plugins when an account goes, so the admin does this.
+// stored, or one profile's, for an account that was deleted from Silo or
+// wants a fresh start. Silo doesn't tell plugins when an account goes, so
+// the admin does this.
 func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
-	userID, err := strconv.Atoi(r.PathValue("userId"))
-	if err != nil || userID <= 0 {
+	userID, profile, ok := adminTarget(r.PathValue("userId"))
+	if !ok {
 		writeJSON(w, http.StatusBadRequest, M{"error": "A valid userId is required"})
 		return
 	}
@@ -266,7 +267,7 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	kept := index[:0:0]
 	removed := 0
 	for _, e := range index {
-		if e.UserID != userID {
+		if !e.isTarget(userID, profile) {
 			kept = append(kept, e)
 			continue
 		}
@@ -287,6 +288,8 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 // handleAdminUsers lists, in the shape Jellyfin's /Users has, the Silo
 // accounts that have synced settings. Silo doesn't let plugins list accounts.
+// Profiles, which Jellyfin doesn't have, lists each account's profiles with
+// the ids the admin routes take for one of them.
 func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	var index []indexEntry
 	if _, err := s.loadJSON(r.Context(), keyIndex, &index); err != nil {
@@ -294,17 +297,20 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	users := []M{}
-	seen := map[int]bool{}
+	byID := map[int]M{}
 	for _, e := range index {
-		if seen[e.UserID] {
-			continue
+		id := strconv.Itoa(e.UserID)
+		user := byID[e.UserID]
+		if user == nil {
+			name := e.UserName
+			if name == "" {
+				name = "Account " + id
+			}
+			user = M{"Id": id, "Name": name, "Policy": M{"IsAdministrator": e.Admin}, "Profiles": []M{}}
+			byID[e.UserID] = user
+			users = append(users, user)
 		}
-		seen[e.UserID] = true
-		name := e.UserName
-		if name == "" {
-			name = "Account " + strconv.Itoa(e.UserID)
-		}
-		users = append(users, M{"Id": strconv.Itoa(e.UserID), "Name": name, "Policy": M{"IsAdministrator": e.Admin}})
+		user["Profiles"] = append(user["Profiles"].([]M), M{"Id": id + "~" + e.profileKey(), "Name": e.Profile})
 	}
 	writeJSON(w, http.StatusOK, users)
 }
