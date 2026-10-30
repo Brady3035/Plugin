@@ -31,11 +31,12 @@ The rest needs things Silo's plugin API doesn't offer. See Known limits below.
 
 ### Install
 
-1. Download `Moonbase.Silo-<version>-linux-amd64` (or `-linux-arm64`) from the release, and check it against `SHA256SUMS`.
-2. In Silo's admin pages, open Plugins and install it from a file. Silo runs the file once with `manifest` to read it, then starts it.
+1. In Silo's admin pages, open Plugins, go to the **Catalog** tab and add a repository with this address:
+   `https://github.com/Moonfin-Client/Plugin/releases/download/moonbase-silo-catalog/index.json`
+2. Install **Moonbase** from the catalog. Silo updates it when a new version comes out.
 3. Set it up on the **Moonbase** page, see Settings below.
 
-The same upload works from a shell with an admin token:
+To install by hand instead, download `Moonbase.Silo-<version>-linux-amd64` (or `-linux-arm64`) from the release, check it against `SHA256SUMS`, and upload it on the same tab. Silo runs the file once with `manifest` to read it, then starts it. The upload also works from a shell with an admin token:
 
 ```sh
 curl -X POST "$SILO/api/v2/admin/plugins/uploads" \
@@ -97,13 +98,34 @@ Moonbase for Plex runs as its own service next to Plex Media Server. It checks e
 
 ### Run it
 
+Run it with Docker on the machine that runs Plex, or any machine that can reach it:
+
 ```sh
 docker run -d --name moonbase-plex --restart unless-stopped \
   -p 32500:32500 \
   -e PLEX_URL=http://192.168.1.10:32400 \
   -v moonbase-plex:/config \
-  moonbase-plex:<version>
+  ghcr.io/moonfin-client/moonbase-plex:latest
 ```
+
+Or with Docker Compose:
+
+```yaml
+services:
+  moonbase-plex:
+    image: ghcr.io/moonfin-client/moonbase-plex:latest
+    restart: unless-stopped
+    ports:
+      - "32500:32500"
+    environment:
+      PLEX_URL: http://192.168.1.10:32400
+    volumes:
+      - moonbase-plex:/config
+volumes:
+  moonbase-plex:
+```
+
+The image is built for amd64 and arm64, so it runs on most NAS boxes and on a Raspberry Pi 4 or newer. On Unraid, TrueNAS or Synology, add it as a container from that image with the same port, variable and volume.
 
 | Variable | Default | |
 |---|---|---|
@@ -146,6 +168,17 @@ make silo-index BASE_URL=<download address>   # dist/index.json, the catalog Sil
 make plex-image   # the moonbase-plex:<version> image (DOCKER=podman works too)
 ```
 
-`cmd/silo/manifest.json` holds the version for both. `./dist/Moonbase.Silo-<version>-linux-amd64 manifest` prints the manifest the way Silo reads it at install.
+`cmd/silo/manifest.json` holds the version for local builds. `./dist/Moonbase.Silo-<version>-linux-amd64 manifest` prints the manifest the way Silo reads it at install.
+
+### Releasing
+
+Push a tag named `moonbase-go-v<version>`, for example `moonbase-go-v0.7.0`. The release workflow then:
+
+- builds and tests both backends at that version
+- publishes `Moonbase.Silo-<version>-linux-{amd64,arm64}`, `SHA256SUMS` and the catalog on a GitHub release of the same name
+- replaces `index.json` on the `moonbase-silo-catalog` release, so Silo servers that added the catalog see the update
+- pushes `ghcr.io/moonfin-client/moonbase-plex:<version>` and `:latest` for amd64 and arm64
+
+None of these become the repository's latest release, which stays the Jellyfin plugin's. After the first release, make the `moonbase-plex` package public under the organization's Packages settings, or `docker pull` asks people to sign in.
 
 To pick up a newer Jellyfin admin page, copy `Jellyfin/backend/Pages/configPage.html` over `web/configPage.html` unchanged. If it calls a Jellyfin dashboard function or `ApiClient` method that `web/host.js` doesn't have yet, add it there.
