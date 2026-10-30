@@ -390,3 +390,8 @@ h2.sectionTitle {
     opacity: 1;
     transform: none;
 }
+
+/* Parts of the Jellyfin page for features Silo doesn't have. */
+.moonbaseHidden {
+    display: none !important;
+}

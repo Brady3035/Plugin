@@ -741,6 +741,10 @@
                             <span class="material-icons moonfinNavIcon" aria-hidden="true">sports_esports</span>
                             <span class="moonfinNavText"><span class="moonfinNavLabel">Games</span><span class="moonfinNavSub">Retro / EmulatorJS</span></span>
                         </button>
+                        <button type="button" class="moonfinNavItem" data-tab="livetv">
+                            <span class="material-icons moonfinNavIcon" aria-hidden="true">live_tv</span>
+                            <span class="moonfinNavText"><span class="moonfinNavLabel">Live TV</span><span class="moonfinNavSub">Recordings</span></span>
+                        </button>
                         <button type="button" class="moonfinNavItem" data-tab="defaults">
                             <span class="material-icons moonfinNavIcon" aria-hidden="true">tune</span>
                             <span class="moonfinNavText"><span class="moonfinNavLabel">User defaults</span><span class="moonfinNavSub">Force client settings</span></span>
@@ -752,6 +756,10 @@
                         <button type="button" class="moonfinNavItem" data-tab="messages">
                             <span class="material-icons moonfinNavIcon" aria-hidden="true">notifications</span>
                             <span class="moonfinNavText"><span class="moonfinNavLabel">Messages</span><span class="moonfinNavSub">News for your users</span></span>
+                        </button>
+                        <button type="button" class="moonfinNavItem" data-tab="accounts">
+                            <span class="material-icons moonfinNavIcon" aria-hidden="true">family_restroom</span>
+                            <span class="moonfinNavText"><span class="moonfinNavLabel">Accounts</span><span class="moonfinNavSub">Server PINs</span></span>
                         </button>
                         <button type="button" class="moonfinNavItem" data-tab="actions">
                             <span class="material-icons moonfinNavIcon" aria-hidden="true">campaign</span>
@@ -1321,6 +1329,40 @@
                                 auto-detected.
                             </div>
                         </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="GamesRommUrl">RomM server</label>
+                            <input type="url" id="GamesRommUrl" is="emby-input" placeholder="http://192.168.1.20:8080" />
+                            <div class="fieldDescription">
+                                Play the games on a <a href="https://romm.app" target="_blank">RomM</a> server through one
+                                of your libraries. Jellyfin talks to RomM for the apps, so RomM only has to be reachable
+                                from this server, and the RomM token never leaves it. Leave this empty to turn RomM off.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="GamesRommToken">RomM client token</label>
+                            <input type="password" id="GamesRommToken" is="emby-input" placeholder="rmm_..." autocomplete="off" />
+                            <div class="fieldDescription">
+                                Create one in RomM's web interface under your profile's client tokens, with the
+                                <code>roms.read</code>, <code>platforms.read</code> and <code>firmware.read</code> scopes.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="GamesRommLibraryId">Library for RomM games</label>
+                            <select is="emby-select" id="GamesRommLibraryId">
+                                <option value="">None</option>
+                            </select>
+                            <div class="fieldDescription">
+                                The library whose games come from RomM instead of its folders. Any library works, so you
+                                can add a Mixed Content library pointed at an empty folder just for RomM. Jellyfin's
+                                library access settings decide who sees it.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                                <button type="button" id="GamesRommTestBtn" is="emby-button" class="raised">Test RomM connection</button>
+                                <span id="GamesRommStatus" style="font-size:0.9em;color:rgba(255,255,255,0.7);"></span>
+                            </div>
+                        </div>
                         <div class="fieldDescription">
                             Box art is fetched automatically from the keyless
                             <a href="https://thumbnails.libretro.com/" target="_blank">libretro thumbnail server</a>
@@ -1341,6 +1383,45 @@
                     </div>
 
                     </section>
+                    <section class="moonfinTabPanel" data-tab="livetv">
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Live TV Recordings</h3>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" id="LiveTvDetectIncompleteRecordings" is="emby-checkbox" />
+                                <span>Detect incomplete recordings</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Watches recordings as they run and tags the ones that come out short, so Moonfin can show them as Incomplete.
+                            </div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" id="LiveTvAutoRecordCompleteShowing" is="emby-checkbox" />
+                                <span>Re-record incomplete episodes and movies</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Schedules the next showing of an episode or movie that recorded short. Movies must have matching titles and descriptions.
+                            </div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" id="LiveTvDeleteIncompleteCopies" is="emby-checkbox" />
+                                <span>Delete incomplete copies</span>
+                            </label>
+                            <div class="fieldDescription">
+                                When an episode records complete, deletes the copies of it marked Incomplete, the same as deleting them yourself. Copies kept as complete stay.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="LiveTvIncompleteThresholdPercent">Incomplete threshold (%)</label>
+                            <input type="number" id="LiveTvIncompleteThresholdPercent" is="emby-input" min="50" max="100" step="1" />
+                            <div class="fieldDescription">
+                                Recordings shorter than this share of their scheduled time are incomplete. Default 90.
+                            </div>
+                        </div>
+                    </div>
+                    </section>
                     <section class="moonfinTabPanel" data-tab="defaults">
                     <div class="verticalSection">
                         <h3 class="sectionTitle">Default User Settings</h3>
@@ -1351,18 +1432,7 @@
 
                         <div style="background-color: rgba(0, 164, 220, 0.1); border: 1px solid rgba(0, 164, 220, 0.3); border-radius: 10px; padding: 0.8em 1.2em; margin-bottom: 1.2em; font-size: 0.9em;">
                             <strong>How it works:</strong> These are the lowest-priority fallback. Resolution order:
-                            User's device profile &rarr; User's global settings &rarr; <strong>Your defaults for that device</strong> &rarr; <strong>Your defaults for all devices</strong> &rarr; Built-in defaults.
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="DefaultsLayer">Defaults For</label>
-                            <select id="DefaultsLayer" is="emby-select">
-                                <option value="global">All devices</option>
-                                <option value="desktop">Desktop</option>
-                                <option value="mobile">Mobile</option>
-                                <option value="tv">TV</option>
-                            </select>
-                            <div class="fieldDescription">A device starts out showing your all-devices values. Anything you change there applies to that device only; set it back to the all-devices value, or to Not set, to follow all devices again. Save stores every device.</div>
+                            User's device profile &rarr; User's global settings &rarr; <strong>These admin defaults</strong> &rarr; Built-in defaults.
                         </div>
 
                         <div style="background-color: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 10px; padding: 0.8em 1.2em; margin-bottom: 1.2em; font-size: 0.9em;">
@@ -1423,6 +1493,17 @@
                                     <option value="false">No</option>
                                 </select>
                                 <div class="fieldDescription">Ask before the back button leaves the app.</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultKeyboardStyle">Keyboard style (TV clients only)</label>
+                                <select id="DefaultKeyboardStyle" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="native">Native</option>
+                                    <option value="classic">Classic</option>
+                                    <option value="glass">Glass</option>
+                                    <option value="docked">Docked</option>
+                                </select>
+                                <div class="fieldDescription">Native uses the TV's own keyboard, the others are Moonfin's on-screen keyboard. Keep Not set to let users choose.</div>
                             </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultUpdateNotificationsEnabled">Update Notifications</label>
@@ -1561,6 +1642,7 @@
                                     <option value="true">Yes</option>
                                     <option value="false">No</option>
                                 </select>
+                                <div class="fieldDescription">Only shows while SyncPlay is on under Playback.</div>
                             </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultEnableFolderView">Enable Folder View</label>
@@ -1622,9 +1704,8 @@
                                     <option value="neonPulse">Neon Pulse</option>
                                     <option value="glass">Glass</option>
                                     <option value="eightbitHero">8-bit Hero</option>
-                                    <optgroup id="DefaultVisualThemeUploaded" label="Uploaded"></optgroup>
                                 </select>
-                                <div class="fieldDescription">Default overall app style. Themes uploaded on the Themes tab are listed too. Keep Not set to let users choose.</div>
+                                <div class="fieldDescription">Default overall app style. Keep Not set to let users choose.</div>
                             </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultFocusColor">Focus Border Color</label>
@@ -1911,6 +1992,15 @@
                                     <option value="false">No</option>
                                 </select>
                                 <div class="fieldDescription">Combine Continue Watching and Next Up into a single home row by default.</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultContinueWatchingDefaultAction">Default Action</label>
+                                <select id="DefaultContinueWatchingDefaultAction" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="details">Go to Details screen</option>
+                                    <option value="play">Play immediately</option>
+                                </select>
+                                <div class="fieldDescription">What selecting a Continue Watching or Next Up item does</div>
                             </div>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultNextUpMaxDays">Max days in Next Up</label>
@@ -2796,6 +2886,14 @@
                                     The discovery tab in book and audiobook libraries, which browses titles from Open Library and LibriVox. This is the default only. A user can still turn it back on for themselves.
                                 </div>
                             </div>
+                            <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Library Visibility</h4>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused">Hidden libraries</label>
+                                <div id="DefaultHiddenLibraryPicker" style="max-height:200px;overflow-y:auto;border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:4px;"></div>
+                                <div class="fieldDescription">
+                                    Hidden from the home screen for new users, the same as switching them off in Library Visibility. Jellyfin's own home screen hides them too. Users keep access and can show them again. To hide them for existing users, Save and then use Apply Defaults To All Users Now on the Actions tab.
+                                </div>
+                            </div>
                             <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Library Pages</h4>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultLibraryStyle">Video library style</label>
@@ -3365,6 +3463,15 @@
                                     <option value="false">No</option>
                                 </select>
                             </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultCinemaModeSkipEnabled">Cinema Mode Skip Button</label>
+                                <select id="DefaultCinemaModeSkipEnabled" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <div class="fieldDescription">Show a Skip button during Cinema Mode trailers, commercials, and other pre-rolls.</div>
+                            </div>
                             <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">Autoplay</h4>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="DefaultAutoplayNextEpisode">Autoplay Next Episode</label>
@@ -3404,6 +3511,16 @@
                                     <option value="long_">After 5 episodes</option>
                                     <option value="veryLong">After 8 episodes</option>
                                 </select>
+                            </div>
+                            <h4 style="margin: 1.5em 0 0.5em; font-size: 0.95em; color: #00a4dc;">SyncPlay</h4>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="DefaultSyncPlayEnabled">Enable SyncPlay</label>
+                                <select id="DefaultSyncPlayEnabled" is="emby-select">
+                                    <option value="">Not set (user decides)</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <div class="fieldDescription">Group watching. The SyncPlay button under Navigation only shows while this is on.</div>
                             </div>
                         </div>
 
@@ -3582,6 +3699,20 @@
                             Shown in this order in the app. Up to 50 are kept, then the oldest are dropped.
                         </div>
                         <div id="MessagesList" style="max-height:340px;overflow-y:auto;border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:6px;"></div>
+                    </div>
+
+                    </section>
+                    <section class="moonfinTabPanel" data-tab="accounts">
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">PINs</h3>
+                        <div class="fieldDescription" style="margin-bottom: 0.8em;">
+                            A PIN kept here applies on every device, so a PIN set once holds on each new TV. An app
+                            that supports it asks for the PIN from this server and falls back to the PIN stored on the
+                            device otherwise. A PIN is exactly four digits. After too many wrong guesses the server makes
+                            the user wait. Setting a PIN here replaces any existing one, so it also resets a forgotten PIN.
+                        </div>
+                        <div id="AdminPinList"></div>
+                        <div id="AdminPinResult" class="fieldDescription" style="display:none; margin-top:0.8em;"></div>
                     </div>
 
                     </section>
@@ -4108,10 +4239,11 @@
                 { parent: 'DefaultEnableRadarrCalendar', fields: ['DefaultRadarrCalendarShowCinema', 'DefaultRadarrCalendarShowDigital', 'DefaultRadarrCalendarShowPhysical', 'DefaultRadarrCalendarShowDate', 'DefaultMergeRadarrSonarrCalendars'] },
                 { parent: 'DefaultEnableSonarrCalendar', fields: ['DefaultSonarrCalendarShowDate', 'DefaultSonarrCalendarShowEpisodeInfo', 'DefaultMergeRadarrSonarrCalendars'] },
                 { parent: 'MdblistOfficialListsEnabled', fields: ['MdblistOfficialListsMaxItems'] },
+                { parent: 'LiveTvDetectIncompleteRecordings', fields: ['LiveTvAutoRecordCompleteShowing', 'LiveTvDeleteIncompleteCopies', 'LiveTvIncompleteThresholdPercent'] },
                 { parent: 'AnimeMarkersEnabled', fields: ['AnimeMarkerRecapLookup', 'AnimeMarkerShowFiller', 'AnimeMarkerMaxAgeDays'] },
                 { parent: 'AnimeAudioMarkersEnabled', fields: ['AnimeAudioMarkersMovies', 'AnimeAudioSeparateDualAudio'] },
                 { parent: ['AnimeMarkersEnabled', 'AnimeAudioMarkersEnabled'], fields: ['AnimeMarkerLibraryPicker', 'AnimeAudioTrustSelectedLibraries', 'AnimeMarkerPlacement', 'AnimeMarkerDiagBtn', 'AnimeMarkerPreviewName', 'AnimeMarkerVerboseLogging', 'AnimeMarkerLogBtn'] },
-                { parent: 'GamesEnabled', fields: ['GameCoresStatus', 'GameCoresFile', 'GameLibraryPicker'] },
+                { parent: 'GamesEnabled', fields: ['GameCoresStatus', 'GameCoresFile', 'GameLibraryPicker', 'GamesRommUrl', 'GamesRommToken', 'GamesRommLibraryId', 'GamesRommTestBtn'] },
                 { parent: 'DefaultNavbarPosition', off: ['top', 'left'], fields: ['DefaultBottomNavbarStyle', 'DefaultBottomNavbarTab1'] },
                 { parent: 'DefaultNavbarPosition', off: ['bottom'], fields: ['DefaultNavbarAlwaysExpanded'] },
                 { parent: 'DefaultShowShuffleButton', fields: ['DefaultShuffleContentType'] },
@@ -4798,6 +4930,7 @@
                 { id: 'extras', label: 'Extras' },
                 { id: 'collections', label: 'Collections' },
                 { id: 'moreLikeThis', label: 'More Like This' },
+                { id: 'reviews', label: 'Reviews' },
                 { id: 'moreEpisodes', label: 'More episodes' },
                 { id: 'mediaInfo', label: 'Media info' },
                 { id: 'seerrGenresTags', label: 'Seerr: Genres & tags' },
@@ -5899,36 +6032,7 @@
                 return [];
             }
 
-            // Uploaded themes go in the App Theme default as "custom:<id>",
-            // which saves as customThemeId instead of visualTheme.
-            function fillDefaultThemeOptions(items) {
-                var group = document.querySelector('#DefaultVisualThemeUploaded');
-                if (!group) {
-                    return;
-                }
-
-                var select = group.parentNode;
-                var current = select.value;
-                group.innerHTML = '';
-                (items || []).forEach(function(item) {
-                    var id = item.id || item.Id || '';
-                    if (!id) return;
-                    var option = document.createElement('option');
-                    option.value = 'custom:' + id;
-                    option.textContent = item.displayName || item.DisplayName || id;
-                    group.appendChild(option);
-                });
-                group.hidden = group.children.length === 0;
-
-                // The config may have loaded first and put in a placeholder.
-                Array.prototype.slice.call(select.querySelectorAll('option[data-dynamic-option]')).forEach(function(option) {
-                    if (option.value === current) option.remove();
-                });
-                setSelectValue('#DefaultVisualTheme', current, 'Configured theme');
-            }
-
             function renderAdminThemesList(items) {
-                fillDefaultThemeOptions(items);
                 var container = document.querySelector('#AdminThemesList');
                 if (!container) {
                     return;
@@ -6172,6 +6276,109 @@
                         option.textContent = user.Name;
                         select.appendChild(option);
                     });
+                });
+            }
+
+            function loadAdminPins() {
+                var list = document.querySelector('#AdminPinList');
+                if (!list) {
+                    return Promise.resolve();
+                }
+
+                var result = document.querySelector('#AdminPinResult');
+                function say(text, isError) {
+                    result.style.display = text ? '' : 'none';
+                    result.textContent = text || '';
+                    result.style.color = isError ? '#ff6b6b' : '';
+                }
+
+                function send(type, id, body) {
+                    return ApiClient.ajax({
+                        type: type,
+                        url: ApiClient.getUrl('Moonfin/Users/' + id + '/Pin'),
+                        data: body ? JSON.stringify(body) : undefined,
+                        contentType: 'application/json',
+                        dataType: 'json'
+                    });
+                }
+
+                return ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('Moonfin/Admin/Pins'),
+                    dataType: 'json'
+                }).then(function(users) {
+                    list.innerHTML = '';
+                    (users || []).forEach(function(user) {
+                        var row = document.createElement('div');
+                        row.style.margin = '0 0 1.2em';
+
+                        var title = document.createElement('div');
+                        title.style.fontWeight = '600';
+                        row.appendChild(title);
+
+                        var input = document.createElement('input');
+                        input.type = 'password';
+                        input.maxLength = 4;
+                        input.setAttribute('inputmode', 'numeric');
+                        input.setAttribute('autocomplete', 'off');
+                        input.placeholder = '4 digits';
+                        input.style.width = '6em';
+                        input.style.marginRight = '0.6em';
+                        row.appendChild(input);
+
+                        var setBtn = document.createElement('button');
+                        setBtn.type = 'button';
+                        setBtn.setAttribute('is', 'emby-button');
+                        setBtn.className = 'raised';
+                        setBtn.style.marginRight = '0.6em';
+                        row.appendChild(setBtn);
+
+                        var removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.setAttribute('is', 'emby-button');
+                        removeBtn.className = 'raised';
+                        removeBtn.textContent = 'Remove PIN';
+                        row.appendChild(removeBtn);
+
+                        function show(hasPin) {
+                            title.textContent = user.name + (user.isAdministrator ? ' (administrator)' : '') + ': ' + (hasPin ? 'PIN set' : 'no PIN');
+                            setBtn.textContent = hasPin ? 'Change PIN' : 'Set PIN';
+                            removeBtn.style.display = hasPin ? '' : 'none';
+                        }
+
+                        function done(promise, message, hasPin) {
+                            setBtn.disabled = true;
+                            removeBtn.disabled = true;
+                            return promise.then(function() {
+                                input.value = '';
+                                show(hasPin);
+                                say(message, false);
+                            }, function() {
+                                say('Couldn\'t save the PIN for ' + user.name + '.', true);
+                            }).then(function() {
+                                setBtn.disabled = false;
+                                removeBtn.disabled = false;
+                            });
+                        }
+
+                        setBtn.addEventListener('click', function() {
+                            if (!/^[0-9]{4}$/.test(input.value)) {
+                                say('A PIN is exactly four digits.', true);
+                                return;
+                            }
+                            done(send('PUT', user.id, { pin: input.value }), 'Saved the PIN for ' + user.name + '.', true);
+                        });
+
+                        removeBtn.addEventListener('click', function() {
+                            done(send('DELETE', user.id), 'Removed the PIN for ' + user.name + '.', false);
+                        });
+
+                        show(user.hasPin);
+                        list.appendChild(row);
+                    });
+                    say('', false);
+                }, function() {
+                    say('Couldn\'t load the users.', true);
                 });
             }
 
@@ -6816,6 +7023,7 @@
                     resetMessageForm();
                     loadMessagesList();
                 });
+                loadAdminPins();
 
                 loadConfigBackupStatus();
 
@@ -6840,6 +7048,10 @@
                     document.querySelector('#RecommendationsProviderEnabled').checked = config.RecommendationsProviderEnabled !== false;
                     document.querySelector('#StudioLogosEnabled').checked = config.StudioLogosEnabled !== false;
                     document.querySelector('#StudioLogosMaxAgeDays').value = config.StudioLogosMaxAgeDays || 30;
+                    document.querySelector('#LiveTvDetectIncompleteRecordings').checked = config.LiveTvDetectIncompleteRecordings !== false;
+                    document.querySelector('#LiveTvAutoRecordCompleteShowing').checked = config.LiveTvAutoRecordCompleteShowing === true;
+                    document.querySelector('#LiveTvIncompleteThresholdPercent').value = config.LiveTvIncompleteThresholdPercent || 90;
+                    document.querySelector('#LiveTvDeleteIncompleteCopies').checked = config.LiveTvDeleteIncompleteCopies === true;
                     document.querySelector('#AnimeMarkersEnabled').checked = config.AnimeMarkersEnabled === true;
                     document.querySelector('#AnimeMarkerRecapLookup').checked = config.AnimeMarkerRecapLookup !== false;
                     document.querySelector('#AnimeAudioMarkersEnabled').checked = config.AnimeAudioMarkersEnabled === true;
@@ -6859,26 +7071,20 @@
                     document.querySelector('#WebForcedServerUrl').value = config.WebForcedServerUrl || '';
                     document.querySelector('#WebEnableWebRtcScan').checked = config.WebEnableWebRtcScan !== false;
 
+                    loadLibraryPicker('#DefaultHiddenLibraryPicker', 'defaultHiddenLibraryCb', config.DefaultHiddenLibraryIds || []);
+
                     document.querySelector('#GamesEnabled').checked = config.GamesEnabled === true;
                     document.querySelector('#GamesIsolateWebApp').checked = config.GamesIsolateWebApp === true;
                     loadGameLibraryPicker(config.GameLibraryIds || []);
                     initGameCores();
+                    document.querySelector('#GamesRommUrl').value = config.GamesRommUrl || '';
+                    document.querySelector('#GamesRommToken').value = config.GamesRommToken || '';
+                    loadRommLibraryPicker(config.GamesRommLibraryId || '');
+                    initRommTest();
 
-                    var devices = config.DefaultDeviceSettings || {};
-                    DEFAULTS_LAYERS = {
-                        global: config.DefaultUserSettings || {},
-                        desktop: devices.desktop || {},
-                        mobile: devices.mobile || {},
-                        tv: devices.tv || {}
-                    };
-                    showDefaultsLayer('global');
-
-                    Dashboard.hideLoadingMsg();
-                });
-
-                function fillDefaultsForm(defaults) {
+                    var defaults = config.DefaultUserSettings || {};
                     setSelectValue('#DefaultInterfaceStyle', defaults.interfaceStyle, 'Configured style');
-                    setSelectValue('#DefaultVisualTheme', defaults.customThemeId ? 'custom:' + defaults.customThemeId : defaults.visualTheme, 'Configured theme');
+                    setSelectValue('#DefaultVisualTheme', defaults.visualTheme, 'Configured theme');
                     setSelectValue('#DefaultDetailScreenStyle', defaults.detailScreenStyle, 'Configured style');
                     setNullableBoolSelect('#DefaultDetailExpandedTabs', defaults.detailExpandedTabs);
                     setNullableBoolSelect('#DefaultDetailShowTechnicalDetails', defaults.detailShowTechnicalDetails);
@@ -6995,6 +7201,7 @@
                     setNullableBoolSelect('#DefaultDisplaySinceYouWatchedRows', defaults.displaySinceYouWatchedRows);
                     loadHomeSectionsEditor(defaults.homeSections || null, defaults.homeRowOrder || null);
                     setNullableBoolSelect('#DefaultMergeContinueWatchingNextUp', defaults.mergeContinueWatchingNextUp);
+                    setSelectValue('#DefaultContinueWatchingDefaultAction', defaults.continueWatchingDefaultAction, 'Configured default action');
                     setSelectValue('#DefaultNextUpMaxDays', defaults.nextUpMaxDays, 'Configured max days');
 
                     setNullableBoolSelect('#DefaultEnableMultiServerLibraries', defaults.enableMultiServerLibraries);
@@ -7009,6 +7216,7 @@
                     setNullableBoolSelect('#DefaultShowGenresButton', defaults.showGenresButton);
                     setNullableBoolSelect('#DefaultShowFavoritesButton', defaults.showFavoritesButton);
                     setNullableBoolSelect('#DefaultShowSyncPlayButton', defaults.showSyncPlayButton);
+                    setNullableBoolSelect('#DefaultSyncPlayEnabled', defaults.syncPlayEnabled);
                     setNullableBoolSelect('#DefaultShowLibrariesInToolbar', defaults.showLibrariesInToolbar);
 
                     setSelectValue('#DefaultResumeSubtractDuration', defaults.resumeSubtractDuration != null ? String(defaults.resumeSubtractDuration) : '', 'Configured rewind');
@@ -7033,6 +7241,7 @@
                     setNullableBoolSelect('#DefaultPreferExternalSubtitles', defaults.preferExternalSubtitles);
 
                     setNullableBoolSelect('#DefaultCinemaModeEnabled', defaults.cinemaModeEnabled);
+                    setNullableBoolSelect('#DefaultCinemaModeSkipEnabled', defaults.cinemaModeSkipEnabled);
                     setNullableBoolSelect('#DefaultAutoplayNextEpisode', defaults.autoplayNextEpisode);
                     setSelectValue('#DefaultNextUpTimeout', defaults.nextUpTimeout != null ? String(defaults.nextUpTimeout) : '', 'Configured timeout');
                     setSelectValue('#DefaultStillWatchingBehavior', defaults.stillWatchingBehavior, 'Configured behavior');
@@ -7054,6 +7263,7 @@
                     loadSeerrDiscoveryPicker(seerrPicker.order, seerrPicker.hidden);
 
                     setNullableBoolSelect('#DefaultConfirmExit', defaults.confirmExit);
+                    setSelectValue('#DefaultKeyboardStyle', defaults.keyboardStyle, 'Configured style');
                     setNullableBoolSelect('#DefaultUpdateNotificationsEnabled', defaults.updateNotificationsEnabled);
                     setNullableBoolSelect('#DefaultHideDetailsMediaDescription', defaults.hideDetailsMediaDescription);
                     setNullableBoolSelect('#DefaultDetailTrailersExternal', defaults.detailTrailersExternal);
@@ -7157,11 +7367,12 @@
                             loadAdminLibraryPicker(defaults.mediaBarLibraryIds || []);
                         }
                     }
-                    // Assigned rather than added, since every layer switch fills the form again.
-                    sourceSelect.onchange = togglePickerVisibility;
+                    sourceSelect.addEventListener('change', togglePickerVisibility);
                     togglePickerVisibility();
                     applyFieldDependencies();
-                }
+
+                    Dashboard.hideLoadingMsg();
+                });
 
                 function loadAdminCollectionPicker(selectedIds) {
                     var picker = document.querySelector('#DefaultCollectionPicker');
@@ -7293,7 +7504,8 @@
                     picker.innerHTML = '<div style="padding:8px;color:rgba(255,255,255,0.5);font-size:0.9em;">Loading...</div>';
 
                     var userId = ApiClient.getCurrentUserId();
-                    ApiClient.getUserViews(userId).then(function(result) {
+                    // Hidden ones too, or a library the admin hid from their own home would drop out of the saved list.
+                    ApiClient.getUserViews({ IncludeHidden: true }, userId).then(function(result) {
                         var items = result.Items || [];
                         if (items.length === 0) {
                             picker.innerHTML = '<div style="padding:8px;color:rgba(255,255,255,0.5);font-size:0.9em;">No libraries found.</div>';
@@ -7315,6 +7527,53 @@
 
                 function loadGameLibraryPicker(selectedIds) {
                     loadLibraryPicker('#GameLibraryPicker', 'gameLibraryCb', selectedIds);
+                }
+
+                function loadRommLibraryPicker(selectedId) {
+                    var select = document.querySelector('#GamesRommLibraryId');
+                    if (!select) return;
+                    ApiClient.getUserViews(ApiClient.getCurrentUserId()).then(function(result) {
+                        var html = '<option value="">None</option>';
+                        (result.Items || []).forEach(function(item) {
+                            html += '<option value="' + esc(item.Id) + '">' + esc(item.Name || 'Untitled') + '</option>';
+                        });
+                        select.innerHTML = html;
+                        select.value = selectedId;
+                    });
+                }
+
+                function initRommTest() {
+                    var button = document.querySelector('#GamesRommTestBtn');
+                    if (!button || button.dataset.wired === '1') return;
+                    button.dataset.wired = '1';
+                    button.addEventListener('click', function() {
+                        var statusEl = document.querySelector('#GamesRommStatus');
+                        var serverUrl = ApiClient.serverAddress ? ApiClient.serverAddress() : '';
+                        var headers = gameCoresHeaders();
+                        headers['Content-Type'] = 'application/json';
+                        statusEl.textContent = 'Checking...';
+                        button.disabled = true;
+                        fetch(serverUrl + '/Moonfin/Games/Romm/Test', {
+                            method: 'POST',
+                            headers: headers,
+                            body: JSON.stringify({
+                                url: document.querySelector('#GamesRommUrl').value.trim(),
+                                token: document.querySelector('#GamesRommToken').value.trim()
+                            })
+                        })
+                            .then(function(r) { return r.json(); })
+                            .then(function(result) {
+                                if (!result.ok) {
+                                    statusEl.textContent = result.error || 'The test failed.';
+                                    return;
+                                }
+                                statusEl.textContent = 'Connected to RomM' + (result.version ? ' ' + result.version : '') + '. ' +
+                                    result.supportedPlatformCount + ' of its ' + result.platformCount + ' platforms play in Moonfin, with ' +
+                                    result.supportedRomCount + ' games between them.';
+                            })
+                            .catch(function() { statusEl.textContent = 'The test failed.'; })
+                            .finally(function() { button.disabled = false; });
+                    });
                 }
 
                 function loadAnimeMarkerDiagnostics() {
@@ -7626,392 +7885,6 @@
                     });
                 }
 
-                // The defaults form shows one layer at a time: every device, or one device's
-                // defaults over them. A device layer keeps only what differs from every device.
-                var DEFAULTS_LAYERS = { global: {}, desktop: {}, mobile: {}, tv: {} };
-                var defaultsLayer = 'global';
-
-                function defaultsView(name) {
-                    var all = DEFAULTS_LAYERS.global;
-                    if (name === 'global') return all;
-                    var own = DEFAULTS_LAYERS[name] || {};
-                    var view = Object.assign({}, all);
-                    // A device's home layout replaces the shared one whole, as on the server.
-                    if (own.homeSections != null || own.homeRowOrder != null) {
-                        delete view.homeSections;
-                        delete view.homeRowOrder;
-                    }
-                    return Object.assign(view, own);
-                }
-
-                // Server JSON comes back with sorted keys, so compare that way.
-                function canonicalJson(value) {
-                    if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(',') + ']';
-                    if (value && typeof value === 'object') {
-                        return '{' + Object.keys(value).sort().map(function(k) {
-                            return JSON.stringify(k) + ':' + canonicalJson(value[k]);
-                        }).join(',') + '}';
-                    }
-                    return JSON.stringify(value == null ? null : value);
-                }
-
-                function commitDefaultsForm() {
-                    var all = DEFAULTS_LAYERS.global;
-                    if (defaultsLayer === 'global') {
-                        readDefaultsForm(all);
-                        return;
-                    }
-                    var shown = readDefaultsForm(Object.assign({}, defaultsView(defaultsLayer)));
-                    var own = {};
-                    Object.keys(shown).forEach(function(k) {
-                        if (shown[k] != null && canonicalJson(shown[k]) !== canonicalJson(all[k])) own[k] = shown[k];
-                    });
-                    if (own.homeSections != null || own.homeRowOrder != null) {
-                        own.homeSections = shown.homeSections;
-                        own.homeRowOrder = shown.homeRowOrder;
-                    }
-                    DEFAULTS_LAYERS[defaultsLayer] = own;
-                }
-
-                function showDefaultsLayer(name) {
-                    defaultsLayer = name;
-                    document.querySelector('#DefaultsLayer').value = name;
-                    fillDefaultsForm(defaultsView(name));
-                }
-
-                var defaultsLayerSelect = document.querySelector('#DefaultsLayer');
-                if (defaultsLayerSelect && !defaultsLayerSelect.dataset.bound) {
-                    defaultsLayerSelect.dataset.bound = 'true';
-                    defaultsLayerSelect.addEventListener('change', function() {
-                        commitDefaultsForm();
-                        showDefaultsLayer(defaultsLayerSelect.value);
-                    });
-                }
-
-                function readDefaultsForm(d) {
-                    d.interfaceStyle = document.querySelector('#DefaultInterfaceStyle').value || null;
-                    var defaultTheme = document.querySelector('#DefaultVisualTheme').value;
-                    var customTheme = defaultTheme.indexOf('custom:') === 0;
-                    d.visualTheme = (!customTheme && defaultTheme) || null;
-                    d.customThemeId = customTheme ? defaultTheme.slice(7) : null;
-                    d.detailScreenStyle = document.querySelector('#DefaultDetailScreenStyle').value || null;
-                    d.detailExpandedTabs = getNullableBoolSelect('#DefaultDetailExpandedTabs');
-                    d.detailShowTechnicalDetails = getNullableBoolSelect('#DefaultDetailShowTechnicalDetails');
-                    d.recommendationSystemSource = document.querySelector('#DefaultRecommendationSystemSource').value || null;
-                    d.recommendationsApplyParentalRatingCap = getNullableBoolSelect('#DefaultRecommendationsApplyParentalRatingCap');
-                    // Clients read a different key per form factor, so one arrangement covers all three.
-                    var metaVal = getButtonPickerValue('#DefaultDetailMetadataList');
-                    d.detailMetadataOrderTv = metaVal.order;
-                    d.detailMetadataOrderMobile = metaVal.order;
-                    d.detailMetadataOrderDesktop = metaVal.order;
-                    d.hiddenDetailMetadataTv = metaVal.hidden;
-                    d.hiddenDetailMetadataMobile = metaVal.hidden;
-                    d.hiddenDetailMetadataDesktop = metaVal.hidden;
-                    var btnVal = getButtonPickerValue('#DefaultDetailButtonsList');
-                    d.detailButtonOrderTv = btnVal.order;
-                    d.detailButtonOrderMobile = btnVal.order;
-                    d.detailButtonOrderDesktop = btnVal.order;
-                    d.hiddenDetailButtonsTv = btnVal.hidden;
-                    d.hiddenDetailButtonsMobile = btnVal.hidden;
-                    d.hiddenDetailButtonsDesktop = btnVal.hidden;
-                    var sectionVal = getButtonPickerValue('#DefaultDetailSectionsList');
-                    d.hiddenDetailSectionsTv = sectionVal.hidden;
-                    d.hiddenDetailSectionsMobile = sectionVal.hidden;
-                    d.hiddenDetailSectionsDesktop = sectionVal.hidden;
-                    d.focusColor = document.querySelector('#DefaultFocusColor').value || null;
-                    d.clockBehavior = document.querySelector('#DefaultClockBehavior').value || null;
-                    d.use24HourClock = getNullableBoolSelect('#DefaultUse24HourClock');
-                    d.desktopUiScale = document.querySelector('#DefaultDesktopUiScale').value || null;
-                    d.homeBackdropEnabled = getNullableBoolSelect('#DefaultHomeBackdropEnabled');
-                    d.detailsBackdropEnabled = getNullableBoolSelect('#DefaultDetailsBackdropEnabled');
-                    d.showBookDiscoverTab = getNullableBoolSelect('#DefaultShowBookDiscoverTab');
-                    d.browsingBlur = getNullableRangeInputAsText('#DefaultBrowsingBlur');
-                    d.detailsScreenBlur = getNullableRangeInputAsText('#DefaultDetailsScreenBlur');
-                    d.themeMusicEnabled = getNullableBoolSelect('#DefaultThemeMusicEnabled');
-                    d.themeMusicOnHomeRows = getNullableBoolSelect('#DefaultThemeMusicOnHomeRows');
-                    d.themeMusicLoop = getNullableBoolSelect('#DefaultThemeMusicLoop');
-                    d.themeMusicVolume = getNullableRangeInput('#DefaultThemeMusicVolume');
-                    d.watchedIndicator = document.querySelector('#DefaultWatchedIndicator').value || null;
-                    d.cardFocusExpansion = getNullableBoolSelect('#DefaultCardFocusExpansion');
-                    d.screensaverMode = document.querySelector('#DefaultScreensaverMode').value || null;
-                    d.screensaverBackdrop = document.querySelector('#DefaultScreensaverBackdrop').value || null;
-                    d.screensaverComponent = document.querySelector('#DefaultScreensaverComponent').value || null;
-                    d.screensaverMovement = document.querySelector('#DefaultScreensaverMovement').value || null;
-                    d.screensaverPosition = document.querySelector('#DefaultScreensaverPosition').value || null;
-                    d.screensaverSize = document.querySelector('#DefaultScreensaverSize').value || null;
-                    d.screensaverContentType = document.querySelector('#DefaultScreensaverContentType').value || null;
-                    if (document.querySelector('#DefaultScreensaverLibraryPicker .screensaverLibraryCb') != null) {
-                        var screensaverLibraryCbs = document.querySelectorAll('#DefaultScreensaverLibraryPicker .screensaverLibraryCb:checked');
-                        var screensaverLibraryIds = [];
-                        for (var sli = 0; sli < screensaverLibraryCbs.length; sli++) {
-                            screensaverLibraryIds.push(screensaverLibraryCbs[sli].dataset.value);
-                        }
-                        d.screensaverLibraryIds = screensaverLibraryIds.length > 0 ? screensaverLibraryIds : null;
-                    }
-                    if (document.querySelector('#DefaultScreensaverCollectionPicker .screensaverCollectionCb') != null) {
-                        var screensaverCollectionCbs = document.querySelectorAll('#DefaultScreensaverCollectionPicker .screensaverCollectionCb:checked');
-                        var screensaverCollectionIds = [];
-                        for (var sci = 0; sci < screensaverCollectionCbs.length; sci++) {
-                            screensaverCollectionIds.push(screensaverCollectionCbs[sci].dataset.value);
-                        }
-                        d.screensaverCollectionIds = screensaverCollectionIds.length > 0 ? screensaverCollectionIds : null;
-                    }
-                    if (document.querySelector('#DefaultScreensaverGenrePicker .screensaverGenreCb') != null) {
-                        var screensaverGenreCbs = document.querySelectorAll('#DefaultScreensaverGenrePicker .screensaverGenreCb:checked');
-                        var screensaverGenreNames = [];
-                        for (var sgi = 0; sgi < screensaverGenreCbs.length; sgi++) {
-                            screensaverGenreNames.push(screensaverGenreCbs[sgi].dataset.value);
-                        }
-                        d.screensaverExcludedGenres = screensaverGenreNames.length > 0 ? screensaverGenreNames : null;
-                    }
-                    d.loadingAnimationImage = document.querySelector('#DefaultLoadingAnimationImage').value || null;
-                    d.loadingAnimationPosition = document.querySelector('#DefaultLoadingAnimationPosition').value || null;
-                    d.loadingAnimationSize = document.querySelector('#DefaultLoadingAnimationSize').value || null;
-                    d.loadingAnimationSpeed = document.querySelector('#DefaultLoadingAnimationSpeed').value || null;
-                    d.showLoadingAnimationText = getNullableBoolSelect('#DefaultShowLoadingAnimationText');
-
-                    d.navbarPosition = document.querySelector('#DefaultNavbarPosition').value || null;
-                    d.navbarColor = document.querySelector('#DefaultNavbarColor').value || null;
-                    d.navbarOpacity = getNullableRangeInput('#DefaultNavbarOpacity');
-                    d.navbarAlwaysExpanded = getNullableBoolSelect('#DefaultNavbarAlwaysExpanded');
-                    d.bottomNavbarStyle = document.querySelector('#DefaultBottomNavbarStyle').value || null;
-                    d.bottomNavbarTabs = getBottomNavbarTabSelects();
-                    d.enableFolderView = getNullableBoolSelect('#DefaultEnableFolderView');
-                    d.showSeerrButton = getNullableBoolSelect('#DefaultShowSeerrButton');
-                    d.showLiveTvButton = getNullableBoolSelect('#DefaultShowLiveTvButton');
-                    d.showDownloadsButton = getNullableBoolSelect('#DefaultShowDownloadsButton');
-                    d.showServerMessagesButton = getNullableBoolSelect('#DefaultShowServerMessagesButton');
-                    d.showFriendsButton = getNullableBoolSelect('#DefaultShowFriendsButton');
-
-                    d.mediaBarSourceType = document.querySelector('#DefaultMediaBarSourceType').value || null;
-                    var genreIds = [];
-                    var genreCbs = document.querySelectorAll('#DefaultGenrePicker .adminGenreCb:checked');
-                    for (var gi = 0; gi < genreCbs.length; gi++) {
-                        genreIds.push(genreCbs[gi].dataset.id);
-                    }
-                    d.mediaBarExcludedGenres = genreIds.length > 0 ? genreIds : null;
-                    d.mediaBarMode = document.querySelector('#DefaultMediaBarMode').value || null;
-                    d.mediaBarContentType = document.querySelector('#DefaultMediaBarContentType').value || null;
-                    d.mediaBarItemCount = getNullableIntInput('#DefaultMediaBarItemCount');
-                    d.mediaBarAutoAdvance = getNullableBoolSelect('#DefaultMediaBarAutoAdvance');
-                    d.mediaBarIntervalMs = getNullableIntInput('#DefaultMediaBarIntervalMs');
-                    d.mediaBarTrailerPreview = getNullableBoolSelect('#DefaultMediaBarTrailerPreview');
-                    d.mediaBarTrailerAudio = getNullableBoolSelect('#DefaultMediaBarTrailerAudio');
-                    d.trailerVolume = getNullableRangeInput('#DefaultTrailerVolume');
-                    d.mediaBarTrailerCaptions = getNullableBoolSelect('#DefaultMediaBarTrailerCaptions');
-                    d.episodePreviewEnabled = getNullableBoolSelect('#DefaultEpisodePreviewEnabled');
-                    d.previewAudioEnabled = getNullableBoolSelect('#DefaultPreviewAudioEnabled');
-                    d.previewVolume = getNullableRangeInput('#DefaultPreviewVolume');
-                    d.seasonalSurprise = document.querySelector('#DefaultSeasonalSurprise').value || null;
-                    d.seasonalDensity = document.querySelector('#DefaultSeasonalDensity').value || null;
-                    d.seasonalRowEnabled = getNullableBoolSelect('#DefaultSeasonalRowEnabled');
-                    d.seasonalRowCountry = document.querySelector('#DefaultSeasonalRowCountry').value || null;
-                    d.seasonalRowHiddenHolidays = readSeasonalHiddenHolidays();
-
-                    // Clients store this one as text, unlike the millisecond fields below.
-                    d.resumeSubtractDuration = document.querySelector('#DefaultResumeSubtractDuration').value || null;
-                    d.unpauseRewindDuration = getNullableIntInput('#DefaultUnpauseRewindDuration');
-                    d.skipBackLength = getNullableIntInput('#DefaultSkipBackLength');
-                    d.skipForwardLength = getNullableIntInput('#DefaultSkipForwardLength');
-
-                    d.defaultAudioLanguage = document.querySelector('#DefaultDefaultAudioLanguage').value.trim() || null;
-                    d.fallbackAudioLanguage = document.querySelector('#DefaultFallbackAudioLanguage').value.trim() || null;
-                    d.preferDefaultAudioTrack = getNullableBoolSelect('#DefaultPreferDefaultAudioTrack');
-                    d.preferAudioDescription = getNullableBoolSelect('#DefaultPreferAudioDescription');
-
-                    d.subtitleMode = document.querySelector('#DefaultSubtitleMode').value || null;
-                    d.defaultSubtitleLanguage = document.querySelector('#DefaultDefaultSubtitleLanguage').value.trim() || null;
-                    d.fallbackSubtitleLanguage = document.querySelector('#DefaultFallbackSubtitleLanguage').value.trim() || null;
-                    d.preferSdhSubtitles = getNullableBoolSelect('#DefaultPreferSdhSubtitles');
-                    d.preferTextSubtitles = getNullableBoolSelect('#DefaultPreferTextSubtitles');
-                    d.preferExternalSubtitles = getNullableBoolSelect('#DefaultPreferExternalSubtitles');
-
-                    d.cinemaModeEnabled = getNullableBoolSelect('#DefaultCinemaModeEnabled');
-                    d.autoplayNextEpisode = getNullableBoolSelect('#DefaultAutoplayNextEpisode');
-                    d.nextUpTimeout = getNullableIntInput('#DefaultNextUpTimeout');
-                    d.stillWatchingBehavior = document.querySelector('#DefaultStillWatchingBehavior').value || null;
-                    d.mediaSegmentActions = getSegmentActionsValue();
-                    d.mediaSegmentCountdown = document.querySelector('#DefaultMediaSegmentCountdown').value || null;
-                    d.mediaSegmentAutoHide = document.querySelector('#DefaultMediaSegmentAutoHide').value || null;
-                    d.replaceSkipOutroWithNextUp = getNullableBoolSelect('#DefaultReplaceSkipOutroWithNextUp');
-                    d.cinemaModeEpisodesEnabled = getNullableBoolSelect('#DefaultCinemaModeEpisodesEnabled');
-
-                    if (document.querySelector('#DefaultCollectionPicker .adminCollectionCb') != null) {
-                        var collectionCbs = document.querySelectorAll('#DefaultCollectionPicker .adminCollectionCb:checked');
-                        var collectionIds = [];
-                        for (var ci = 0; ci < collectionCbs.length; ci++) {
-                            collectionIds.push(collectionCbs[ci].dataset.id);
-                        }
-                        d.mediaBarCollectionIds = collectionIds.length > 0 ? collectionIds : null;
-                    }
-                    if (document.querySelector('#DefaultLibraryPicker .adminLibraryCb') != null) {
-                        var libraryCbs = document.querySelectorAll('#DefaultLibraryPicker .adminLibraryCb:checked');
-                        var libraryIds = [];
-                        for (var li = 0; li < libraryCbs.length; li++) {
-                            libraryIds.push(libraryCbs[li].dataset.id);
-                        }
-                        d.mediaBarLibraryIds = libraryIds.length > 0 ? libraryIds : null;
-                    }
-
-
-                    d.homeRowsStyle = document.querySelector('#DefaultHomeRowsStyle').value || null;
-                    d.modernCardsOnMyMediaRow = getNullableBoolSelect('#DefaultModernCardsOnMyMediaRow');
-                    d.fullScreenRows = getNullableBoolSelect('#DefaultFullScreenRows');
-                    d.homeRowInfoOverlay = getNullableBoolSelect('#DefaultHomeRowInfoOverlay');
-                    d.classicHomeRowsPadding = getNullableRangeInput('#DefaultClassicHomeRowsPadding');
-                    d.modernHomeRowsPadding = getNullableRangeInput('#DefaultModernHomeRowsPadding');
-                    d.posterSize = document.querySelector('#DefaultPosterSize').value || null;
-                    d.homeImageTypeContinueWatching = document.querySelector('#DefaultHomeImageTypeContinueWatching').value || null;
-                    d.homeRowImageTypes = getHomeRowImageTypesValue();
-                    d.displayFavoritesRows = getNullableBoolSelect('#DefaultDisplayFavoritesRows');
-                    d.favoritesRowSortBy = document.querySelector('#DefaultFavoritesRowSortBy').value || null;
-                    d.displayCollectionsRows = getNullableBoolSelect('#DefaultDisplayCollectionsRows');
-                    d.collectionsRowSortBy = document.querySelector('#DefaultCollectionsRowSortBy').value || null;
-                    d.displayGenresRows = getNullableBoolSelect('#DefaultDisplayGenresRows');
-                    d.genresRowSortBy = document.querySelector('#DefaultGenresRowSortBy').value || null;
-                    d.displayPlaylistsRows = getNullableBoolSelect('#DefaultDisplayPlaylistsRows');
-                    d.playlistsRowSortBy = document.querySelector('#DefaultPlaylistsRowSortBy').value || null;
-                    d.displayAudioRows = getNullableBoolSelect('#DefaultDisplayAudioRows');
-                    d.audioRowsSortBy = document.querySelector('#DefaultAudioRowsSortBy').value || null;
-                    d.displayRewatchRow = getNullableBoolSelect('#DefaultDisplayRewatchRow');
-                    d.rewatchSortBy = document.querySelector('#DefaultRewatchSortBy').value || null;
-                    d.displaySinceYouWatchedRows = getNullableBoolSelect('#DefaultDisplaySinceYouWatchedRows');
-                    d.homeImageUseSeriesImage = getNullableBoolSelect('#DefaultHomeImageUseSeriesImage');
-                    var pluginSourcesAtLoad = HOME_LAYOUT_STATE.pluginSourcesAtLoad || {};
-                    HOME_LAYOUT_STATE.sections.forEach(function(section) {
-                        var toggle = HOME_LAYOUT_ROW_TOGGLES[section.pluginSource];
-                        if (!toggle || d[toggle.setting] === true) return;
-                        if (pluginSourcesAtLoad[section.pluginSource]) return;
-                        d[toggle.setting] = true;
-                        // Keep the select in step, otherwise it goes on reading No
-                        // until the page is reloaded.
-                        setNullableBoolSelect(toggle.select, true);
-                    });
-                    var homeSections = getHomeSectionsValue();
-                    d.homeSections = homeSections;
-                    d.homeRowOrder = getHomeRowOrderValue(homeSections);
-                    d.mergeContinueWatchingNextUp = getNullableBoolSelect('#DefaultMergeContinueWatchingNextUp');
-                    d.nextUpMaxDays = getNullableIntInput('#DefaultNextUpMaxDays');
-
-                    d.enableMultiServerLibraries = getNullableBoolSelect('#DefaultEnableMultiServerLibraries');
-                    d.mergeRecentRowsByType = getNullableBoolSelect('#DefaultMergeRecentRowsByType');
-                    d.recentlyReleasedSeriesType = document.querySelector('#DefaultRecentlyReleasedSeriesType').value || null;
-                    d.groupItemsIntoCollections = getNullableBoolSelect('#DefaultGroupItemsIntoCollections');
-                    d.showMediaDetailsOnLibraryPage = getNullableBoolSelect('#DefaultShowMediaDetailsOnLibraryPage');
-                    d.useDetailedSubHeadings = getNullableBoolSelect('#DefaultUseDetailedSubHeadings');
-                    d.hideBackdropsInLibraries = getNullableBoolSelect('#DefaultHideBackdropsInLibraries');
-
-                    d.showShuffleButton = getNullableBoolSelect('#DefaultShowShuffleButton');
-                    d.showGenresButton = getNullableBoolSelect('#DefaultShowGenresButton');
-                    d.showFavoritesButton = getNullableBoolSelect('#DefaultShowFavoritesButton');
-                    d.showSyncPlayButton = getNullableBoolSelect('#DefaultShowSyncPlayButton');
-                    d.showLibrariesInToolbar = getNullableBoolSelect('#DefaultShowLibrariesInToolbar');
-                    d.mdblistEnabled = getNullableBoolSelect('#DefaultMdblistEnabled');
-                    d.tmdbEpisodeRatingsEnabled = getNullableBoolSelect('#DefaultTmdbEpisodeRatingsEnabled');
-                    d.mdblistShowRatingBadges = getNullableBoolSelect('#DefaultMdblistShowRatingBadges');
-                    d.mdblistShowRatingNames = getNullableBoolSelect('#DefaultMdblistShowRatingNames');
-                    d.mdblistRatingSources = getRatingSourcesValue();
-                    d.seerrBlockNsfw = getNullableBoolSelect('#DefaultSeerrBlockNsfw');
-                    d.seerrShowMissingCollectionItems = getNullableBoolSelect('#DefaultSeerrShowMissingCollectionItems');
-                    d.showSeerrAvailabilityBadges = getNullableBoolSelect('#DefaultShowSeerrAvailabilityBadges');
-                    // seerrRows carries more than the ordering, so merge rather than replace.
-                    var seerrRows = Object.assign({}, d.seerrRows || {});
-                    seerrRows.rowOrder = getSeerrDiscoveryRowOrder();
-                    d.seerrRows = seerrRows;
-
-                    d.confirmExit = getNullableBoolSelect('#DefaultConfirmExit');
-                    d.updateNotificationsEnabled = getNullableBoolSelect('#DefaultUpdateNotificationsEnabled');
-                    d.hideDetailsMediaDescription = getNullableBoolSelect('#DefaultHideDetailsMediaDescription');
-                    d.detailTrailersExternal = getNullableBoolSelect('#DefaultDetailTrailersExternal');
-                    d.detailUseSeriesThumbnails = getNullableBoolSelect('#DefaultDetailUseSeriesThumbnails');
-                    d.personPageGroupItems = getNullableBoolSelect('#DefaultPersonPageGroupItems');
-                    d.homeRowsImageTypeOverride = getNullableBoolSelect('#DefaultHomeRowsImageTypeOverride');
-                    d.hideHomeMediaDescription = getNullableBoolSelect('#DefaultHideHomeMediaDescription');
-                    d.collectionsRowShowEpisodes = getNullableBoolSelect('#DefaultCollectionsRowShowEpisodes');
-                    d.playlistsRowShowEpisodes = getNullableBoolSelect('#DefaultPlaylistsRowShowEpisodes');
-                    d.displayStudiosRows = getNullableBoolSelect('#DefaultDisplayStudiosRows');
-                    d.rewatchIncludeMovies = getNullableBoolSelect('#DefaultRewatchIncludeMovies');
-                    d.rewatchIncludeShows = getNullableBoolSelect('#DefaultRewatchIncludeShows');
-                    d.rewatchIncludeCollections = getNullableBoolSelect('#DefaultRewatchIncludeCollections');
-                    d.sinceYouWatchedIncludeWatched = getNullableBoolSelect('#DefaultSinceYouWatchedIncludeWatched');
-                    d.sinceYouWatched1Enabled = getNullableBoolSelect('#DefaultSinceYouWatched1Enabled');
-                    d.sinceYouWatched2Enabled = getNullableBoolSelect('#DefaultSinceYouWatched2Enabled');
-                    d.sinceYouWatched3Enabled = getNullableBoolSelect('#DefaultSinceYouWatched3Enabled');
-                    d.sinceYouWatched4Enabled = getNullableBoolSelect('#DefaultSinceYouWatched4Enabled');
-                    d.sinceYouWatched5Enabled = getNullableBoolSelect('#DefaultSinceYouWatched5Enabled');
-                    d.displayAudioLatest = getNullableBoolSelect('#DefaultDisplayAudioLatest');
-                    d.displayAudioLastPlayed = getNullableBoolSelect('#DefaultDisplayAudioLastPlayed');
-                    d.displayAudioFavorites = getNullableBoolSelect('#DefaultDisplayAudioFavorites');
-                    d.displayAudioPlaylists = getNullableBoolSelect('#DefaultDisplayAudioPlaylists');
-                    d.displayAudioAlbumArtists = getNullableBoolSelect('#DefaultDisplayAudioAlbumArtists');
-                    d.displayAudioArtists = getNullableBoolSelect('#DefaultDisplayAudioArtists');
-                    d.displayAudioAlbums = getNullableBoolSelect('#DefaultDisplayAudioAlbums');
-                    d.imdbTop250MoviesEnabled = getNullableBoolSelect('#DefaultImdbTop250MoviesEnabled');
-                    d.imdbTop250TvShowsEnabled = getNullableBoolSelect('#DefaultImdbTop250TvShowsEnabled');
-                    d.imdbMostPopularMoviesEnabled = getNullableBoolSelect('#DefaultImdbMostPopularMoviesEnabled');
-                    d.imdbMostPopularTvShowsEnabled = getNullableBoolSelect('#DefaultImdbMostPopularTvShowsEnabled');
-                    d.imdbTopEnglishMoviesEnabled = getNullableBoolSelect('#DefaultImdbTopEnglishMoviesEnabled');
-                    d.imdbLowestRatedMoviesEnabled = getNullableBoolSelect('#DefaultImdbLowestRatedMoviesEnabled');
-                    d.tmdbTrendingAllWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingAllWeeklyEnabled');
-                    d.tmdbTrendingMovieDailyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingMovieDailyEnabled');
-                    d.tmdbTrendingMovieWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingMovieWeeklyEnabled');
-                    d.tmdbTrendingTvDailyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingTvDailyEnabled');
-                    d.tmdbTrendingTvWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingTvWeeklyEnabled');
-                    d.tmdbPopularMoviesEnabled = getNullableBoolSelect('#DefaultTmdbPopularMoviesEnabled');
-                    d.tmdbPopularTvEnabled = getNullableBoolSelect('#DefaultTmdbPopularTvEnabled');
-                    d.tmdbTopRatedMoviesEnabled = getNullableBoolSelect('#DefaultTmdbTopRatedMoviesEnabled');
-                    d.tmdbTopRatedTvEnabled = getNullableBoolSelect('#DefaultTmdbTopRatedTvEnabled');
-                    d.tmdbNowPlayingMoviesEnabled = getNullableBoolSelect('#DefaultTmdbNowPlayingMoviesEnabled');
-                    d.tmdbUpcomingMoviesEnabled = getNullableBoolSelect('#DefaultTmdbUpcomingMoviesEnabled');
-                    d.tmdbAiringTodayTvEnabled = getNullableBoolSelect('#DefaultTmdbAiringTodayTvEnabled');
-                    d.tmdbOnTheAirTvEnabled = getNullableBoolSelect('#DefaultTmdbOnTheAirTvEnabled');
-                    d.enableRadarrCalendar = getNullableBoolSelect('#DefaultEnableRadarrCalendar');
-                    d.enableSonarrCalendar = getNullableBoolSelect('#DefaultEnableSonarrCalendar');
-                    d.mergeRadarrSonarrCalendars = getNullableBoolSelect('#DefaultMergeRadarrSonarrCalendars');
-                    d.radarrCalendarShowCinema = getNullableBoolSelect('#DefaultRadarrCalendarShowCinema');
-                    d.radarrCalendarShowDigital = getNullableBoolSelect('#DefaultRadarrCalendarShowDigital');
-                    d.radarrCalendarShowPhysical = getNullableBoolSelect('#DefaultRadarrCalendarShowPhysical');
-                    d.radarrCalendarShowDate = getNullableBoolSelect('#DefaultRadarrCalendarShowDate');
-                    d.sonarrCalendarShowDate = getNullableBoolSelect('#DefaultSonarrCalendarShowDate');
-                    d.sonarrCalendarShowEpisodeInfo = getNullableBoolSelect('#DefaultSonarrCalendarShowEpisodeInfo');
-                    d.personalRatingStyle = document.querySelector('#DefaultPersonalRatingStyle').value || null;
-                    d.personPageSortOption = document.querySelector('#DefaultPersonPageSortOption').value || null;
-                    d.shuffleContentType = document.querySelector('#DefaultShuffleContentType').value || null;
-                    d.homeRowsImageType = document.querySelector('#DefaultHomeRowsImageType').value || null;
-                    d.mediaTypeBadgeBehavior = document.querySelector('#DefaultMediaTypeBadgeBehavior').value || null;
-                    d.audioRowsSortOrder = document.querySelector('#DefaultAudioRowsSortOrder').value || null;
-                    d.collectionsRowSortOrder = document.querySelector('#DefaultCollectionsRowSortOrder').value || null;
-                    d.favoritesRowSortOrder = document.querySelector('#DefaultFavoritesRowSortOrder').value || null;
-                    d.genresRowSortOrder = document.querySelector('#DefaultGenresRowSortOrder').value || null;
-                    d.genresRowItemFilter = document.querySelector('#DefaultGenresRowItemFilter').value || null;
-                    d.playlistsRowSortOrder = document.querySelector('#DefaultPlaylistsRowSortOrder').value || null;
-                    d.studiosRowSortBy = document.querySelector('#DefaultStudiosRowSortBy').value || null;
-                    d.studiosRowSortOrder = document.querySelector('#DefaultStudiosRowSortOrder').value || null;
-                    d.sinceYouWatchedSource = document.querySelector('#DefaultSinceYouWatchedSource').value || null;
-                    d.sinceYouWatchedSourceType = document.querySelector('#DefaultSinceYouWatchedSourceType').value || null;
-                    d.sinceYouWatchedSourceItem = document.querySelector('#DefaultSinceYouWatchedSourceItem').value || null;
-                    d.libraryStyle = document.querySelector('#DefaultLibraryStyle').value || null;
-                    d.bookLibraryStyle = document.querySelector('#DefaultBookLibraryStyle').value || null;
-                    d.musicLibraryStyle = document.querySelector('#DefaultMusicLibraryStyle').value || null;
-                    d.libraryPosterSize = document.querySelector('#DefaultLibraryPosterSize').value || null;
-                    d.playlistPosterSize = document.querySelector('#DefaultPlaylistPosterSize').value || null;
-                    d.favoritesViewStyle = document.querySelector('#DefaultFavoritesViewStyle').value || null;
-                    d.allGenresImageType = document.querySelector('#DefaultAllGenresImageType').value || null;
-                    d.audioSortOption = document.querySelector('#DefaultAudioSortOption').value || null;
-                    d.liveTvChannelSortBy = document.querySelector('#DefaultLiveTvChannelSortBy').value || null;
-                    d.epgMobileView = document.querySelector('#DefaultEpgMobileView').value || null;
-                    d.mediaBarOverlayColor = document.querySelector('#DefaultMediaBarOverlayColor').value || null;
-                    d.mediaBarOpacity = getNullableRangeInput('#DefaultMediaBarOpacity');
-                    var osdVal = getButtonPickerValue('#DefaultOsdButtonsList');
-                    d.osdButtonOrderTv = osdVal.order;
-                    d.osdButtonOrderMobile = osdVal.order;
-                    d.osdButtonOrderDesktop = osdVal.order;
-                    d.hiddenOsdButtonsTv = osdVal.hidden;
-                    d.hiddenOsdButtonsMobile = osdVal.hidden;
-                    d.hiddenOsdButtonsDesktop = osdVal.hidden;
-                    return d;
-                }
-
                 function submit() {
                     return ApiClient.getPluginConfiguration(MoonfinConfig.pluginUniqueId).then(function(config) {
                         config.EnableSettingsSync = document.querySelector('#EnableSettingsSync').checked;
@@ -8032,6 +7905,10 @@
                         config.RecommendationsProviderEnabled = document.querySelector('#RecommendationsProviderEnabled').checked;
                         config.StudioLogosEnabled = document.querySelector('#StudioLogosEnabled').checked;
                         config.StudioLogosMaxAgeDays = parseInt(document.querySelector('#StudioLogosMaxAgeDays').value, 10) || 30;
+                        config.LiveTvDetectIncompleteRecordings = document.querySelector('#LiveTvDetectIncompleteRecordings').checked;
+                        config.LiveTvAutoRecordCompleteShowing = document.querySelector('#LiveTvAutoRecordCompleteShowing').checked;
+                        config.LiveTvIncompleteThresholdPercent = Math.min(100, Math.max(50, parseInt(document.querySelector('#LiveTvIncompleteThresholdPercent').value, 10) || 90));
+                        config.LiveTvDeleteIncompleteCopies = document.querySelector('#LiveTvDeleteIncompleteCopies').checked;
                         config.AnimeMarkersEnabled = document.querySelector('#AnimeMarkersEnabled').checked;
                         config.AnimeMarkerRecapLookup = document.querySelector('#AnimeMarkerRecapLookup').checked;
                         config.AnimeAudioMarkersEnabled = document.querySelector('#AnimeAudioMarkersEnabled').checked;
@@ -8053,19 +7930,343 @@
                         config.WebForcedServerUrl = document.querySelector('#WebForcedServerUrl').value || null;
                         config.WebEnableWebRtcScan = document.querySelector('#WebEnableWebRtcScan').checked;
 
+                        if (document.querySelector('.defaultHiddenLibraryCb') != null) {
+                            config.DefaultHiddenLibraryIds = Array.prototype.slice.call(
+                                document.querySelectorAll('.defaultHiddenLibraryCb:checked')
+                            ).map(function (cb) { return cb.getAttribute('data-id'); });
+                        }
+
                         config.GamesEnabled = document.querySelector('#GamesEnabled').checked;
                         config.GamesIsolateWebApp = document.querySelector('#GamesIsolateWebApp').checked;
                         config.GameLibraryIds = Array.prototype.slice.call(
                             document.querySelectorAll('.gameLibraryCb:checked')
                         ).map(function (cb) { return cb.getAttribute('data-id'); });
+                        config.GamesRommUrl = document.querySelector('#GamesRommUrl').value.trim() || null;
+                        config.GamesRommToken = document.querySelector('#GamesRommToken').value.trim() || null;
+                        config.GamesRommLibraryId = document.querySelector('#GamesRommLibraryId').value || null;
 
-                        commitDefaultsForm();
-                        config.DefaultUserSettings = DEFAULTS_LAYERS.global;
-                        config.DefaultDeviceSettings = {
-                            desktop: DEFAULTS_LAYERS.desktop,
-                            mobile: DEFAULTS_LAYERS.mobile,
-                            tv: DEFAULTS_LAYERS.tv
-                        };
+                        config.DefaultUserSettings = config.DefaultUserSettings || {};
+                        config.DefaultUserSettings.interfaceStyle = document.querySelector('#DefaultInterfaceStyle').value || null;
+                        config.DefaultUserSettings.visualTheme = document.querySelector('#DefaultVisualTheme').value || null;
+                        config.DefaultUserSettings.detailScreenStyle = document.querySelector('#DefaultDetailScreenStyle').value || null;
+                        config.DefaultUserSettings.detailExpandedTabs = getNullableBoolSelect('#DefaultDetailExpandedTabs');
+                        config.DefaultUserSettings.detailShowTechnicalDetails = getNullableBoolSelect('#DefaultDetailShowTechnicalDetails');
+                        config.DefaultUserSettings.recommendationSystemSource = document.querySelector('#DefaultRecommendationSystemSource').value || null;
+                        config.DefaultUserSettings.recommendationsApplyParentalRatingCap = getNullableBoolSelect('#DefaultRecommendationsApplyParentalRatingCap');
+                        // Clients read a different key per form factor, so one arrangement covers all three.
+                        var metaVal = getButtonPickerValue('#DefaultDetailMetadataList');
+                        config.DefaultUserSettings.detailMetadataOrderTv = metaVal.order;
+                        config.DefaultUserSettings.detailMetadataOrderMobile = metaVal.order;
+                        config.DefaultUserSettings.detailMetadataOrderDesktop = metaVal.order;
+                        config.DefaultUserSettings.hiddenDetailMetadataTv = metaVal.hidden;
+                        config.DefaultUserSettings.hiddenDetailMetadataMobile = metaVal.hidden;
+                        config.DefaultUserSettings.hiddenDetailMetadataDesktop = metaVal.hidden;
+                        var btnVal = getButtonPickerValue('#DefaultDetailButtonsList');
+                        config.DefaultUserSettings.detailButtonOrderTv = btnVal.order;
+                        config.DefaultUserSettings.detailButtonOrderMobile = btnVal.order;
+                        config.DefaultUserSettings.detailButtonOrderDesktop = btnVal.order;
+                        config.DefaultUserSettings.hiddenDetailButtonsTv = btnVal.hidden;
+                        config.DefaultUserSettings.hiddenDetailButtonsMobile = btnVal.hidden;
+                        config.DefaultUserSettings.hiddenDetailButtonsDesktop = btnVal.hidden;
+                        var sectionVal = getButtonPickerValue('#DefaultDetailSectionsList');
+                        config.DefaultUserSettings.hiddenDetailSectionsTv = sectionVal.hidden;
+                        config.DefaultUserSettings.hiddenDetailSectionsMobile = sectionVal.hidden;
+                        config.DefaultUserSettings.hiddenDetailSectionsDesktop = sectionVal.hidden;
+                        config.DefaultUserSettings.focusColor = document.querySelector('#DefaultFocusColor').value || null;
+                        config.DefaultUserSettings.clockBehavior = document.querySelector('#DefaultClockBehavior').value || null;
+                        config.DefaultUserSettings.use24HourClock = getNullableBoolSelect('#DefaultUse24HourClock');
+                        config.DefaultUserSettings.desktopUiScale = document.querySelector('#DefaultDesktopUiScale').value || null;
+                        config.DefaultUserSettings.homeBackdropEnabled = getNullableBoolSelect('#DefaultHomeBackdropEnabled');
+                        config.DefaultUserSettings.detailsBackdropEnabled = getNullableBoolSelect('#DefaultDetailsBackdropEnabled');
+                        config.DefaultUserSettings.showBookDiscoverTab = getNullableBoolSelect('#DefaultShowBookDiscoverTab');
+                        config.DefaultUserSettings.browsingBlur = getNullableRangeInputAsText('#DefaultBrowsingBlur');
+                        config.DefaultUserSettings.detailsScreenBlur = getNullableRangeInputAsText('#DefaultDetailsScreenBlur');
+                        config.DefaultUserSettings.themeMusicEnabled = getNullableBoolSelect('#DefaultThemeMusicEnabled');
+                        config.DefaultUserSettings.themeMusicOnHomeRows = getNullableBoolSelect('#DefaultThemeMusicOnHomeRows');
+                        config.DefaultUserSettings.themeMusicLoop = getNullableBoolSelect('#DefaultThemeMusicLoop');
+                        config.DefaultUserSettings.themeMusicVolume = getNullableRangeInput('#DefaultThemeMusicVolume');
+                        config.DefaultUserSettings.watchedIndicator = document.querySelector('#DefaultWatchedIndicator').value || null;
+                        config.DefaultUserSettings.cardFocusExpansion = getNullableBoolSelect('#DefaultCardFocusExpansion');
+                        config.DefaultUserSettings.screensaverMode = document.querySelector('#DefaultScreensaverMode').value || null;
+                        config.DefaultUserSettings.screensaverBackdrop = document.querySelector('#DefaultScreensaverBackdrop').value || null;
+                        config.DefaultUserSettings.screensaverComponent = document.querySelector('#DefaultScreensaverComponent').value || null;
+                        config.DefaultUserSettings.screensaverMovement = document.querySelector('#DefaultScreensaverMovement').value || null;
+                        config.DefaultUserSettings.screensaverPosition = document.querySelector('#DefaultScreensaverPosition').value || null;
+                        config.DefaultUserSettings.screensaverSize = document.querySelector('#DefaultScreensaverSize').value || null;
+                        config.DefaultUserSettings.screensaverContentType = document.querySelector('#DefaultScreensaverContentType').value || null;
+                        if (document.querySelector('#DefaultScreensaverLibraryPicker .screensaverLibraryCb') != null) {
+                            var screensaverLibraryCbs = document.querySelectorAll('#DefaultScreensaverLibraryPicker .screensaverLibraryCb:checked');
+                            var screensaverLibraryIds = [];
+                            for (var sli = 0; sli < screensaverLibraryCbs.length; sli++) {
+                                screensaverLibraryIds.push(screensaverLibraryCbs[sli].dataset.value);
+                            }
+                            config.DefaultUserSettings.screensaverLibraryIds = screensaverLibraryIds.length > 0 ? screensaverLibraryIds : null;
+                        }
+                        if (document.querySelector('#DefaultScreensaverCollectionPicker .screensaverCollectionCb') != null) {
+                            var screensaverCollectionCbs = document.querySelectorAll('#DefaultScreensaverCollectionPicker .screensaverCollectionCb:checked');
+                            var screensaverCollectionIds = [];
+                            for (var sci = 0; sci < screensaverCollectionCbs.length; sci++) {
+                                screensaverCollectionIds.push(screensaverCollectionCbs[sci].dataset.value);
+                            }
+                            config.DefaultUserSettings.screensaverCollectionIds = screensaverCollectionIds.length > 0 ? screensaverCollectionIds : null;
+                        }
+                        if (document.querySelector('#DefaultScreensaverGenrePicker .screensaverGenreCb') != null) {
+                            var screensaverGenreCbs = document.querySelectorAll('#DefaultScreensaverGenrePicker .screensaverGenreCb:checked');
+                            var screensaverGenreNames = [];
+                            for (var sgi = 0; sgi < screensaverGenreCbs.length; sgi++) {
+                                screensaverGenreNames.push(screensaverGenreCbs[sgi].dataset.value);
+                            }
+                            config.DefaultUserSettings.screensaverExcludedGenres = screensaverGenreNames.length > 0 ? screensaverGenreNames : null;
+                        }
+                        config.DefaultUserSettings.loadingAnimationImage = document.querySelector('#DefaultLoadingAnimationImage').value || null;
+                        config.DefaultUserSettings.loadingAnimationPosition = document.querySelector('#DefaultLoadingAnimationPosition').value || null;
+                        config.DefaultUserSettings.loadingAnimationSize = document.querySelector('#DefaultLoadingAnimationSize').value || null;
+                        config.DefaultUserSettings.loadingAnimationSpeed = document.querySelector('#DefaultLoadingAnimationSpeed').value || null;
+                        config.DefaultUserSettings.showLoadingAnimationText = getNullableBoolSelect('#DefaultShowLoadingAnimationText');
+
+                        config.DefaultUserSettings.navbarPosition = document.querySelector('#DefaultNavbarPosition').value || null;
+                        config.DefaultUserSettings.navbarColor = document.querySelector('#DefaultNavbarColor').value || null;
+                        config.DefaultUserSettings.navbarOpacity = getNullableRangeInput('#DefaultNavbarOpacity');
+                        config.DefaultUserSettings.navbarAlwaysExpanded = getNullableBoolSelect('#DefaultNavbarAlwaysExpanded');
+                        config.DefaultUserSettings.bottomNavbarStyle = document.querySelector('#DefaultBottomNavbarStyle').value || null;
+                        config.DefaultUserSettings.bottomNavbarTabs = getBottomNavbarTabSelects();
+                        config.DefaultUserSettings.enableFolderView = getNullableBoolSelect('#DefaultEnableFolderView');
+                        config.DefaultUserSettings.showSeerrButton = getNullableBoolSelect('#DefaultShowSeerrButton');
+                        config.DefaultUserSettings.showLiveTvButton = getNullableBoolSelect('#DefaultShowLiveTvButton');
+                        config.DefaultUserSettings.showDownloadsButton = getNullableBoolSelect('#DefaultShowDownloadsButton');
+                        config.DefaultUserSettings.showServerMessagesButton = getNullableBoolSelect('#DefaultShowServerMessagesButton');
+                        config.DefaultUserSettings.showFriendsButton = getNullableBoolSelect('#DefaultShowFriendsButton');
+
+                        config.DefaultUserSettings.mediaBarSourceType = document.querySelector('#DefaultMediaBarSourceType').value || null;
+                        var genreIds = [];
+                        var genreCbs = document.querySelectorAll('#DefaultGenrePicker .adminGenreCb:checked');
+                        for (var gi = 0; gi < genreCbs.length; gi++) {
+                            genreIds.push(genreCbs[gi].dataset.id);
+                        }
+                        config.DefaultUserSettings.mediaBarExcludedGenres = genreIds.length > 0 ? genreIds : null;
+                        config.DefaultUserSettings.mediaBarMode = document.querySelector('#DefaultMediaBarMode').value || null;
+                        config.DefaultUserSettings.mediaBarContentType = document.querySelector('#DefaultMediaBarContentType').value || null;
+                        config.DefaultUserSettings.mediaBarItemCount = getNullableIntInput('#DefaultMediaBarItemCount');
+                        config.DefaultUserSettings.mediaBarAutoAdvance = getNullableBoolSelect('#DefaultMediaBarAutoAdvance');
+                        config.DefaultUserSettings.mediaBarIntervalMs = getNullableIntInput('#DefaultMediaBarIntervalMs');
+                        config.DefaultUserSettings.mediaBarTrailerPreview = getNullableBoolSelect('#DefaultMediaBarTrailerPreview');
+                        config.DefaultUserSettings.mediaBarTrailerAudio = getNullableBoolSelect('#DefaultMediaBarTrailerAudio');
+                        config.DefaultUserSettings.trailerVolume = getNullableRangeInput('#DefaultTrailerVolume');
+                        config.DefaultUserSettings.mediaBarTrailerCaptions = getNullableBoolSelect('#DefaultMediaBarTrailerCaptions');
+                        config.DefaultUserSettings.episodePreviewEnabled = getNullableBoolSelect('#DefaultEpisodePreviewEnabled');
+                        config.DefaultUserSettings.previewAudioEnabled = getNullableBoolSelect('#DefaultPreviewAudioEnabled');
+                        config.DefaultUserSettings.previewVolume = getNullableRangeInput('#DefaultPreviewVolume');
+                        config.DefaultUserSettings.seasonalSurprise = document.querySelector('#DefaultSeasonalSurprise').value || null;
+                        config.DefaultUserSettings.seasonalDensity = document.querySelector('#DefaultSeasonalDensity').value || null;
+                        config.DefaultUserSettings.seasonalRowEnabled = getNullableBoolSelect('#DefaultSeasonalRowEnabled');
+                        config.DefaultUserSettings.seasonalRowCountry = document.querySelector('#DefaultSeasonalRowCountry').value || null;
+                        config.DefaultUserSettings.seasonalRowHiddenHolidays = readSeasonalHiddenHolidays();
+
+                        // Clients store this one as text, unlike the millisecond fields below.
+                        config.DefaultUserSettings.resumeSubtractDuration = document.querySelector('#DefaultResumeSubtractDuration').value || null;
+                        config.DefaultUserSettings.unpauseRewindDuration = getNullableIntInput('#DefaultUnpauseRewindDuration');
+                        config.DefaultUserSettings.skipBackLength = getNullableIntInput('#DefaultSkipBackLength');
+                        config.DefaultUserSettings.skipForwardLength = getNullableIntInput('#DefaultSkipForwardLength');
+
+                        config.DefaultUserSettings.defaultAudioLanguage = document.querySelector('#DefaultDefaultAudioLanguage').value.trim() || null;
+                        config.DefaultUserSettings.fallbackAudioLanguage = document.querySelector('#DefaultFallbackAudioLanguage').value.trim() || null;
+                        config.DefaultUserSettings.preferDefaultAudioTrack = getNullableBoolSelect('#DefaultPreferDefaultAudioTrack');
+                        config.DefaultUserSettings.preferAudioDescription = getNullableBoolSelect('#DefaultPreferAudioDescription');
+
+                        config.DefaultUserSettings.subtitleMode = document.querySelector('#DefaultSubtitleMode').value || null;
+                        config.DefaultUserSettings.defaultSubtitleLanguage = document.querySelector('#DefaultDefaultSubtitleLanguage').value.trim() || null;
+                        config.DefaultUserSettings.fallbackSubtitleLanguage = document.querySelector('#DefaultFallbackSubtitleLanguage').value.trim() || null;
+                        config.DefaultUserSettings.preferSdhSubtitles = getNullableBoolSelect('#DefaultPreferSdhSubtitles');
+                        config.DefaultUserSettings.preferTextSubtitles = getNullableBoolSelect('#DefaultPreferTextSubtitles');
+                        config.DefaultUserSettings.preferExternalSubtitles = getNullableBoolSelect('#DefaultPreferExternalSubtitles');
+
+                        config.DefaultUserSettings.cinemaModeEnabled = getNullableBoolSelect('#DefaultCinemaModeEnabled');
+                        config.DefaultUserSettings.cinemaModeSkipEnabled = getNullableBoolSelect('#DefaultCinemaModeSkipEnabled');
+                        config.DefaultUserSettings.autoplayNextEpisode = getNullableBoolSelect('#DefaultAutoplayNextEpisode');
+                        config.DefaultUserSettings.nextUpTimeout = getNullableIntInput('#DefaultNextUpTimeout');
+                        config.DefaultUserSettings.stillWatchingBehavior = document.querySelector('#DefaultStillWatchingBehavior').value || null;
+                        config.DefaultUserSettings.mediaSegmentActions = getSegmentActionsValue();
+                        config.DefaultUserSettings.mediaSegmentCountdown = document.querySelector('#DefaultMediaSegmentCountdown').value || null;
+                        config.DefaultUserSettings.mediaSegmentAutoHide = document.querySelector('#DefaultMediaSegmentAutoHide').value || null;
+                        config.DefaultUserSettings.replaceSkipOutroWithNextUp = getNullableBoolSelect('#DefaultReplaceSkipOutroWithNextUp');
+                        config.DefaultUserSettings.cinemaModeEpisodesEnabled = getNullableBoolSelect('#DefaultCinemaModeEpisodesEnabled');
+
+                        if (document.querySelector('#DefaultCollectionPicker .adminCollectionCb') != null) {
+                            var collectionCbs = document.querySelectorAll('#DefaultCollectionPicker .adminCollectionCb:checked');
+                            var collectionIds = [];
+                            for (var ci = 0; ci < collectionCbs.length; ci++) {
+                                collectionIds.push(collectionCbs[ci].dataset.id);
+                            }
+                            config.DefaultUserSettings.mediaBarCollectionIds = collectionIds.length > 0 ? collectionIds : null;
+                        }
+                        if (document.querySelector('#DefaultLibraryPicker .adminLibraryCb') != null) {
+                            var libraryCbs = document.querySelectorAll('#DefaultLibraryPicker .adminLibraryCb:checked');
+                            var libraryIds = [];
+                            for (var li = 0; li < libraryCbs.length; li++) {
+                                libraryIds.push(libraryCbs[li].dataset.id);
+                            }
+                            config.DefaultUserSettings.mediaBarLibraryIds = libraryIds.length > 0 ? libraryIds : null;
+                        }
+
+
+                        config.DefaultUserSettings.homeRowsStyle = document.querySelector('#DefaultHomeRowsStyle').value || null;
+                        config.DefaultUserSettings.modernCardsOnMyMediaRow = getNullableBoolSelect('#DefaultModernCardsOnMyMediaRow');
+                        config.DefaultUserSettings.fullScreenRows = getNullableBoolSelect('#DefaultFullScreenRows');
+                        config.DefaultUserSettings.homeRowInfoOverlay = getNullableBoolSelect('#DefaultHomeRowInfoOverlay');
+                        config.DefaultUserSettings.classicHomeRowsPadding = getNullableRangeInput('#DefaultClassicHomeRowsPadding');
+                        config.DefaultUserSettings.modernHomeRowsPadding = getNullableRangeInput('#DefaultModernHomeRowsPadding');
+                        config.DefaultUserSettings.posterSize = document.querySelector('#DefaultPosterSize').value || null;
+                        config.DefaultUserSettings.homeImageTypeContinueWatching = document.querySelector('#DefaultHomeImageTypeContinueWatching').value || null;
+                        config.DefaultUserSettings.homeRowImageTypes = getHomeRowImageTypesValue();
+                        config.DefaultUserSettings.displayFavoritesRows = getNullableBoolSelect('#DefaultDisplayFavoritesRows');
+                        config.DefaultUserSettings.favoritesRowSortBy = document.querySelector('#DefaultFavoritesRowSortBy').value || null;
+                        config.DefaultUserSettings.displayCollectionsRows = getNullableBoolSelect('#DefaultDisplayCollectionsRows');
+                        config.DefaultUserSettings.collectionsRowSortBy = document.querySelector('#DefaultCollectionsRowSortBy').value || null;
+                        config.DefaultUserSettings.displayGenresRows = getNullableBoolSelect('#DefaultDisplayGenresRows');
+                        config.DefaultUserSettings.genresRowSortBy = document.querySelector('#DefaultGenresRowSortBy').value || null;
+                        config.DefaultUserSettings.displayPlaylistsRows = getNullableBoolSelect('#DefaultDisplayPlaylistsRows');
+                        config.DefaultUserSettings.playlistsRowSortBy = document.querySelector('#DefaultPlaylistsRowSortBy').value || null;
+                        config.DefaultUserSettings.displayAudioRows = getNullableBoolSelect('#DefaultDisplayAudioRows');
+                        config.DefaultUserSettings.audioRowsSortBy = document.querySelector('#DefaultAudioRowsSortBy').value || null;
+                        config.DefaultUserSettings.displayRewatchRow = getNullableBoolSelect('#DefaultDisplayRewatchRow');
+                        config.DefaultUserSettings.rewatchSortBy = document.querySelector('#DefaultRewatchSortBy').value || null;
+                        config.DefaultUserSettings.displaySinceYouWatchedRows = getNullableBoolSelect('#DefaultDisplaySinceYouWatchedRows');
+                        config.DefaultUserSettings.homeImageUseSeriesImage = getNullableBoolSelect('#DefaultHomeImageUseSeriesImage');
+                        var pluginSourcesAtLoad = HOME_LAYOUT_STATE.pluginSourcesAtLoad || {};
+                        HOME_LAYOUT_STATE.sections.forEach(function(section) {
+                            var toggle = HOME_LAYOUT_ROW_TOGGLES[section.pluginSource];
+                            if (!toggle || config.DefaultUserSettings[toggle.setting] === true) return;
+                            if (pluginSourcesAtLoad[section.pluginSource]) return;
+                            config.DefaultUserSettings[toggle.setting] = true;
+                            // Keep the select in step, otherwise it goes on reading No
+                            // until the page is reloaded.
+                            setNullableBoolSelect(toggle.select, true);
+                        });
+                        var homeSections = getHomeSectionsValue();
+                        config.DefaultUserSettings.homeSections = homeSections;
+                        config.DefaultUserSettings.homeRowOrder = getHomeRowOrderValue(homeSections);
+                        config.DefaultUserSettings.mergeContinueWatchingNextUp = getNullableBoolSelect('#DefaultMergeContinueWatchingNextUp');
+                        config.DefaultUserSettings.continueWatchingDefaultAction = document.querySelector('#DefaultContinueWatchingDefaultAction').value || null;
+                        config.DefaultUserSettings.nextUpMaxDays = getNullableIntInput('#DefaultNextUpMaxDays');
+
+                        config.DefaultUserSettings.enableMultiServerLibraries = getNullableBoolSelect('#DefaultEnableMultiServerLibraries');
+                        config.DefaultUserSettings.mergeRecentRowsByType = getNullableBoolSelect('#DefaultMergeRecentRowsByType');
+                        config.DefaultUserSettings.recentlyReleasedSeriesType = document.querySelector('#DefaultRecentlyReleasedSeriesType').value || null;
+                        config.DefaultUserSettings.groupItemsIntoCollections = getNullableBoolSelect('#DefaultGroupItemsIntoCollections');
+                        config.DefaultUserSettings.showMediaDetailsOnLibraryPage = getNullableBoolSelect('#DefaultShowMediaDetailsOnLibraryPage');
+                        config.DefaultUserSettings.useDetailedSubHeadings = getNullableBoolSelect('#DefaultUseDetailedSubHeadings');
+                        config.DefaultUserSettings.hideBackdropsInLibraries = getNullableBoolSelect('#DefaultHideBackdropsInLibraries');
+
+                        config.DefaultUserSettings.showShuffleButton = getNullableBoolSelect('#DefaultShowShuffleButton');
+                        config.DefaultUserSettings.showGenresButton = getNullableBoolSelect('#DefaultShowGenresButton');
+                        config.DefaultUserSettings.showFavoritesButton = getNullableBoolSelect('#DefaultShowFavoritesButton');
+                        config.DefaultUserSettings.showSyncPlayButton = getNullableBoolSelect('#DefaultShowSyncPlayButton');
+                        config.DefaultUserSettings.syncPlayEnabled = getNullableBoolSelect('#DefaultSyncPlayEnabled');
+                        config.DefaultUserSettings.showLibrariesInToolbar = getNullableBoolSelect('#DefaultShowLibrariesInToolbar');
+                        config.DefaultUserSettings.mdblistEnabled = getNullableBoolSelect('#DefaultMdblistEnabled');
+                        config.DefaultUserSettings.tmdbEpisodeRatingsEnabled = getNullableBoolSelect('#DefaultTmdbEpisodeRatingsEnabled');
+                        config.DefaultUserSettings.mdblistShowRatingBadges = getNullableBoolSelect('#DefaultMdblistShowRatingBadges');
+                        config.DefaultUserSettings.mdblistShowRatingNames = getNullableBoolSelect('#DefaultMdblistShowRatingNames');
+                        config.DefaultUserSettings.mdblistRatingSources = getRatingSourcesValue();
+                        config.DefaultUserSettings.seerrBlockNsfw = getNullableBoolSelect('#DefaultSeerrBlockNsfw');
+                        config.DefaultUserSettings.seerrShowMissingCollectionItems = getNullableBoolSelect('#DefaultSeerrShowMissingCollectionItems');
+                        config.DefaultUserSettings.showSeerrAvailabilityBadges = getNullableBoolSelect('#DefaultShowSeerrAvailabilityBadges');
+                        // seerrRows carries more than the ordering, so merge rather than replace.
+                        var seerrRows = Object.assign({}, config.DefaultUserSettings.seerrRows || {});
+                        seerrRows.rowOrder = getSeerrDiscoveryRowOrder();
+                        config.DefaultUserSettings.seerrRows = seerrRows;
+
+                        config.DefaultUserSettings.confirmExit = getNullableBoolSelect('#DefaultConfirmExit');
+                        config.DefaultUserSettings.keyboardStyle = document.querySelector('#DefaultKeyboardStyle').value || null;
+                        config.DefaultUserSettings.updateNotificationsEnabled = getNullableBoolSelect('#DefaultUpdateNotificationsEnabled');
+                        config.DefaultUserSettings.hideDetailsMediaDescription = getNullableBoolSelect('#DefaultHideDetailsMediaDescription');
+                        config.DefaultUserSettings.detailTrailersExternal = getNullableBoolSelect('#DefaultDetailTrailersExternal');
+                        config.DefaultUserSettings.detailUseSeriesThumbnails = getNullableBoolSelect('#DefaultDetailUseSeriesThumbnails');
+                        config.DefaultUserSettings.personPageGroupItems = getNullableBoolSelect('#DefaultPersonPageGroupItems');
+                        config.DefaultUserSettings.homeRowsImageTypeOverride = getNullableBoolSelect('#DefaultHomeRowsImageTypeOverride');
+                        config.DefaultUserSettings.hideHomeMediaDescription = getNullableBoolSelect('#DefaultHideHomeMediaDescription');
+                        config.DefaultUserSettings.collectionsRowShowEpisodes = getNullableBoolSelect('#DefaultCollectionsRowShowEpisodes');
+                        config.DefaultUserSettings.playlistsRowShowEpisodes = getNullableBoolSelect('#DefaultPlaylistsRowShowEpisodes');
+                        config.DefaultUserSettings.displayStudiosRows = getNullableBoolSelect('#DefaultDisplayStudiosRows');
+                        config.DefaultUserSettings.rewatchIncludeMovies = getNullableBoolSelect('#DefaultRewatchIncludeMovies');
+                        config.DefaultUserSettings.rewatchIncludeShows = getNullableBoolSelect('#DefaultRewatchIncludeShows');
+                        config.DefaultUserSettings.rewatchIncludeCollections = getNullableBoolSelect('#DefaultRewatchIncludeCollections');
+                        config.DefaultUserSettings.sinceYouWatchedIncludeWatched = getNullableBoolSelect('#DefaultSinceYouWatchedIncludeWatched');
+                        config.DefaultUserSettings.sinceYouWatched1Enabled = getNullableBoolSelect('#DefaultSinceYouWatched1Enabled');
+                        config.DefaultUserSettings.sinceYouWatched2Enabled = getNullableBoolSelect('#DefaultSinceYouWatched2Enabled');
+                        config.DefaultUserSettings.sinceYouWatched3Enabled = getNullableBoolSelect('#DefaultSinceYouWatched3Enabled');
+                        config.DefaultUserSettings.sinceYouWatched4Enabled = getNullableBoolSelect('#DefaultSinceYouWatched4Enabled');
+                        config.DefaultUserSettings.sinceYouWatched5Enabled = getNullableBoolSelect('#DefaultSinceYouWatched5Enabled');
+                        config.DefaultUserSettings.displayAudioLatest = getNullableBoolSelect('#DefaultDisplayAudioLatest');
+                        config.DefaultUserSettings.displayAudioLastPlayed = getNullableBoolSelect('#DefaultDisplayAudioLastPlayed');
+                        config.DefaultUserSettings.displayAudioFavorites = getNullableBoolSelect('#DefaultDisplayAudioFavorites');
+                        config.DefaultUserSettings.displayAudioPlaylists = getNullableBoolSelect('#DefaultDisplayAudioPlaylists');
+                        config.DefaultUserSettings.displayAudioAlbumArtists = getNullableBoolSelect('#DefaultDisplayAudioAlbumArtists');
+                        config.DefaultUserSettings.displayAudioArtists = getNullableBoolSelect('#DefaultDisplayAudioArtists');
+                        config.DefaultUserSettings.displayAudioAlbums = getNullableBoolSelect('#DefaultDisplayAudioAlbums');
+                        config.DefaultUserSettings.imdbTop250MoviesEnabled = getNullableBoolSelect('#DefaultImdbTop250MoviesEnabled');
+                        config.DefaultUserSettings.imdbTop250TvShowsEnabled = getNullableBoolSelect('#DefaultImdbTop250TvShowsEnabled');
+                        config.DefaultUserSettings.imdbMostPopularMoviesEnabled = getNullableBoolSelect('#DefaultImdbMostPopularMoviesEnabled');
+                        config.DefaultUserSettings.imdbMostPopularTvShowsEnabled = getNullableBoolSelect('#DefaultImdbMostPopularTvShowsEnabled');
+                        config.DefaultUserSettings.imdbTopEnglishMoviesEnabled = getNullableBoolSelect('#DefaultImdbTopEnglishMoviesEnabled');
+                        config.DefaultUserSettings.imdbLowestRatedMoviesEnabled = getNullableBoolSelect('#DefaultImdbLowestRatedMoviesEnabled');
+                        config.DefaultUserSettings.tmdbTrendingAllWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingAllWeeklyEnabled');
+                        config.DefaultUserSettings.tmdbTrendingMovieDailyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingMovieDailyEnabled');
+                        config.DefaultUserSettings.tmdbTrendingMovieWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingMovieWeeklyEnabled');
+                        config.DefaultUserSettings.tmdbTrendingTvDailyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingTvDailyEnabled');
+                        config.DefaultUserSettings.tmdbTrendingTvWeeklyEnabled = getNullableBoolSelect('#DefaultTmdbTrendingTvWeeklyEnabled');
+                        config.DefaultUserSettings.tmdbPopularMoviesEnabled = getNullableBoolSelect('#DefaultTmdbPopularMoviesEnabled');
+                        config.DefaultUserSettings.tmdbPopularTvEnabled = getNullableBoolSelect('#DefaultTmdbPopularTvEnabled');
+                        config.DefaultUserSettings.tmdbTopRatedMoviesEnabled = getNullableBoolSelect('#DefaultTmdbTopRatedMoviesEnabled');
+                        config.DefaultUserSettings.tmdbTopRatedTvEnabled = getNullableBoolSelect('#DefaultTmdbTopRatedTvEnabled');
+                        config.DefaultUserSettings.tmdbNowPlayingMoviesEnabled = getNullableBoolSelect('#DefaultTmdbNowPlayingMoviesEnabled');
+                        config.DefaultUserSettings.tmdbUpcomingMoviesEnabled = getNullableBoolSelect('#DefaultTmdbUpcomingMoviesEnabled');
+                        config.DefaultUserSettings.tmdbAiringTodayTvEnabled = getNullableBoolSelect('#DefaultTmdbAiringTodayTvEnabled');
+                        config.DefaultUserSettings.tmdbOnTheAirTvEnabled = getNullableBoolSelect('#DefaultTmdbOnTheAirTvEnabled');
+                        config.DefaultUserSettings.enableRadarrCalendar = getNullableBoolSelect('#DefaultEnableRadarrCalendar');
+                        config.DefaultUserSettings.enableSonarrCalendar = getNullableBoolSelect('#DefaultEnableSonarrCalendar');
+                        config.DefaultUserSettings.mergeRadarrSonarrCalendars = getNullableBoolSelect('#DefaultMergeRadarrSonarrCalendars');
+                        config.DefaultUserSettings.radarrCalendarShowCinema = getNullableBoolSelect('#DefaultRadarrCalendarShowCinema');
+                        config.DefaultUserSettings.radarrCalendarShowDigital = getNullableBoolSelect('#DefaultRadarrCalendarShowDigital');
+                        config.DefaultUserSettings.radarrCalendarShowPhysical = getNullableBoolSelect('#DefaultRadarrCalendarShowPhysical');
+                        config.DefaultUserSettings.radarrCalendarShowDate = getNullableBoolSelect('#DefaultRadarrCalendarShowDate');
+                        config.DefaultUserSettings.sonarrCalendarShowDate = getNullableBoolSelect('#DefaultSonarrCalendarShowDate');
+                        config.DefaultUserSettings.sonarrCalendarShowEpisodeInfo = getNullableBoolSelect('#DefaultSonarrCalendarShowEpisodeInfo');
+                        config.DefaultUserSettings.personalRatingStyle = document.querySelector('#DefaultPersonalRatingStyle').value || null;
+                        config.DefaultUserSettings.personPageSortOption = document.querySelector('#DefaultPersonPageSortOption').value || null;
+                        config.DefaultUserSettings.shuffleContentType = document.querySelector('#DefaultShuffleContentType').value || null;
+                        config.DefaultUserSettings.homeRowsImageType = document.querySelector('#DefaultHomeRowsImageType').value || null;
+                        config.DefaultUserSettings.mediaTypeBadgeBehavior = document.querySelector('#DefaultMediaTypeBadgeBehavior').value || null;
+                        config.DefaultUserSettings.audioRowsSortOrder = document.querySelector('#DefaultAudioRowsSortOrder').value || null;
+                        config.DefaultUserSettings.collectionsRowSortOrder = document.querySelector('#DefaultCollectionsRowSortOrder').value || null;
+                        config.DefaultUserSettings.favoritesRowSortOrder = document.querySelector('#DefaultFavoritesRowSortOrder').value || null;
+                        config.DefaultUserSettings.genresRowSortOrder = document.querySelector('#DefaultGenresRowSortOrder').value || null;
+                        config.DefaultUserSettings.genresRowItemFilter = document.querySelector('#DefaultGenresRowItemFilter').value || null;
+                        config.DefaultUserSettings.playlistsRowSortOrder = document.querySelector('#DefaultPlaylistsRowSortOrder').value || null;
+                        config.DefaultUserSettings.studiosRowSortBy = document.querySelector('#DefaultStudiosRowSortBy').value || null;
+                        config.DefaultUserSettings.studiosRowSortOrder = document.querySelector('#DefaultStudiosRowSortOrder').value || null;
+                        config.DefaultUserSettings.sinceYouWatchedSource = document.querySelector('#DefaultSinceYouWatchedSource').value || null;
+                        config.DefaultUserSettings.sinceYouWatchedSourceType = document.querySelector('#DefaultSinceYouWatchedSourceType').value || null;
+                        config.DefaultUserSettings.sinceYouWatchedSourceItem = document.querySelector('#DefaultSinceYouWatchedSourceItem').value || null;
+                        config.DefaultUserSettings.libraryStyle = document.querySelector('#DefaultLibraryStyle').value || null;
+                        config.DefaultUserSettings.bookLibraryStyle = document.querySelector('#DefaultBookLibraryStyle').value || null;
+                        config.DefaultUserSettings.musicLibraryStyle = document.querySelector('#DefaultMusicLibraryStyle').value || null;
+                        config.DefaultUserSettings.libraryPosterSize = document.querySelector('#DefaultLibraryPosterSize').value || null;
+                        config.DefaultUserSettings.playlistPosterSize = document.querySelector('#DefaultPlaylistPosterSize').value || null;
+                        config.DefaultUserSettings.favoritesViewStyle = document.querySelector('#DefaultFavoritesViewStyle').value || null;
+                        config.DefaultUserSettings.allGenresImageType = document.querySelector('#DefaultAllGenresImageType').value || null;
+                        config.DefaultUserSettings.audioSortOption = document.querySelector('#DefaultAudioSortOption').value || null;
+                        config.DefaultUserSettings.liveTvChannelSortBy = document.querySelector('#DefaultLiveTvChannelSortBy').value || null;
+                        config.DefaultUserSettings.epgMobileView = document.querySelector('#DefaultEpgMobileView').value || null;
+                        config.DefaultUserSettings.mediaBarOverlayColor = document.querySelector('#DefaultMediaBarOverlayColor').value || null;
+                        config.DefaultUserSettings.mediaBarOpacity = getNullableRangeInput('#DefaultMediaBarOpacity');
+                        var osdVal = getButtonPickerValue('#DefaultOsdButtonsList');
+                        config.DefaultUserSettings.osdButtonOrderTv = osdVal.order;
+                        config.DefaultUserSettings.osdButtonOrderMobile = osdVal.order;
+                        config.DefaultUserSettings.osdButtonOrderDesktop = osdVal.order;
+                        config.DefaultUserSettings.hiddenOsdButtonsTv = osdVal.hidden;
+                        config.DefaultUserSettings.hiddenOsdButtonsMobile = osdVal.hidden;
+                        config.DefaultUserSettings.hiddenOsdButtonsDesktop = osdVal.hidden;
 
                         // Messages live in this object but are managed through their own
                         // endpoints, so the copy read at the top of submit() is already stale.
