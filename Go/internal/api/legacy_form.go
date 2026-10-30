@@ -1,13 +1,10 @@
 package api
 
 import (
-	"context"
 	"math"
 	"slices"
 	"strconv"
 	"strings"
-
-	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 )
 
 // Earlier releases also offered their settings on Silo's own plugin form, which
@@ -40,16 +37,12 @@ type formField struct {
 	Options  []string // every option (kindShown)
 }
 
-// Configure receives what Silo holds for the old form, once per start.
-func (s *Server) Configure(_ context.Context, entries []*pluginv1.ConfigEntry) error {
-	native := map[string]M{}
-	for _, e := range entries {
-		native[e.GetKey()] = e.GetValue().AsMap()
-	}
+// SetNative takes what Silo holds for the old form, which it hands over
+// through Configure once per start.
+func (s *Server) SetNative(native map[string]M) {
 	s.nativeMu.Lock()
 	s.native = native
 	s.nativeMu.Unlock()
-	return nil
 }
 
 func (s *Server) nativeConfig() map[string]M {

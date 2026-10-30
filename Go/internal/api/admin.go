@@ -51,6 +51,12 @@ var adminPageBody = sync.OnceValue(func() string {
 
 func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 	v := url.QueryEscape(s.version)
+	back := ""
+	if s.backURL != "" {
+		label := html.EscapeString("Back to " + s.name)
+		back = fmt.Sprintf(`<a href="%s" title="%s" aria-label="%s"><span class="material-icons" aria-hidden="true">arrow_back</span></a>`,
+			html.EscapeString(s.backURL), label, label)
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	fmt.Fprintf(w, `<!doctype html>
@@ -63,11 +69,11 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 <script src="admin-assets/host.js?v=%[1]s"></script>
 </head>
 <body>
-<div class="moonbaseHostBar"><a href="/admin/plugins" title="Back to Silo" aria-label="Back to Silo"><span class="material-icons" aria-hidden="true">arrow_back</span></a><span class="moonbaseHostVersion">Moonbase %[2]s for Silo</span></div>
+<div class="moonbaseHostBar">%[4]s<span class="moonbaseHostVersion">Moonbase %[2]s for %[5]s</span></div>
 <div class="moonbaseHostNotices"></div>
 %[3]s
 </body>
-</html>`, v, html.EscapeString(s.version), adminPageBody())
+</html>`, v, html.EscapeString(s.version), adminPageBody(), back, html.EscapeString(s.name))
 }
 
 func serveEmbedded(w http.ResponseWriter, r *http.Request, name, cacheControl string) {
@@ -195,8 +201,8 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, M{"success": true, "profilesRemoved": removed})
 }
 
-// handleAdminUsers lists, in the shape Jellyfin's /Users has, the Silo
-// accounts that have synced settings. Silo doesn't let plugins list accounts.
+// handleAdminUsers lists, in the shape Jellyfin's /Users has, the accounts
+// that have synced settings, since Silo doesn't let plugins list accounts.
 func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	var index []indexEntry
 	if _, err := s.loadJSON(r.Context(), keyIndex, &index); err != nil {

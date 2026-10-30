@@ -12,7 +12,7 @@ func (s *Server) handlePing(w http.ResponseWriter, r *http.Request) {
 		"installed":                true,
 		"version":                  s.version,
 		"settingsSyncEnabled":      cfg.EnableSettingsSync,
-		"serverName":               "Silo",
+		"serverName":               s.name,
 		"seerrEnabled":             false,
 		"mdblistAvailable":         cfg.MdblistAPIKey != "",
 		"tmdbAvailable":            cfg.TmdbAPIKey != "",
@@ -26,7 +26,7 @@ func (s *Server) handlePing(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleWhoami shows what Silo told the plugin about the caller, for checking
+// handleWhoami shows what the host said about the caller, for checking
 // identity on a live server.
 func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 	id := callerOf(r)
@@ -37,10 +37,10 @@ func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 		"profileId":   id.ProfileID,
 		"profileName": id.ProfileName,
 	}
-	libs, err := s.catalog.Libraries(r.Context(), id.UserID)
+	libs, err := s.catalog.Libraries(r.Context(), id)
 	if err != nil {
 		logError(r, "list libraries", err)
-		writeError(w, http.StatusBadGateway, "Silo didn't return the library list.")
+		writeError(w, http.StatusBadGateway, s.name+" didn't return the library list.")
 		return
 	}
 	body["libraries"] = libs
@@ -48,7 +48,7 @@ func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleHome is the page Silo opens from its Apps menu. The route also lets
-// Moonfin apps find this installation through GET /api/v2/settings/plugins.
+// Moonfin apps find the Silo installation through GET /api/v2/settings/plugins.
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!doctype html><meta charset="utf-8"><title>Moonbase</title>

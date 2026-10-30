@@ -4,21 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
-
-	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 
 	"github.com/Moonfin-Client/Plugin/Go/internal/store"
 )
 
 type fakeCatalog struct{}
 
-func (fakeCatalog) Libraries(context.Context, int) ([]Library, error) {
+func (fakeCatalog) Libraries(context.Context, Identity) ([]Library, error) {
 	return []Library{{ID: "1", Name: "Movies", MediaType: "movie"}}, nil
 }
 
@@ -64,25 +66,72 @@ func (c caller) headers() map[string]string {
 	return h
 }
 
+// headerIdentity reads the headers caller.headers sets, the way silo.Identify
+// does.
+func headerIdentity(r *http.Request) (Identity, error) {
+	id, err := strconv.Atoi(r.Header.Get("X-Silo-User-Id"))
+	if err != nil || id <= 0 {
+		return Identity{}, ErrSignedOut
+	}
+	return Identity{
+		UserID:      id,
+		Admin:       r.Header.Get("X-Silo-User-Role") == "admin",
+		UserName:    r.Header.Get("X-Silo-User-Name"),
+		ProfileID:   r.Header.Get("X-Silo-Profile-Id"),
+		ProfileName: r.Header.Get("X-Silo-Profile-Name"),
+	}, nil
+}
+
+func testHost(kv store.KV) Host {
+	return Host{Name: "Silo", KV: kv, Catalog: fakeCatalog{}, Identify: headerIdentity, AdminBackURL: "/admin/plugins"}
+}
+
 func newTestServer() *Server {
-	return NewServer("1.2.3", store.NewMemKV(), fakeCatalog{})
+	return NewServer("1.2.3", testHost(store.NewMemKV()))
+}
+
+// serve runs one request through the handler. Query values that aren't
+// strings are sent as JSON, the way Silo's proxy passes them on.
+func serve(ctx context.Context, s *Server, c caller, method, path, body string, query map[string]any) *http.Response {
+	q := url.Values{}
+	for k, v := range query {
+		if str, ok := v.(string); ok {
+			q.Set(k, str)
+		} else {
+			b, _ := json.Marshal(v)
+			q.Set(k, string(b))
+		}
+	}
+	target := (&url.URL{Path: path, RawQuery: q.Encode()}).RequestURI()
+	r := httptest.NewRequestWithContext(ctx, method, target, strings.NewReader(body))
+	for k, v := range c.headers() {
+		r.Header.Set(k, v)
+	}
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	return w.Result()
+}
+
+func readAll(t *testing.T, resp *http.Response) []byte {
+	t.Helper()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
 
 func call(t *testing.T, s *Server, c caller, method, path, body string, query map[string]any) (int, map[string]any) {
 	t.Helper()
-	resp, err := s.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
-		Method: method, Path: path, Headers: c.headers(), Body: []byte(body), Query: mustStruct(t, query),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := serve(context.Background(), s, c, method, path, body, query)
+	raw := readAll(t, resp)
 	var out map[string]any
-	if len(resp.GetBody()) > 0 && strings.HasPrefix(resp.GetHeaders()["Content-Type"], "application/json") {
-		if err := json.Unmarshal(resp.GetBody(), &out); err != nil {
-			t.Fatalf("%s %s: bad JSON %q", method, path, resp.GetBody())
+	if len(raw) > 0 && strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
+		if err := json.Unmarshal(raw, &out); err != nil {
+			t.Fatalf("%s %s: bad JSON %q", method, path, raw)
 		}
 	}
-	return int(resp.GetStatusCode()), out
+	return resp.StatusCode, out
 }
 
 func TestAuthorizationMatrix(t *testing.T) {
@@ -381,7 +430,7 @@ func TestMessagesReachTheirAudience(t *testing.T) {
 
 func TestDeletingNothingUsesNoStorage(t *testing.T) {
 	kv := store.NewMemKV()
-	s := NewServer("1", kv, fakeCatalog{})
+	s := NewServer("1", testHost(kv))
 	for i := range 5 {
 		c := caller{user: 10 + i, profile: "P"}
 		if code, _ := call(t, s, c, "DELETE", "/Moonfin/Settings", "", nil); code != 200 {
@@ -432,12 +481,9 @@ func TestAdminUsersComeFromSyncedProfiles(t *testing.T) {
 	for _, c := range []caller{userMain, userKids, adminMain} {
 		call(t, s, c, "POST", "/Moonfin/Settings/Profile/tv", `{"profile":{"a":1}}`, nil)
 	}
-	resp, err := s.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/Moonfin/Admin/Users", Headers: adminMain.headers()})
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := serve(context.Background(), s, adminMain, "GET", "/Moonfin/Admin/Users", "", nil)
 	var users []map[string]any
-	if err := json.Unmarshal(resp.GetBody(), &users); err != nil {
+	if err := json.Unmarshal(readAll(t, resp), &users); err != nil {
 		t.Fatal(err)
 	}
 	if len(users) != 2 || users[0]["Id"] != "3" || users[0]["Name"] != "pat" || users[1]["Name"] != "Account 2" ||
@@ -448,21 +494,20 @@ func TestAdminUsersComeFromSyncedProfiles(t *testing.T) {
 
 func TestAdminPageServesTheJellyfinPage(t *testing.T) {
 	s := newTestServer()
-	resp, _ := s.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/admin", Headers: adminMain.headers()})
-	page := string(resp.GetBody())
-	for _, want := range []string{`<script src="admin-assets/host.js?v=1.2.3">`, `id="MoonfinConfigPage"`, "MoonfinConfig.pluginUniqueId"} {
+	page := string(readAll(t, serve(context.Background(), s, adminMain, "GET", "/admin", "", nil)))
+	for _, want := range []string{`<script src="admin-assets/host.js?v=1.2.3">`, `id="MoonfinConfigPage"`, "MoonfinConfig.pluginUniqueId",
+		`href="/admin/plugins" title="Back to Silo"`, "Moonbase 1.2.3 for Silo"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page is missing %q", want)
 		}
 	}
 	for _, asset := range []string{"/admin-assets/host.js", "/admin-assets/host.css", "/admin-assets/fonts/MaterialIcons-Regular.woff2", "/Moonfin/Assets/icon.png"} {
-		resp, _ := s.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: asset, Headers: adminMain.headers()})
-		if resp.GetStatusCode() != 200 || resp.GetHeaders()["Content-Type"] == "" || len(resp.GetBody()) == 0 {
-			t.Errorf("%s = %d %q", asset, resp.GetStatusCode(), resp.GetHeaders()["Content-Type"])
+		resp := serve(context.Background(), s, adminMain, "GET", asset, "", nil)
+		if resp.StatusCode != 200 || resp.Header.Get("Content-Type") == "" || len(readAll(t, resp)) == 0 {
+			t.Errorf("%s = %d %q", asset, resp.StatusCode, resp.Header.Get("Content-Type"))
 		}
 	}
-	resp, _ = s.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/admin-assets/configPage.html", Headers: adminMain.headers()})
-	if resp.GetStatusCode() != 404 {
+	if resp := serve(context.Background(), s, adminMain, "GET", "/admin-assets/configPage.html", "", nil); resp.StatusCode != 404 {
 		t.Error("the raw page must not be served as an asset")
 	}
 }
@@ -479,13 +524,7 @@ func TestOldFormValuesReachTheRoutes(t *testing.T) {
 		"bottomNavbarTab1": "home", "bottomNavbarTab2": "", "bottomNavbarTab3": "home",
 		"seasonalRowShownHolidays": []any{"christmas"},
 	})
-	var config []*pluginv1.ConfigEntry
-	for k, v := range entries {
-		config = append(config, &pluginv1.ConfigEntry{Key: k, Value: mustStruct(t, v)})
-	}
-	if err := s.Configure(context.Background(), config); err != nil {
-		t.Fatal(err)
-	}
+	s.SetNative(entries)
 	_, got := call(t, s, userKids, "GET", "/Moonfin/Settings/Resolved/tv", "", nil)
 	want := map[string]any{"navbarPosition": "bottom", "use24HourClock": true, "mediaBarItemCount": 10.0,
 		"browsingBlur": "12", "themeMusicVolume": 40.0, "tmdbApiKey": "native-key",
@@ -525,13 +564,7 @@ func byCard(t *testing.T, values map[string]any) map[string]map[string]any {
 
 func TestPageSaveKeepsTheOldFormValues(t *testing.T) {
 	s := newTestServer()
-	var config []*pluginv1.ConfigEntry
-	for k, v := range byCard(t, map[string]any{"TmdbApiKey": "form-key", "navbarPosition": "bottom", "use24HourClock": "true"}) {
-		config = append(config, &pluginv1.ConfigEntry{Key: k, Value: mustStruct(t, v)})
-	}
-	if err := s.Configure(context.Background(), config); err != nil {
-		t.Fatal(err)
-	}
+	s.SetNative(byCard(t, map[string]any{"TmdbApiKey": "form-key", "navbarPosition": "bottom", "use24HourClock": "true"}))
 	_, cfg := call(t, s, adminMain, "GET", "/Moonfin/Admin/Configuration", "", nil)
 	if cfg["TmdbApiKey"] != "form-key" || cfg["DefaultUserSettings"].(map[string]any)["navbarPosition"] != "bottom" {
 		t.Fatalf("the page must read the old form's values: %v", cfg)
@@ -588,9 +621,9 @@ func TestThemes(t *testing.T) {
 		t.Fatal("replacing a theme must work at the limit")
 	}
 
-	resp, _ := s.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/Moonfin/Themes", Headers: userKids.headers()})
+	resp := serve(context.Background(), s, userKids, "GET", "/Moonfin/Themes", "", nil)
 	var list []map[string]any
-	if err := json.Unmarshal(resp.GetBody(), &list); err != nil || len(list) != 5 || list[0]["displayName"] != "Amber" || list[4]["displayName"] != "Eve 2" {
+	if err := json.Unmarshal(readAll(t, resp), &list); err != nil || len(list) != 5 || list[0]["displayName"] != "Amber" || list[4]["displayName"] != "Eve 2" {
 		t.Fatalf("themes = %d %v", len(list), err)
 	}
 	if code, got := call(t, s, userKids, "GET", "/Moonfin/Themes/T3", "", nil); code != 200 || got["displayName"] != "Birch" {

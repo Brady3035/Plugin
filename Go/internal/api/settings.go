@@ -154,7 +154,7 @@ func (s *Server) storeEnvelope(ctx context.Context, id Identity, env M) error {
 
 func storageFailed(w http.ResponseWriter, r *http.Request, err error) {
 	logError(r, "settings storage", err)
-	writeError(w, http.StatusInternalServerError, "Moonbase couldn't read or save its data in Silo. Check the Silo server log.")
+	writeError(w, http.StatusInternalServerError, "Moonbase couldn't read or save its data. Check the server log.")
 }
 
 // readBody decodes a JSON object whose top-level keys match case-insensitively,
@@ -450,8 +450,8 @@ func clone(m M) M {
 	return out
 }
 
-// handleSeerrConfig always reports Seerr off: the Seerr proxy isn't part of
-// Moonbase on Silo, which has its own requests feature.
+// handleSeerrConfig always reports Seerr off, since this Moonbase has no Seerr
+// proxy.
 func (s *Server) handleSeerrConfig(w http.ResponseWriter, r *http.Request) {
 	cfg := s.config(r.Context())
 	userEnabled := true

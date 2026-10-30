@@ -1,24 +1,19 @@
-// Package store keeps Moonbase's own data in the host's per-installation
-// instance state, which Silo encrypts and stores in its database.
+// Package store keeps Moonbase's own data in a KV the host supplies, such as
+// Silo's per-installation instance state.
 package store
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
-
-	"github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
-	"github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtimehost"
 )
 
-// Limits the host enforces on instance state.
+// Silo's instance state limits. MemKV enforces them so tests catch code that
+// would break on Silo, and the silo package checks them against the SDK.
 const (
-	MaxKeys       = runtimehost.MaxInstanceStateKeys
-	MaxValueBytes = runtimehost.MaxInstanceStateValueBytes
+	MaxKeys       = 256
+	MaxValueBytes = 256 << 10
 )
-
-var ErrHostUnavailable = errors.New("silo host isn't connected yet")
 
 // KV is the storage Moonbase needs: whole values under short keys.
 type KV interface {
@@ -26,25 +21,7 @@ type KV interface {
 	Put(ctx context.Context, key string, value []byte) error
 }
 
-type HostKV struct{}
-
-func (HostKV) Get(ctx context.Context, key string) ([]byte, bool, error) {
-	host := runtime.Host()
-	if host == nil {
-		return nil, false, ErrHostUnavailable
-	}
-	return host.ReadInstanceState(ctx, key)
-}
-
-func (HostKV) Put(ctx context.Context, key string, value []byte) error {
-	host := runtime.Host()
-	if host == nil {
-		return ErrHostUnavailable
-	}
-	return host.WriteInstanceState(ctx, key, value)
-}
-
-// MemKV is an in-memory KV with the host's limits, for tests.
+// MemKV is an in-memory KV with Silo's limits, for tests.
 type MemKV struct {
 	mu   sync.Mutex
 	data map[string][]byte

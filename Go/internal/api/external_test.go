@@ -7,9 +7,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-
-	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func withKeys(t *testing.T, s *Server, mdblist, tmdb string) {
@@ -111,12 +108,9 @@ func TestTmdbRoutes(t *testing.T) {
 	}
 
 	withKeys(t, s, "", "v3key")
-	resp, err := s.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
-		Method: "GET", Path: "/Moonfin/Tmdb/Thumb", Headers: userMain.headers(),
-		Query: mustStruct(t, map[string]any{"imdbId": "tt0133093"}),
-	})
-	if err != nil || resp.GetStatusCode() != 302 || resp.GetHeaders()["Location"] != "https://image.tmdb.org/t/p/w1280/titled.jpg" {
-		t.Fatalf("thumb = %d %v %v", resp.GetStatusCode(), resp.GetHeaders(), err)
+	resp := serve(context.Background(), s, userMain, "GET", "/Moonfin/Tmdb/Thumb", "", map[string]any{"imdbId": "tt0133093"})
+	if resp.StatusCode != 302 || resp.Header.Get("Location") != "https://image.tmdb.org/t/p/w1280/titled.jpg" {
+		t.Fatalf("thumb = %d %v", resp.StatusCode, resp.Header)
 	}
 }
 
@@ -135,15 +129,6 @@ func TestProviderErrorsNeverShowTheKey(t *testing.T) {
 	}
 }
 
-func mustStruct(t *testing.T, m map[string]any) *structpb.Struct {
-	t.Helper()
-	s, err := structpb.NewStruct(m)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return s
-}
-
 func TestCanceledCallIsNotCached(t *testing.T) {
 	var hits atomic.Int32
 	srv := provider(t, &hits)
@@ -153,11 +138,7 @@ func TestCanceledCallIsNotCached(t *testing.T) {
 	q := map[string]any{"type": "movie", "tmdbId": "603"}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := s.Handle(ctx, &pluginv1.HandleHTTPRequest{
-		Method: "GET", Path: "/Moonfin/MdbList/Ratings", Headers: userMain.headers(), Query: mustStruct(t, q),
-	}); err != nil {
-		t.Fatal(err)
-	}
+	serve(ctx, s, userMain, "GET", "/Moonfin/MdbList/Ratings", "", q)
 	if _, got := call(t, s, userKids, "GET", "/Moonfin/MdbList/Ratings", "", q); got["success"] != true {
 		t.Fatalf("a canceled call must not fail the next one: %v", got)
 	}

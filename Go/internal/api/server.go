@@ -1,32 +1,41 @@
-// Package api serves Moonbase's /Moonfin routes through Silo's http_routes.v1
-// capability. Silo calls Handle over gRPC, and the request is replayed through
-// a standard ServeMux so handlers are plain net/http.
+// Package api serves Moonbase's /Moonfin routes as a plain net/http handler.
+// The host supplies storage, the catalog and who is calling.
 package api
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"strconv"
 	"sync"
-
-	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 
 	"github.com/Moonfin-Client/Plugin/Go/internal/store"
 )
 
-type Server struct {
-	pluginv1.UnimplementedHttpRoutesServer
+// Host is what a server gives Moonbase.
+type Host struct {
+	// Name is the server's name in replies and on the admin page.
+	Name    string
+	KV      store.KV
+	Catalog Catalog
+	// Identify says who is calling, or ErrSignedOut.
+	Identify func(*http.Request) (Identity, error)
+	// AdminBackURL is where the admin page's back arrow goes. Empty hides it.
+	AdminBackURL string
+}
 
-	version string
-	kv      store.KV
-	catalog Catalog
-	mux     *http.ServeMux
-	ext     external
+var ErrSignedOut = errors.New("caller isn't signed in")
+
+type Server struct {
+	version  string
+	name     string
+	backURL  string
+	kv       store.KV
+	catalog  Catalog
+	identify func(*http.Request) (Identity, error)
+	mux      *http.ServeMux
+	ext      external
 
 	// mu serializes every read-modify-write of stored settings.
 	mu sync.Mutex
@@ -36,18 +45,19 @@ type Server struct {
 	native   map[string]M
 }
 
-func NewServer(version string, kv store.KV, catalog Catalog) *Server {
+func NewServer(version string, h Host) *Server {
 	if version == "" {
 		version = "0.0.0-dev"
 	}
-	s := &Server{version: version, kv: kv, catalog: catalog, mux: http.NewServeMux(), ext: newExternal()}
+	s := &Server{version: version, name: h.Name, backURL: h.AdminBackURL, kv: h.KV, catalog: h.Catalog,
+		identify: h.Identify, mux: http.NewServeMux(), ext: newExternal()}
 	s.routes()
 	return s
 }
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /Moonfin/Ping", s.user(s.handlePing))
-	s.mux.HandleFunc("GET /Moonfin/Silo/Whoami", s.user(s.handleWhoami))
+	s.mux.HandleFunc("GET /Moonfin/Whoami", s.user(s.handleWhoami))
 	s.mux.HandleFunc("GET /{$}", s.user(s.handleHome))
 	s.settingsRoutes()
 	s.externalRoutes()
@@ -56,66 +66,20 @@ func (s *Server) routes() {
 	s.themeRoutes()
 }
 
-// Handle is the http_routes.v1 entry point.
-func (s *Server) Handle(ctx context.Context, req *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
-	query := url.Values{}
-	for k, v := range req.GetQuery().AsMap() {
-		query.Set(k, stringify(v))
-	}
-	target := (&url.URL{Path: req.GetPath(), RawQuery: query.Encode()}).RequestURI()
-	r := httptest.NewRequestWithContext(ctx, req.GetMethod(), target, bytes.NewReader(req.GetBody()))
-	r.Header = http.Header{}
-	for k, v := range req.GetHeaders() {
-		r.Header.Set(k, v)
-	}
-	w := httptest.NewRecorder()
-	s.mux.ServeHTTP(w, r)
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
 
-	headers := map[string]string{}
-	for k, v := range w.Header() {
-		if len(v) > 0 {
-			headers[k] = v[0]
-		}
-	}
-	return &pluginv1.HandleHTTPResponse{StatusCode: int32(w.Code), Headers: headers, Body: w.Body.Bytes()}, nil
-}
-
-func stringify(v any) string {
-	switch t := v.(type) {
-	case string:
-		return t
-	case nil:
-		return ""
-	default:
-		b, _ := json.Marshal(t)
-		return string(b)
-	}
-}
-
-// Identity is who Silo says is calling. The host stamps these headers itself
-// and never forwards client-sent X-Silo-* headers, so they can be trusted.
+// Identity is who the host says is calling.
 type Identity struct {
 	UserID int
-	// Admin is Silo's acting-admin decision: an admin account through its
-	// primary profile, the rule Silo's own admin API applies.
-	Admin       bool
-	UserName    string
+	// Admin is the host's acting-admin decision. On Silo that's an admin
+	// account through its primary profile, the rule Silo's own admin API
+	// applies.
+	Admin    bool
+	UserName string
+	// ProfileID is empty on hosts without profiles, and the profile's name
+	// keys its settings instead.
 	ProfileID   string
 	ProfileName string
-}
-
-func identityFrom(r *http.Request) (Identity, bool) {
-	id, err := strconv.Atoi(r.Header.Get("X-Silo-User-Id"))
-	if err != nil || id <= 0 {
-		return Identity{}, false
-	}
-	return Identity{
-		UserID:      id,
-		Admin:       r.Header.Get("X-Silo-User-Role") == "admin",
-		UserName:    r.Header.Get("X-Silo-User-Name"),
-		ProfileID:   r.Header.Get("X-Silo-Profile-Id"),
-		ProfileName: r.Header.Get("X-Silo-Profile-Name"),
-	}, true
 }
 
 type identityKey struct{}
@@ -125,13 +89,18 @@ func callerOf(r *http.Request) Identity {
 	return id
 }
 
-// user requires a signed-in caller. Silo already refuses anonymous callers on
-// routes declared "authenticated", this is the second check.
+// user only lets signed-in callers through. On Silo this repeats the check
+// Silo's proxy makes on routes declared "authenticated".
 func (s *Server) user(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, ok := identityFrom(r)
-		if !ok {
-			writeError(w, http.StatusUnauthorized, "Sign in to Silo first.")
+		id, err := s.identify(r)
+		if errors.Is(err, ErrSignedOut) {
+			writeError(w, http.StatusUnauthorized, "Sign in to "+s.name+" first.")
+			return
+		}
+		if err != nil {
+			logError(r, "identify caller", err)
+			writeError(w, http.StatusBadGateway, s.name+" didn't say who is signed in. Check that it's running.")
 			return
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), identityKey{}, id)))
@@ -141,7 +110,7 @@ func (s *Server) user(next http.HandlerFunc) http.HandlerFunc {
 func (s *Server) admin(next http.HandlerFunc) http.HandlerFunc {
 	return s.user(func(w http.ResponseWriter, r *http.Request) {
 		if !callerOf(r).Admin {
-			writeError(w, http.StatusForbidden, "Only a Silo admin can do this.")
+			writeError(w, http.StatusForbidden, "Only a "+s.name+" admin can do this.")
 			return
 		}
 		next(w, r)

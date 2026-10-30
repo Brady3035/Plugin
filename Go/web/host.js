@@ -115,7 +115,7 @@
             return this.getJSON(getUrl('Moonfin/Admin/Users'));
         },
         getUserViews: function () {
-            return this.getJSON(getUrl('Moonfin/Silo/Whoami')).then(function (who) {
+            return this.getJSON(getUrl('Moonfin/Whoami')).then(function (who) {
                 var types = { movie: 'movies', tv: 'tvshows' };
                 return {
                     Items: (who && who.libraries || []).map(function (l) {
@@ -338,7 +338,7 @@
                 option.remove();
                 show('Removed ' + name + ' (' + body.profilesRemoved + ' profile' + (body.profilesRemoved === 1 ? '' : 's') + ').');
             }, function (error) {
-                show('Silo didn’t remove the data' + (error && error.status ? ' (status ' + error.status + ').' : '.'), true);
+                show('Moonbase didn’t remove the data' + (error && error.status ? ' (status ' + error.status + ').' : '.'), true);
             }).finally(function () {
                 button.disabled = false;
             });

@@ -186,7 +186,7 @@ func (s *Server) handleUploadTheme(w http.ResponseWriter, r *http.Request) {
 	}
 	at := slices.IndexFunc(set.Items, func(e themeEntry) bool { return e.ID == id })
 	if at < 0 && len(set.Items) >= maxThemes {
-		themeRejected(w, fmt.Sprintf("Moonbase on Silo keeps up to %d themes. Delete one first.", maxThemes))
+		themeRejected(w, fmt.Sprintf("Moonbase on %s keeps up to %d themes. Delete one first.", s.name, maxThemes))
 		return
 	}
 	sum := sha256.Sum256(raw)

@@ -5,8 +5,7 @@ import (
 
 	"github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
 
-	"github.com/Moonfin-Client/Plugin/Go/internal/api"
-	"github.com/Moonfin-Client/Plugin/Go/internal/store"
+	"github.com/Moonfin-Client/Plugin/Go/internal/silo"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
@@ -16,7 +15,7 @@ var version string
 var manifestJSON []byte
 
 func main() {
-	server := api.NewServer(version, store.HostKV{}, api.NewHostCatalog())
+	plugin := silo.New(version)
 	runtime.ServeManifestWithOptions(manifestJSON, version,
-		runtime.CapabilityServers{HttpRoutes: server}, runtime.WithConfigure(server.Configure))
+		runtime.CapabilityServers{HttpRoutes: plugin}, runtime.WithConfigure(plugin.Configure))
 }
