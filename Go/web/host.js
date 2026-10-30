@@ -157,6 +157,9 @@
                 // save fails on its own request and keeps the changes.
                 var status = error && error.status;
                 if (status === 401 && lastConfig) return layerView(lastConfig);
+                // The device switch is dropped with the save, or the next
+                // Save would only reload.
+                switchTo = null;
                 // The page has no failure handler of its own, so its loading
                 // overlay would stay up over the settings.
                 Dashboard.hideLoadingMsg();

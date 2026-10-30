@@ -310,6 +310,11 @@ func TestWatchPartySubtitlesBelongToTheirHost(t *testing.T) {
 	if code, _ := call(t, s, userMain, "PUT", path, `{"subtitle":null}`, nil); code != 200 {
 		t.Fatalf("the owner clears it, got %d", code)
 	}
+	for _, bad := range []string{`{}`, `null`, `{"other":1}`, `{"subtitle":3}`} {
+		if code, _ := call(t, s, userMain, "PUT", path, bad, nil); code != 400 {
+			t.Fatalf("%s must be refused, got %d", bad, code)
+		}
+	}
 	if code, _ := call(t, s, userMain, "GET", "/Moonfin/WatchParty/not-a-room", "", nil); code != 400 {
 		t.Fatalf("a malformed room id is refused, got %d", code)
 	}
@@ -685,7 +690,8 @@ func theme(t *testing.T, id, name string) string {
 }
 
 func TestThemes(t *testing.T) {
-	s := newTestServer()
+	// Silo's store, where themes must stay out of the packed buckets.
+	s := NewServer("1.2.3", testHost(&store.Packed{KV: store.NewMemKV(), Pack: PerProfileKey}))
 	if code, _ := call(t, s, userMain, "POST", "/Moonfin/Admin/Themes", theme(t, "dusk", "Dusk"), nil); code != http.StatusForbidden {
 		t.Fatalf("only an admin may upload, got %d", code)
 	}
@@ -774,19 +780,29 @@ func TestCollectionOrderIsKeptPerUser(t *testing.T) {
 	}
 }
 
-func TestWatchPartyStoreMakesRoomForNewRooms(t *testing.T) {
+func TestWatchPartyStoreKeepsLiveRooms(t *testing.T) {
 	s := newTestServer()
 	room := func(i int) string { return fmt.Sprintf("00000000-0000-4000-8000-%012d", i) }
-	for i := 0; i < watchPartyMaxRooms+5; i++ {
-		if code, _ := call(t, s, other, "PUT", "/Moonfin/WatchParty/"+room(i)+"/Avatar", `{"url":"/avatars/presets/fox.svg"}`, nil); code != 200 {
+	avatar := `{"url":"/avatars/presets/fox.svg"}`
+	for i := 0; i < watchPartyRoomsPerAccount; i++ {
+		if code, _ := call(t, s, other, "PUT", "/Moonfin/WatchParty/"+room(i)+"/Avatar", avatar, nil); code != 200 {
 			t.Fatalf("room %d refused with %d", i, code)
 		}
 	}
-	if _, got := call(t, s, other, "GET", "/Moonfin/WatchParty/"+room(0), "", nil); got["avatars"] != nil {
-		t.Fatalf("the oldest room must make way: %v", got)
+	if code, _ := call(t, s, other, "PUT", "/Moonfin/WatchParty/"+room(99)+"/Avatar", avatar, nil); code != http.StatusServiceUnavailable {
+		t.Fatalf("an account past its share of rooms is refused, got %d", code)
 	}
-	if _, got := call(t, s, other, "GET", "/Moonfin/WatchParty/"+room(watchPartyMaxRooms+4), "", nil); got["avatars"] == nil {
-		t.Fatalf("the newest room must be kept: %v", got)
+	if code, _ := call(t, s, other, "PUT", "/Moonfin/WatchParty/"+room(0), `{"subtitle":null}`, nil); code != 200 {
+		t.Fatalf("its existing rooms still take changes, got %d", code)
+	}
+	if code, _ := call(t, s, userMain, "PUT", "/Moonfin/WatchParty/"+room(0)+"/Avatar", avatar, nil); code != 200 {
+		t.Fatalf("other members join its rooms, got %d", code)
+	}
+	if code, _ := call(t, s, userMain, "PUT", "/Moonfin/WatchParty/"+room(99)+"/Avatar", avatar, nil); code != 200 {
+		t.Fatalf("another account starts its own room, got %d", code)
+	}
+	if _, got := call(t, s, other, "GET", "/Moonfin/WatchParty/"+room(0), "", nil); got["avatars"] == nil {
+		t.Fatalf("the oldest room is kept: %v", got)
 	}
 	if code, _ := call(t, s, other, "GET", "/Moonfin/WatchParty/"+strings.Repeat("-", 36), "", nil); code != 400 {
 		t.Fatalf("a room id that isn't a UUID is refused, got %d", code)

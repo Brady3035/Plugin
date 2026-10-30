@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Moonfin-Client/Plugin/Go/internal/settings"
+	"github.com/Moonfin-Client/Plugin/Go/internal/store"
 )
 
 type M = settings.M
@@ -31,10 +32,11 @@ func settingsKey(id Identity) string {
 
 // PerProfileKey reports whether key is one there's one of per profile: its
 // settings (settingsKey) or a collection order (orderKey). A host with a small
-// key budget can pack these together.
+// key budget can pack these together. Other keys under "s/" are kept apart;
+// themes are stored gzipped, not as JSON.
 func PerProfileKey(key string) bool {
 	switch {
-	case key == keyIndex:
+	case key == keyIndex, key == keyThemes:
 		return false
 	case strings.HasPrefix(key, "p/"), strings.HasPrefix(key, "s/"), strings.HasPrefix(key, "o/"):
 		return true
@@ -415,11 +417,26 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 	if only != 0 {
 		by = "admin-reset-user"
 	}
-	affected, failed := 0, 0
+	var targets []indexEntry
+	var keys []string
 	for _, e := range index {
-		if only != 0 && !e.isTarget(only, onlyProfile) {
-			continue
+		if only == 0 || e.isTarget(only, onlyProfile) {
+			targets = append(targets, e)
+			keys = append(keys, e.key())
 		}
+	}
+	// Settings are read and written all together, since Silo packs many
+	// profiles' settings into each stored key.
+	var current map[string][]byte
+	if !reset {
+		if current, err = store.GetMany(ctx, s.kv, keys); err != nil {
+			storageFailed(w, r, err)
+			return
+		}
+	}
+	writes := map[string][]byte{}
+	failed := 0
+	for _, e := range targets {
 		var env M
 		if reset {
 			global := clone(cfg.Defaults)
@@ -436,11 +453,13 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		} else {
-			existing, err := s.loadEnvelope(ctx, e.identity())
-			if err != nil {
-				logError(r, "push defaults", err)
-				failed++
-				continue
+			var existing M
+			if raw := current[e.key()]; len(bytes.TrimSpace(raw)) > 0 {
+				if err := json.Unmarshal(raw, &existing); err != nil {
+					logError(r, "push defaults", fmt.Errorf("decode %s: %w", e.key(), err))
+					failed++
+					continue
+				}
 			}
 			if existing == nil {
 				continue
@@ -457,14 +476,21 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		// Every entry is already in the index, so only its own key changes.
-		if err := s.saveJSON(ctx, e.key(), env); err != nil {
+		raw, err := json.Marshal(env)
+		if err != nil {
 			logError(r, "push defaults", err)
 			failed++
 			continue
 		}
-		affected++
+		writes[e.key()] = raw
 	}
+	// Every entry is already in the index, so only its own key changes.
+	notWritten, err := store.PutMany(ctx, s.kv, writes)
+	if err != nil {
+		logError(r, "push defaults", err)
+	}
+	failed += len(notWritten)
+	affected := len(writes) - len(notWritten)
 	if affected == 0 && failed > 0 {
 		storageFailed(w, r, fmt.Errorf("push defaults failed for %d profiles", failed))
 		return

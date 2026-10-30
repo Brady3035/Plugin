@@ -139,43 +139,99 @@ func (p *Packed) readBucket(ctx context.Context, bucket string) (map[string]json
 }
 
 func (p *Packed) Get(ctx context.Context, key string) ([]byte, bool, error) {
-	if !p.Pack(key) {
-		return p.KV.Get(ctx, key)
+	values, err := p.getMany(ctx, []string{key})
+	v, found := values[key]
+	return v, found, err
+}
+
+func (p *Packed) getMany(ctx context.Context, keys []string) (map[string][]byte, error) {
+	out := map[string][]byte{}
+	buckets := map[string]map[string]json.RawMessage{}
+	for _, key := range keys {
+		if p.Pack(key) {
+			bucket := packedBucket(key)
+			values, ok := buckets[bucket]
+			if !ok {
+				var err error
+				p.mu.Lock()
+				values, err = p.readBucket(ctx, bucket)
+				p.mu.Unlock()
+				if err != nil {
+					return nil, err
+				}
+				buckets[bucket] = values
+			}
+			if v, ok := values[key]; ok {
+				out[key] = v
+				continue
+			}
+		}
+		v, found, err := p.KV.Get(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			out[key] = v
+		}
 	}
-	p.mu.Lock()
-	values, err := p.readBucket(ctx, packedBucket(key))
-	p.mu.Unlock()
-	if err != nil {
-		return nil, false, err
-	}
-	if v, ok := values[key]; ok {
-		return v, true, nil
-	}
-	return p.KV.Get(ctx, key)
+	return out, nil
 }
 
 func (p *Packed) Put(ctx context.Context, key string, value []byte) error {
-	if !p.Pack(key) {
-		return p.KV.Put(ctx, key, value)
+	_, err := p.putMany(ctx, map[string][]byte{key: value})
+	return err
+}
+
+func (p *Packed) putMany(ctx context.Context, values map[string][]byte) ([]string, error) {
+	var failed []string
+	var first error
+	fail := func(err error, keys ...string) {
+		failed = append(failed, keys...)
+		if first == nil {
+			first = err
+		}
 	}
-	if len(value) > 0 && !json.Valid(value) {
-		return fmt.Errorf("value for %q isn't JSON", key)
+	byBucket := map[string][]string{}
+	for key, value := range values {
+		switch {
+		case !p.Pack(key):
+			if err := p.KV.Put(ctx, key, value); err != nil {
+				fail(err, key)
+			}
+		case len(value) > 0 && !json.Valid(value):
+			fail(fmt.Errorf("value for %q isn't JSON", key), key)
+		default:
+			bucket := packedBucket(key)
+			byBucket[bucket] = append(byBucket[bucket], key)
+		}
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	bucket := packedBucket(key)
-	values, err := p.readBucket(ctx, bucket)
+	for bucket, keys := range byBucket {
+		if err := p.writeBucket(ctx, bucket, keys, values); err != nil {
+			fail(err, keys...)
+		}
+	}
+	return failed, first
+}
+
+// writeBucket stores values' keys, all in bucket, with one read and write of
+// it. The caller holds p.mu.
+func (p *Packed) writeBucket(ctx context.Context, bucket string, keys []string, values map[string][]byte) error {
+	stored, err := p.readBucket(ctx, bucket)
 	if err != nil {
 		return err
 	}
-	if len(value) == 0 {
-		delete(values, key)
-	} else {
-		values[key] = value
+	for _, key := range keys {
+		if len(values[key]) == 0 {
+			delete(stored, key)
+		} else {
+			stored[key] = values[key]
+		}
 	}
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
-	if err := json.NewEncoder(zw).Encode(values); err != nil {
+	if err := json.NewEncoder(zw).Encode(stored); err != nil {
 		return err
 	}
 	if err := zw.Close(); err != nil {
@@ -189,10 +245,54 @@ func (p *Packed) Put(ctx context.Context, key string, value []byte) error {
 	}
 	// A value from before packing would otherwise come back once this one is
 	// deleted. Writing an existing key never needs a free one.
-	if old, found, err := p.KV.Get(ctx, key); err != nil {
-		return err
-	} else if found && len(old) > 0 {
-		return p.KV.Put(ctx, key, nil)
+	for _, key := range keys {
+		if old, found, err := p.KV.Get(ctx, key); err != nil {
+			return err
+		} else if found && len(old) > 0 {
+			if err := p.KV.Put(ctx, key, nil); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
+}
+
+// GetMany reads keys from kv, leaving out those not found. A Packed reads
+// each bucket once rather than once per key.
+func GetMany(ctx context.Context, kv KV, keys []string) (map[string][]byte, error) {
+	if p, ok := kv.(*Packed); ok {
+		return p.getMany(ctx, keys)
+	}
+	out := map[string][]byte{}
+	for _, key := range keys {
+		v, found, err := kv.Get(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			out[key] = v
+		}
+	}
+	return out, nil
+}
+
+// PutMany writes values to kv, an empty value deleting its key. A Packed
+// reads and writes each bucket once rather than once per key. It carries on
+// past a failed write and returns the keys it didn't write and the first
+// error.
+func PutMany(ctx context.Context, kv KV, values map[string][]byte) ([]string, error) {
+	if p, ok := kv.(*Packed); ok {
+		return p.putMany(ctx, values)
+	}
+	var failed []string
+	var first error
+	for key, value := range values {
+		if err := kv.Put(ctx, key, value); err != nil {
+			failed = append(failed, key)
+			if first == nil {
+				first = err
+			}
+		}
+	}
+	return failed, first
 }

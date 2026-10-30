@@ -117,3 +117,42 @@ func TestPackedMovesOldValuesIntoBuckets(t *testing.T) {
 		t.Fatal("a packed value must be JSON")
 	}
 }
+
+// Many values go in and come back out together, the same as one at a time,
+// and a deleted value doesn't come back from its old unpacked key.
+func TestPackedManyAtOnce(t *testing.T) {
+	ctx := context.Background()
+	mem := NewMemKV()
+	_ = mem.Put(ctx, "p/old", []byte(`{"v":0}`))
+	p := &Packed{KV: mem, Pack: packAll}
+	r := rand.New(rand.NewSource(2))
+	want := map[string][]byte{"config": []byte(`{"c":1}`), "p/old": nil}
+	for i := 0; i < 400; i++ {
+		want[fmt.Sprintf("p/%d", i)] = envelope(r, i)
+	}
+	if failed, err := PutMany(ctx, p, want); err != nil || len(failed) > 0 {
+		t.Fatalf("PutMany: %v %v", failed, err)
+	}
+	keys := []string{"p/missing"}
+	for key := range want {
+		keys = append(keys, key)
+	}
+	got, err := GetMany(ctx, p, keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, v := range want {
+		if one, _, _ := p.Get(ctx, key); !jsonEqual(one, v) || !jsonEqual(got[key], v) {
+			t.Fatalf("%s = %s / %s, want %s", key, one, got[key], v)
+		}
+	}
+	if v, found := got["p/missing"]; found {
+		t.Fatalf("a missing key read as %s", v)
+	}
+	if failed, err := PutMany(ctx, p, map[string][]byte{"p/1": []byte("not json"), "p/2": nil}); err == nil || len(failed) != 1 || failed[0] != "p/1" {
+		t.Fatalf("only the bad value must fail: %v %v", failed, err)
+	}
+	if _, found, _ := p.Get(ctx, "p/2"); found {
+		t.Fatal("the other write must still go through")
+	}
+}

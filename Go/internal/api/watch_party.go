@@ -18,12 +18,16 @@ import (
 // are public, an upload's is signed for 15 minutes, so members post theirs
 // again before it runs out). Plugins can't ask Silo who hosts a room: the
 // first profile to set a room's subtitles owns them. Moonfin only lets the
-// host set them, and room ids are UUIDs only members are told.
+// host set them and room ids are UUIDs only members are told, but a member
+// calling the route directly before the host would own them instead.
 const keyWatchParty = "watch-party"
 
 const (
 	watchPartyTTL      = 24 * time.Hour
 	watchPartyMaxRooms = 200
+	// An account may have this many rooms stored at once, so no one can
+	// fill the store and keep others' rooms out.
+	watchPartyRoomsPerAccount = 10
 )
 
 type watchPartyRoom struct {
@@ -33,6 +37,8 @@ type watchPartyRoom struct {
 	// Avatars are members' avatar links by Silo profile id.
 	Avatars   map[string]string `json:"avatars,omitempty"`
 	UpdatedAt time.Time         `json:"updatedAt"`
+	// CreatedBy is the account whose request first stored the room.
+	CreatedBy int `json:"createdBy,omitempty"`
 }
 
 const maxRoomAvatars = 50
@@ -90,10 +96,14 @@ func (s *Server) handlePutWatchParty(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var body struct {
-		Subtitle M `json:"subtitle"`
+	var body map[string]json.RawMessage
+	var subtitle M
+	err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body)
+	raw, has := body["subtitle"]
+	if err == nil && has {
+		err = json.Unmarshal(raw, &subtitle)
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body); err != nil {
+	if err != nil || !has {
 		writeError(w, http.StatusBadRequest, "A JSON object with subtitle is required")
 		return
 	}
@@ -104,9 +114,9 @@ func (s *Server) handlePutWatchParty(w http.ResponseWriter, r *http.Request) {
 			return http.StatusForbidden, "Only the room's host sets its subtitles"
 		}
 		room.OwnerUserID, room.OwnerProfileID = caller.UserID, memberKey(caller)
-		room.Subtitle = body.Subtitle
+		room.Subtitle = subtitle
 		return 0, ""
-	}, M{"subtitle": body.Subtitle})
+	}, M{"subtitle": subtitle})
 }
 
 // handlePutWatchPartyAvatar sets the caller's own avatar link for the room:
@@ -162,6 +172,7 @@ func (s *Server) updateWatchParty(
 	reply M,
 ) {
 	ctx := r.Context()
+	caller := callerOf(r)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var rooms map[string]watchPartyRoom
@@ -178,26 +189,32 @@ func (s *Server) updateWatchParty(
 			delete(rooms, key)
 		}
 	}
-	room := rooms[id]
+	room, known := rooms[id]
+	if !known {
+		// Any signed-in user can name a room, so new rooms are refused once
+		// the store or the account's share of it is full. Live rooms are
+		// never dropped to make way.
+		started := 0
+		for _, other := range rooms {
+			if other.CreatedBy == caller.UserID {
+				started++
+			}
+		}
+		if len(rooms) >= watchPartyMaxRooms || started >= watchPartyRoomsPerAccount {
+			writeError(w, http.StatusServiceUnavailable, "Too many Watch Party rooms, try again later")
+			return
+		}
+		room.CreatedBy = caller.UserID
+	}
 	if status, message := change(&room); status != 0 {
 		writeError(w, status, message)
 		return
 	}
 	room.UpdatedAt = now
 	rooms[id] = room
-	// Any signed-in user can name a room, so a full store makes room by
-	// dropping the rooms least recently used rather than refusing new ones.
-	for len(rooms) > watchPartyMaxRooms || watchPartyBytes(rooms) > store.MaxValueBytes {
-		oldest := ""
-		for key, other := range rooms {
-			if key != id && (oldest == "" || other.UpdatedAt.Before(rooms[oldest].UpdatedAt)) {
-				oldest = key
-			}
-		}
-		if oldest == "" {
-			break
-		}
-		delete(rooms, oldest)
+	if watchPartyBytes(rooms) > store.MaxValueBytes {
+		writeError(w, http.StatusServiceUnavailable, "Watch Party storage is full, try again later")
+		return
 	}
 	if err := s.saveJSON(ctx, keyWatchParty, rooms); err != nil {
 		storageFailed(w, r, err)
