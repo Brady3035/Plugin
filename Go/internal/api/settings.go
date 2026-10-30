@@ -48,6 +48,27 @@ func (e indexEntry) identity() Identity {
 
 func (e indexEntry) key() string { return settingsKey(e.identity()) }
 
+// profileKey names the profile in an admin target: its id, or its name on
+// Silo builds that kept settings by name.
+func (e indexEntry) profileKey() string {
+	if e.ProfileID != "" {
+		return e.ProfileID
+	}
+	return e.Profile
+}
+
+// adminTarget reads an admin route's {userId}: an account id for all of its
+// profiles, or "<account id>~<profile key>" for one of them.
+func adminTarget(raw string) (userID int, profile string, ok bool) {
+	id, profile, _ := strings.Cut(raw, "~")
+	userID, err := strconv.Atoi(id)
+	return userID, profile, err == nil && userID > 0
+}
+
+func (e indexEntry) isTarget(userID int, profile string) bool {
+	return e.UserID == userID && (profile == "" || e.profileKey() == profile)
+}
+
 func (s *Server) settingsRoutes() {
 	m := s.mux
 	m.HandleFunc("GET /Moonfin/Settings", s.sync(s.handleGetSettings))
@@ -347,11 +368,10 @@ func (s *Server) handleGetDefaults(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 	reset, _ := strconv.ParseBool(r.URL.Query().Get("overwrite"))
-	only := 0
+	only, onlyProfile := 0, ""
 	if raw := r.PathValue("userId"); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			only = n
-		} else {
+		var ok bool
+		if only, onlyProfile, ok = adminTarget(raw); !ok {
 			writeJSON(w, http.StatusBadRequest, M{"error": "A valid userId is required"})
 			return
 		}
@@ -383,7 +403,7 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 	}
 	affected, failed := 0, 0
 	for _, e := range index {
-		if only != 0 && e.UserID != only {
+		if only != 0 && !e.isTarget(only, onlyProfile) {
 			continue
 		}
 		var env M

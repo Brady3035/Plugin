@@ -335,6 +335,36 @@ func TestWatchPartyAvatarsAreEachMembersOwn(t *testing.T) {
 	}
 }
 
+func TestAdminTargetsOneProfile(t *testing.T) {
+	s := newTestServer()
+	for _, c := range []caller{userMain, userKids} {
+		call(t, s, c, "POST", "/Moonfin/Settings/Profile/tv", `{"profile":{"a":1}}`, nil)
+	}
+	saveConfig(t, s, map[string]any{"DefaultUserSettings": map[string]any{"b": 2}})
+	body := readAll(t, serve(context.Background(), s, adminMain, "GET", "/Moonfin/Admin/Users", "", nil))
+	if !strings.Contains(string(body), `"Profiles":[{"Id":"3~30","Name":"Main"},{"Id":"3~31","Name":"Kids"}]`) {
+		t.Fatalf("users must list their profiles: %s", body)
+	}
+	if code, _ := call(t, s, adminMain, "POST", "/Moonfin/Admin/PushDefaults/3~31", "", map[string]any{"overwrite": "true"}); code != 200 {
+		t.Fatalf("push to one profile = %d", code)
+	}
+	if _, env := call(t, s, userKids, "GET", "/Moonfin/Settings", "", nil); env["tv"] != nil {
+		t.Fatalf("the picked profile must be reset: %v", env)
+	}
+	if _, env := call(t, s, userMain, "GET", "/Moonfin/Settings", "", nil); env["tv"] == nil {
+		t.Fatalf("the account's other profile must stay: %v", env)
+	}
+	if code, got := call(t, s, adminMain, "DELETE", "/Moonfin/Admin/Users/3~31", "", nil); code != 200 || got["profilesRemoved"] != 1.0 {
+		t.Fatalf("delete one profile = %d %v", code, got)
+	}
+	if code, _ := call(t, s, userMain, "GET", "/Moonfin/Settings", "", nil); code != 200 {
+		t.Fatal("the account's other profile must keep its settings")
+	}
+	if code, _ := call(t, s, adminMain, "DELETE", "/Moonfin/Admin/Users/x~31", "", nil); code != 400 {
+		t.Fatalf("a malformed target is refused, got %d", code)
+	}
+}
+
 func TestDeleteUserRemovesEveryProfile(t *testing.T) {
 	s := newTestServer()
 	for _, c := range []caller{userMain, userKids, other} {
