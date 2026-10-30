@@ -773,3 +773,34 @@ func TestCollectionOrderIsKeptPerUser(t *testing.T) {
 		t.Fatal("orders need a signed-in caller")
 	}
 }
+
+func TestWatchPartyStoreMakesRoomForNewRooms(t *testing.T) {
+	s := newTestServer()
+	room := func(i int) string { return fmt.Sprintf("00000000-0000-4000-8000-%012d", i) }
+	for i := 0; i < watchPartyMaxRooms+5; i++ {
+		if code, _ := call(t, s, other, "PUT", "/Moonfin/WatchParty/"+room(i)+"/Avatar", `{"url":"/avatars/presets/fox.svg"}`, nil); code != 200 {
+			t.Fatalf("room %d refused with %d", i, code)
+		}
+	}
+	if _, got := call(t, s, other, "GET", "/Moonfin/WatchParty/"+room(0), "", nil); got["avatars"] != nil {
+		t.Fatalf("the oldest room must make way: %v", got)
+	}
+	if _, got := call(t, s, other, "GET", "/Moonfin/WatchParty/"+room(watchPartyMaxRooms+4), "", nil); got["avatars"] == nil {
+		t.Fatalf("the newest room must be kept: %v", got)
+	}
+	if code, _ := call(t, s, other, "GET", "/Moonfin/WatchParty/"+strings.Repeat("-", 36), "", nil); code != 400 {
+		t.Fatalf("a room id that isn't a UUID is refused, got %d", code)
+	}
+}
+
+// A host without profiles (Plex) lists just the account, which is the whole
+// of its settings.
+func TestAdminUsersWithoutProfiles(t *testing.T) {
+	s := newTestServer()
+	plexUser := caller{user: 9, name: "al"}
+	call(t, s, plexUser, "POST", "/Moonfin/Settings/Profile/tv", `{"profile":{"a":1}}`, nil)
+	body := readAll(t, serve(context.Background(), s, adminMain, "GET", "/Moonfin/Admin/Users", "", nil))
+	if !strings.Contains(string(body), `"Id":"9","Name":"al","Policy":{"IsAdministrator":false},"Profiles":[]`) {
+		t.Fatalf("users = %s", body)
+	}
+}

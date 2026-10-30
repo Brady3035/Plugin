@@ -284,6 +284,9 @@
                 own.homeSections = shown.homeSections;
                 own.homeRowOrder = shown.homeRowOrder;
             }
+            // A built-in theme for this device has to clear the uploaded one
+            // set for all devices, or that one would still win.
+            if (own.visualTheme && layers.global.customThemeId) own.customThemeId = '';
             layers[layer] = own;
         }
         config.DefaultUserSettings = layers.global;
@@ -587,14 +590,23 @@
     // The page's row catalog and helpers are globals of its script, so the
     // Home rows builder is adjusted through them.
     function adaptHomeRows() {
-        var liveTv = { livetv: true, onnow: true, activerecordings: true };
-        for (var i = HOME_SECTION_DEFINITIONS.length - 1; i >= 0; i--) {
-            var row = HOME_SECTION_DEFINITIONS[i];
-            if (!host.liveTv && liveTv[row.type]) HOME_SECTION_DEFINITIONS.splice(i, 1);
-            else if (!host.ownRequests) continue;
-            else if (row.type === 'seerr_watchlist') row.label = 'Requests Watchlist';
-            else row.label = row.label.replace(/^Seerr /, '');
+        if (!host.liveTv) {
+            // Left out of the rows on offer only: a saved layout that has
+            // one still loads and saves it.
+            var liveTv = { livetv: true, onnow: true, activerecordings: true };
+            var initAvailable = window.initializeHomeLayoutAvailableRows;
+            window.initializeHomeLayoutAvailableRows = function () {
+                initAvailable();
+                HOME_LAYOUT_STATE.available.builtin = HOME_LAYOUT_STATE.available.builtin.filter(function (c) {
+                    return !liveTv[c.section.type];
+                });
+            };
         }
+        HOME_SECTION_DEFINITIONS.forEach(function (row) {
+            if (!host.ownRequests) return;
+            if (row.type === 'seerr_watchlist') row.label = 'Requests Watchlist';
+            else row.label = row.label.replace(/^Seerr /, '');
+        });
         for (var j = BOTTOM_NAVBAR_TABS.length - 1; j >= 0; j--) {
             if (!host.liveTv && BOTTOM_NAVBAR_TABS[j][0] === 'liveTv') BOTTOM_NAVBAR_TABS.splice(j, 1);
             else if (host.ownRequests) BOTTOM_NAVBAR_TABS[j][1] = BOTTOM_NAVBAR_TABS[j][1].replace('Seerr', 'Requests');
@@ -639,8 +651,20 @@
         upgrade(document);
         renameServer(page);
         adaptSections(page);
-        adaptHomeRows();
+        try {
+            adaptHomeRows();
+        } catch (e) {
+            // The page's globals changed: the builder keeps the Jellyfin rows.
+            console.error('Moonbase: adapting the Home rows builder failed', e);
+        }
         addDefaultsLayerPicker(page);
+        // An upload or delete on the Themes tab redraws its list; the App
+        // Theme default follows it.
+        var renderThemes = window.renderAdminThemesList;
+        window.renderAdminThemesList = function (items) {
+            renderThemes(items);
+            fillUploadedThemes(items);
+        };
         new MutationObserver(function (records) {
             records.forEach(function (record) { upgrade(record.target); });
         }).observe(page, { childList: true, subtree: true });
@@ -807,7 +831,13 @@
             send('DELETE', getUrl('Moonfin/Admin/Users/' + encodeURIComponent(target))).then(json).then(function (body) {
                 if (oneProfile) {
                     listedUsers.forEach(function (user) {
+                        var before = (user.Profiles || []).length;
                         user.Profiles = (user.Profiles || []).filter(function (p) { return p.Id !== target; });
+                        // Its last profile gone, the account has nothing left.
+                        if (before && !user.Profiles.length) {
+                            var account = Array.prototype.find.call(select.options, function (o) { return o.value === user.Id; });
+                            if (account) account.remove();
+                        }
                     });
                 } else {
                     option.remove();

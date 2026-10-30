@@ -217,6 +217,12 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 		storageFailed(w, r, err)
 		return
 	}
+	// The name only stands in for an account none of whose entries says
+	// which profile is its own.
+	knowsPrimary := map[int]bool{}
+	for _, e := range index {
+		knowsPrimary[e.UserID] = knowsPrimary[e.UserID] || e.Primary
+	}
 	users := []M{}
 	byID := map[int]M{}
 	for _, e := range index {
@@ -231,7 +237,11 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 			byID[e.UserID] = user
 			users = append(users, user)
 		}
-		primary := e.Primary || strings.EqualFold(e.Profile, e.UserName)
+		if e.profileKey() == "" {
+			// A host without profiles (Plex) has just the account.
+			continue
+		}
+		primary := e.Primary || (!knowsPrimary[e.UserID] && strings.EqualFold(e.Profile, e.UserName))
 		user["Profiles"] = append(user["Profiles"].([]M), M{"Id": id + "~" + e.profileKey(), "Name": e.Profile, "Primary": primary})
 	}
 	writeJSON(w, http.StatusOK, users)

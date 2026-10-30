@@ -5,8 +5,11 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Moonfin-Client/Plugin/Go/internal/store"
 )
 
 // Silo's Watch Party rooms keep no subtitle choice and share no member
@@ -34,7 +37,26 @@ type watchPartyRoom struct {
 
 const maxRoomAvatars = 50
 
-var roomIDPattern = regexp.MustCompile(`^[0-9a-fA-F-]{36}$`)
+var roomIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// roomID is the request's room id, or false after refusing a malformed one.
+func roomID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	id := r.PathValue("roomId")
+	if !roomIDPattern.MatchString(id) {
+		writeError(w, http.StatusBadRequest, "A room id is required")
+		return "", false
+	}
+	return id, true
+}
+
+// memberKey names a member in a room: its profile, or its account on a host
+// without profiles.
+func memberKey(id Identity) string {
+	if id.ProfileID != "" {
+		return id.ProfileID
+	}
+	return "u" + strconv.Itoa(id.UserID)
+}
 
 func (s *Server) watchPartyRoutes() {
 	s.mux.HandleFunc("GET /Moonfin/WatchParty/{roomId}", s.user(s.handleGetWatchParty))
@@ -43,9 +65,8 @@ func (s *Server) watchPartyRoutes() {
 }
 
 func (s *Server) handleGetWatchParty(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("roomId")
-	if !roomIDPattern.MatchString(id) {
-		writeError(w, http.StatusBadRequest, "A room id is required")
+	id, ok := roomID(w, r)
+	if !ok {
 		return
 	}
 	var rooms map[string]watchPartyRoom
@@ -65,9 +86,8 @@ func (s *Server) handleGetWatchParty(w http.ResponseWriter, r *http.Request) {
 // for a track or {"off": true}, or {"subtitle": null} to leave subtitles to
 // each member.
 func (s *Server) handlePutWatchParty(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("roomId")
-	if !roomIDPattern.MatchString(id) {
-		writeError(w, http.StatusBadRequest, "A room id is required")
+	id, ok := roomID(w, r)
+	if !ok {
 		return
 	}
 	var body struct {
@@ -80,10 +100,10 @@ func (s *Server) handlePutWatchParty(w http.ResponseWriter, r *http.Request) {
 	caller := callerOf(r)
 	s.updateWatchParty(w, r, id, func(room *watchPartyRoom) (int, string) {
 		if room.OwnerProfileID != "" &&
-			(room.OwnerUserID != caller.UserID || room.OwnerProfileID != caller.ProfileID) {
+			(room.OwnerUserID != caller.UserID || room.OwnerProfileID != memberKey(caller)) {
 			return http.StatusForbidden, "Only the room's host sets its subtitles"
 		}
-		room.OwnerUserID, room.OwnerProfileID = caller.UserID, caller.ProfileID
+		room.OwnerUserID, room.OwnerProfileID = caller.UserID, memberKey(caller)
 		room.Subtitle = body.Subtitle
 		return 0, ""
 	}, M{"subtitle": body.Subtitle})
@@ -92,9 +112,8 @@ func (s *Server) handlePutWatchParty(w http.ResponseWriter, r *http.Request) {
 // handlePutWatchPartyAvatar sets the caller's own avatar link for the room:
 // {"url": "..."}, an absolute http(s) link or a path on this server.
 func (s *Server) handlePutWatchPartyAvatar(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("roomId")
-	if !roomIDPattern.MatchString(id) {
-		writeError(w, http.StatusBadRequest, "A room id is required")
+	id, ok := roomID(w, r)
+	if !ok {
 		return
 	}
 	var body struct {
@@ -110,10 +129,10 @@ func (s *Server) handlePutWatchPartyAvatar(w http.ResponseWriter, r *http.Reques
 		if room.Avatars == nil {
 			room.Avatars = map[string]string{}
 		}
-		if _, ok := room.Avatars[caller.ProfileID]; !ok && len(room.Avatars) >= maxRoomAvatars {
+		if _, ok := room.Avatars[memberKey(caller)]; !ok && len(room.Avatars) >= maxRoomAvatars {
 			return http.StatusServiceUnavailable, "Too many members in this room"
 		}
-		room.Avatars[caller.ProfileID] = body.URL
+		room.Avatars[memberKey(caller)] = body.URL
 		return 0, ""
 	}, M{"url": body.URL})
 }
@@ -159,20 +178,35 @@ func (s *Server) updateWatchParty(
 			delete(rooms, key)
 		}
 	}
-	room, exists := rooms[id]
-	if !exists && len(rooms) >= watchPartyMaxRooms {
-		writeError(w, http.StatusServiceUnavailable, "Too many Watch Party rooms are open")
-		return
-	}
+	room := rooms[id]
 	if status, message := change(&room); status != 0 {
 		writeError(w, status, message)
 		return
 	}
 	room.UpdatedAt = now
 	rooms[id] = room
+	// Any signed-in user can name a room, so a full store makes room by
+	// dropping the rooms least recently used rather than refusing new ones.
+	for len(rooms) > watchPartyMaxRooms || watchPartyBytes(rooms) > store.MaxValueBytes {
+		oldest := ""
+		for key, other := range rooms {
+			if key != id && (oldest == "" || other.UpdatedAt.Before(rooms[oldest].UpdatedAt)) {
+				oldest = key
+			}
+		}
+		if oldest == "" {
+			break
+		}
+		delete(rooms, oldest)
+	}
 	if err := s.saveJSON(ctx, keyWatchParty, rooms); err != nil {
 		storageFailed(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, reply)
+}
+
+func watchPartyBytes(rooms map[string]watchPartyRoom) int {
+	raw, _ := json.Marshal(rooms)
+	return len(raw)
 }
