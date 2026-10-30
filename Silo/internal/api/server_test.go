@@ -234,6 +234,32 @@ func TestDeviceDefaults(t *testing.T) {
 	}
 }
 
+func TestWatchPartySubtitlesBelongToTheirHost(t *testing.T) {
+	s := newTestServer()
+	const path = "/Moonfin/WatchParty/31366623-4606-488f-b5c0-c837c80d0227"
+	if _, got := call(t, s, other, "GET", path, "", nil); len(got) != 0 {
+		t.Fatalf("an unknown room has no choice: %v", got)
+	}
+	if code, _ := call(t, s, userMain, "PUT", path, `{"subtitle":{"index":3,"language":"eng"}}`, nil); code != 200 {
+		t.Fatalf("the first writer sets it, got %d", code)
+	}
+	if _, got := call(t, s, other, "GET", path, "", nil); got["subtitle"].(map[string]any)["index"] != 3.0 {
+		t.Fatalf("members read the host's choice: %v", got)
+	}
+	if code, _ := call(t, s, other, "PUT", path, `{"subtitle":{"off":true}}`, nil); code != http.StatusForbidden {
+		t.Fatalf("only the room's owner may change it, got %d", code)
+	}
+	if code, _ := call(t, s, userKids, "PUT", path, `{"subtitle":null}`, nil); code != http.StatusForbidden {
+		t.Fatalf("another profile of the owner's account is not the owner, got %d", code)
+	}
+	if code, _ := call(t, s, userMain, "PUT", path, `{"subtitle":null}`, nil); code != 200 {
+		t.Fatalf("the owner clears it, got %d", code)
+	}
+	if code, _ := call(t, s, userMain, "GET", "/Moonfin/WatchParty/not-a-room", "", nil); code != 400 {
+		t.Fatalf("a malformed room id is refused, got %d", code)
+	}
+}
+
 func TestDeleteUserRemovesEveryProfile(t *testing.T) {
 	s := newTestServer()
 	for _, c := range []caller{userMain, userKids, other} {

@@ -52,6 +52,7 @@ func (s *Server) routes() {
 	s.settingsRoutes()
 	s.externalRoutes()
 	s.messageRoutes()
+	s.watchPartyRoutes()
 	s.adminRoutes()
 	s.themeRoutes()
 }
