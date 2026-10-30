@@ -40,6 +40,7 @@ type indexEntry struct {
 	Profile   string `json:"profile"`
 	UserName  string `json:"userName,omitempty"`
 	Admin     bool   `json:"admin,omitempty"`
+	Primary   bool   `json:"primary,omitempty"`
 }
 
 func (e indexEntry) identity() Identity {
@@ -149,7 +150,7 @@ func (s *Server) storeEnvelope(ctx context.Context, id Identity, env M) error {
 	if _, err := s.loadJSON(ctx, keyIndex, &index); err != nil {
 		return err
 	}
-	entry := indexEntry{UserID: id.UserID, ProfileID: id.ProfileID, Profile: id.ProfileName, UserName: id.UserName, Admin: id.Admin}
+	entry := indexEntry{UserID: id.UserID, ProfileID: id.ProfileID, Profile: id.ProfileName, UserName: id.UserName, Admin: id.Admin, Primary: id.Primary}
 	at := slices.IndexFunc(index, func(e indexEntry) bool { return e.key() == entry.key() })
 	if env == nil && at < 0 {
 		// Nothing stored, and writing an empty value would use up a key.

@@ -83,6 +83,9 @@ type Identity struct {
 	// keys its settings instead.
 	ProfileID   string
 	ProfileName string
+	// Primary is the account's own profile, the one named after it. Hosts
+	// without profiles leave it false.
+	Primary bool
 	// Token is the caller's own server token, for a host whose catalog reads
 	// as the caller (Plex). Never put it in a reply or a log.
 	Token string

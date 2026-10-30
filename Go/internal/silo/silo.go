@@ -96,6 +96,7 @@ func Identify(r *http.Request) (api.Identity, error) {
 		UserName:    r.Header.Get("X-Silo-User-Name"),
 		ProfileID:   r.Header.Get("X-Silo-Profile-Id"),
 		ProfileName: r.Header.Get("X-Silo-Profile-Name"),
+		Primary:     r.Header.Get("X-Silo-Profile-Primary") == "true",
 	}, nil
 }
 

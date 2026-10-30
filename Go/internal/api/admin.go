@@ -208,7 +208,9 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 // handleAdminUsers lists, in the shape Jellyfin's /Users has, the accounts
 // that have synced settings, since neither host lets Moonbase list accounts.
 // Profiles, which Jellyfin doesn't have, lists each account's profiles with
-// the ids the admin routes take for one of them.
+// the ids the admin routes take for one of them, the account's own profile
+// marked Primary. Entries stored before Moonbase kept that flag count the
+// profile named after the account until it syncs again.
 func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	var index []indexEntry
 	if _, err := s.loadJSON(r.Context(), keyIndex, &index); err != nil {
@@ -229,7 +231,8 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 			byID[e.UserID] = user
 			users = append(users, user)
 		}
-		user["Profiles"] = append(user["Profiles"].([]M), M{"Id": id + "~" + e.profileKey(), "Name": e.Profile})
+		primary := e.Primary || strings.EqualFold(e.Profile, e.UserName)
+		user["Profiles"] = append(user["Profiles"].([]M), M{"Id": id + "~" + e.profileKey(), "Name": e.Profile, "Primary": primary})
 	}
 	writeJSON(w, http.StatusOK, users)
 }

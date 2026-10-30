@@ -33,13 +33,14 @@ type caller struct {
 	profileID string
 	profile   string
 	name      string
+	primary   bool
 }
 
 var (
 	anon      = caller{}
 	adminMain = caller{user: 2, admin: true, profileID: "20", profile: "test"}
 	adminKid  = caller{user: 2, profileID: "21", profile: "Kid"}
-	userMain  = caller{user: 3, profileID: "30", profile: "Main", name: "pat"}
+	userMain  = caller{user: 3, profileID: "30", profile: "Main", name: "pat", primary: true}
 	userKids  = caller{user: 3, profileID: "31", profile: "Kids", name: "pat"}
 	other     = caller{user: 4, profileID: "40", profile: "Main"}
 )
@@ -51,6 +52,9 @@ func (c caller) headers() map[string]string {
 	}
 	h["X-Silo-User-Id"] = fmt.Sprint(c.user)
 	h["X-Silo-User-Role"] = "user"
+	if c.primary {
+		h["X-Silo-Profile-Primary"] = "true"
+	}
 	if c.admin {
 		h["X-Silo-User-Role"] = "admin"
 	}
@@ -79,6 +83,7 @@ func headerIdentity(r *http.Request) (Identity, error) {
 		UserName:    r.Header.Get("X-Silo-User-Name"),
 		ProfileID:   r.Header.Get("X-Silo-Profile-Id"),
 		ProfileName: r.Header.Get("X-Silo-Profile-Name"),
+		Primary:     r.Header.Get("X-Silo-Profile-Primary") == "true",
 	}, nil
 }
 
@@ -342,7 +347,7 @@ func TestAdminTargetsOneProfile(t *testing.T) {
 	}
 	saveConfig(t, s, map[string]any{"DefaultUserSettings": map[string]any{"b": 2}})
 	body := readAll(t, serve(context.Background(), s, adminMain, "GET", "/Moonfin/Admin/Users", "", nil))
-	if !strings.Contains(string(body), `"Profiles":[{"Id":"3~30","Name":"Main"},{"Id":"3~31","Name":"Kids"}]`) {
+	if !strings.Contains(string(body), `"Profiles":[{"Id":"3~30","Name":"Main","Primary":true},{"Id":"3~31","Name":"Kids","Primary":false}]`) {
 		t.Fatalf("users must list their profiles: %s", body)
 	}
 	if code, _ := call(t, s, adminMain, "POST", "/Moonfin/Admin/PushDefaults/3~31", "", map[string]any{"overwrite": "true"}); code != 200 {
