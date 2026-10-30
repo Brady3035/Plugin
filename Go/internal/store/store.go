@@ -3,13 +3,18 @@
 package store
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 )
 
@@ -88,4 +93,106 @@ func (f FileKV) Put(_ context.Context, key string, value []byte) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), f.path(key))
+}
+
+// PackedBuckets is how many keys Packed spreads its values over. It's part of
+// the stored layout: changing it would lose track of every packed value.
+const PackedBuckets = 32
+
+// Packed keeps many small values under a few gzipped keys, so they don't each
+// use up one of Silo's 256 instance-state keys. Values for keys Pack accepts
+// share PackedBuckets keys ("pk/<n>", chosen by a hash of the key); every
+// other key goes straight to KV. An empty value deletes, which frees its room
+// in the bucket: Silo can't delete a key, only empty it.
+//
+// Values written before packing stay under their own key until written
+// again: a read falls back to that key, and a write moves the value into its
+// bucket and empties the old key.
+type Packed struct {
+	KV   KV
+	Pack func(key string) bool
+	// Serializes the read-modify-write of a bucket. Silo runs one plugin
+	// process per instance-state scope.
+	mu sync.Mutex
+}
+
+func packedBucket(key string) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	return "pk/" + strconv.Itoa(int(h.Sum32()%PackedBuckets))
+}
+
+func (p *Packed) readBucket(ctx context.Context, bucket string) (map[string]json.RawMessage, error) {
+	values := map[string]json.RawMessage{}
+	raw, found, err := p.KV.Get(ctx, bucket)
+	if err != nil || !found || len(raw) == 0 {
+		return values, err
+	}
+	zr, err := gzip.NewReader(bytes.NewReader(raw))
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", bucket, err)
+	}
+	if err := json.NewDecoder(zr).Decode(&values); err != nil {
+		return nil, fmt.Errorf("read %s: %w", bucket, err)
+	}
+	return values, nil
+}
+
+func (p *Packed) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	if !p.Pack(key) {
+		return p.KV.Get(ctx, key)
+	}
+	p.mu.Lock()
+	values, err := p.readBucket(ctx, packedBucket(key))
+	p.mu.Unlock()
+	if err != nil {
+		return nil, false, err
+	}
+	if v, ok := values[key]; ok {
+		return v, true, nil
+	}
+	return p.KV.Get(ctx, key)
+}
+
+func (p *Packed) Put(ctx context.Context, key string, value []byte) error {
+	if !p.Pack(key) {
+		return p.KV.Put(ctx, key, value)
+	}
+	if len(value) > 0 && !json.Valid(value) {
+		return fmt.Errorf("value for %q isn't JSON", key)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	bucket := packedBucket(key)
+	values, err := p.readBucket(ctx, bucket)
+	if err != nil {
+		return err
+	}
+	if len(value) == 0 {
+		delete(values, key)
+	} else {
+		values[key] = value
+	}
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	if err := json.NewEncoder(zw).Encode(values); err != nil {
+		return err
+	}
+	if err := zw.Close(); err != nil {
+		return err
+	}
+	if buf.Len() > MaxValueBytes {
+		return fmt.Errorf("%s would be %d bytes, limit %d", bucket, buf.Len(), MaxValueBytes)
+	}
+	if err := p.KV.Put(ctx, bucket, buf.Bytes()); err != nil {
+		return err
+	}
+	// A value from before packing would otherwise come back once this one is
+	// deleted. Writing an existing key never needs a free one.
+	if old, found, err := p.KV.Get(ctx, key); err != nil {
+		return err
+	} else if found && len(old) > 0 {
+		return p.KV.Put(ctx, key, nil)
+	}
+	return nil
 }

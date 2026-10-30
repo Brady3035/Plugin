@@ -29,6 +29,19 @@ func settingsKey(id Identity) string {
 	return fmt.Sprintf("s/%d/%x", id.UserID, h[:8])
 }
 
+// PerProfileKey reports whether key is one there's one of per profile: its
+// settings (settingsKey) or a collection order (orderKey). A host with a small
+// key budget can pack these together.
+func PerProfileKey(key string) bool {
+	switch {
+	case key == keyIndex:
+		return false
+	case strings.HasPrefix(key, "p/"), strings.HasPrefix(key, "s/"), strings.HasPrefix(key, "o/"):
+		return true
+	}
+	return false
+}
+
 // Instance state can't list its keys, so the stored profiles are indexed here
 // for the admin routes that walk every user. The account's name and role are
 // kept as last seen, since Silo gives plugins no list of accounts.
