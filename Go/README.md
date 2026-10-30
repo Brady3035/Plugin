@@ -142,6 +142,7 @@ Needs Go 1.26 or newer.
 make test         # go vet and go test -race
 make dist         # dist/Moonbase.Silo-<version>-linux-{amd64,arm64} and SHA256SUMS
 make build        # dist/moonbase and dist/moonbase-plex for this machine
+make silo-index BASE_URL=<download address>   # dist/index.json, the catalog Silo reads
 make plex-image   # the moonbase-plex:<version> image (DOCKER=podman works too)
 ```
 
