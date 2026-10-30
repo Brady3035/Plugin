@@ -91,6 +91,6 @@ make test   # go vet and go test -race
 make dist   # dist/Moonbase.Silo-<version>-linux-{amd64,arm64} and SHA256SUMS
 ```
 
-`manifest.json` holds the version. `./dist/Moonbase.Silo-<version>-linux-amd64 manifest` prints the manifest the way Silo reads it at install.
+`cmd/silo/manifest.json` holds the version. `./dist/Moonbase.Silo-<version>-linux-amd64 manifest` prints the manifest the way Silo reads it at install.
 
 To pick up a newer Jellyfin admin page, copy `Jellyfin/backend/Pages/configPage.html` over `web/configPage.html` unchanged. If it calls a Jellyfin dashboard function or `ApiClient` method that `web/host.js` doesn't have yet, add it there.

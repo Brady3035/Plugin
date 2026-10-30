@@ -5,8 +5,8 @@ import (
 
 	"github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
 
-	"github.com/Moonfin-Client/Plugin/Silo/internal/api"
-	"github.com/Moonfin-Client/Plugin/Silo/internal/store"
+	"github.com/Moonfin-Client/Plugin/Go/internal/api"
+	"github.com/Moonfin-Client/Plugin/Go/internal/store"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".

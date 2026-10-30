@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Moonfin-Client/Plugin/Silo/internal/store"
-	"github.com/Moonfin-Client/Plugin/Silo/internal/themes"
+	"github.com/Moonfin-Client/Plugin/Go/internal/store"
+	"github.com/Moonfin-Client/Plugin/Go/internal/themes"
 )
 
 // Custom themes, as the Jellyfin plugin's MoonfinThemesController serves

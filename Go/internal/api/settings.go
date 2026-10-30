@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Moonfin-Client/Plugin/Silo/internal/settings"
+	"github.com/Moonfin-Client/Plugin/Go/internal/settings"
 )
 
 type M = settings.M

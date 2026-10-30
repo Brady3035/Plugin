@@ -6,8 +6,8 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/Moonfin-Client/Plugin/Silo/internal/pluginconfig"
-	"github.com/Moonfin-Client/Plugin/Silo/internal/settings"
+	"github.com/Moonfin-Client/Plugin/Go/internal/pluginconfig"
+	"github.com/Moonfin-Client/Plugin/Go/internal/settings"
 )
 
 // Config is what the routes need from the plugin configuration.

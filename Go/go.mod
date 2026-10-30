@@ -1,4 +1,4 @@
-module github.com/Moonfin-Client/Plugin/Silo
+module github.com/Moonfin-Client/Plugin/Go
 
 go 1.26.0
 

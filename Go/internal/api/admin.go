@@ -12,8 +12,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Moonfin-Client/Plugin/Silo/internal/settings"
-	"github.com/Moonfin-Client/Plugin/Silo/web"
+	"github.com/Moonfin-Client/Plugin/Go/internal/settings"
+	"github.com/Moonfin-Client/Plugin/Go/web"
 )
 
 // The admin page is the Jellyfin plugin's configPage.html, served as is with

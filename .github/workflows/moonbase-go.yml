@@ -1,26 +1,26 @@
-name: Silo
+name: Moonbase Go
 
-# Builds and tests the Silo backend only. The Jellyfin and Emby plugins have
-# their own workflow and never read anything under Silo/.
+# Builds and tests the Go backend, Moonbase for Silo. The Jellyfin and Emby
+# plugins have their own workflow and never read anything under Go/.
 
 on:
   push:
     branches: [master]
-    paths: ['Silo/**', '.github/workflows/silo.yml']
+    paths: ['Go/**', '.github/workflows/moonbase-go.yml']
   pull_request:
     branches: [master]
-    paths: ['Silo/**', '.github/workflows/silo.yml']
+    paths: ['Go/**', '.github/workflows/moonbase-go.yml']
 
 permissions:
   contents: read
 
 jobs:
-  silo:
+  go:
     name: Build Silo plugin
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Silo
+        working-directory: Go
 
     steps:
       - name: Checkout
@@ -29,13 +29,13 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: Silo/go.mod
-          cache-dependency-path: Silo/go.sum
+          go-version-file: Go/go.mod
+          cache-dependency-path: Go/go.sum
 
       - name: Use the published SDK only
         run: |
           if grep -q '^replace' go.mod || [ -n "$(go env GOWORK)" ]; then
-            echo "::error::Silo/go.mod must build from the tagged silo-plugin-sdk, not a local replace or go.work."
+            echo "::error::Go/go.mod must build from the tagged silo-plugin-sdk, not a local replace or go.work."
             exit 1
           fi
 
@@ -62,4 +62,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Moonbase.Silo
-          path: Silo/dist/
+          path: Go/dist/

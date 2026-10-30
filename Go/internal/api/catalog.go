@@ -6,7 +6,7 @@ import (
 
 	"github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
 
-	"github.com/Moonfin-Client/Plugin/Silo/internal/store"
+	"github.com/Moonfin-Client/Plugin/Go/internal/store"
 )
 
 type Library struct {

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Moonfin-Client/Plugin/Silo/internal/settings"
+	"github.com/Moonfin-Client/Plugin/Go/internal/settings"
 )
 
 // The detailsScreenBlur and detailsScreenOpacity routes read and write single
