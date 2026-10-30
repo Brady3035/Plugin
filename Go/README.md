@@ -1,6 +1,15 @@
-# Moonbase for Silo
+# Moonbase in Go
 
-This is the Silo backend of Moonbase, the server plugin for the Moonfin apps. It's a native Silo plugin written in Go against the public [silo-plugin-sdk](https://github.com/Silo-Server/silo-plugin-sdk). It doesn't use Silo's Jellyfin-compatible API, and apart from a copy of the Jellyfin admin page it shares no code or build with the Jellyfin and Emby plugins in this repo.
+The Go backends of Moonbase, the server side of the Moonfin apps. Both serve the same `/Moonfin` routes from `internal/api`:
+
+- **Moonbase for Silo** (`cmd/silo`), a native Silo plugin.
+- **Moonbase for Plex** (`cmd/plex`), a small service that runs next to Plex Media Server, since Plex has no plugin system.
+
+Each host supplies its own storage, sign-in check and library access (`internal/silo`, `internal/plex`). Neither uses the Jellyfin or Emby plugin code, apart from a copy of the Jellyfin admin page.
+
+## Moonbase for Silo
+
+This is a native Silo plugin written in Go against the public [silo-plugin-sdk](https://github.com/Silo-Server/silo-plugin-sdk). It doesn't use Silo's Jellyfin-compatible API, and apart from a copy of the Jellyfin admin page it shares no code or build with the Jellyfin and Emby plugins in this repo.
 
 It covers the parts of Moonbase that Silo's plugin API can support:
 
@@ -12,7 +21,7 @@ It covers the parts of Moonbase that Silo's plugin API can support:
 
 The rest needs things Silo's plugin API doesn't offer. See Known limits below.
 
-## Supported versions
+### Supported versions
 
 | | Version |
 |---|---|
@@ -20,11 +29,11 @@ The rest needs things Silo's plugin API doesn't offer. See Known limits below.
 | Plugin SDK | `v0.30.0`, the version that server pins |
 | Platforms | `linux/amd64` (tested live), `linux/arm64` (builds, not tested on hardware) |
 
-## Install
+### Install
 
 1. Download `Moonbase.Silo-<version>-linux-amd64` (or `-linux-arm64`) from the release, and check it against `SHA256SUMS`.
 2. In Silo's admin pages, open Plugins and install it from a file. Silo runs the file once with `manifest` to read it, then starts it.
-3. Set it up in **Settings** on the plugin's page in Silo.
+3. Set it up on the **Moonbase** page, see Settings below.
 
 The same upload works from a shell with an admin token:
 
@@ -36,9 +45,9 @@ curl -X POST "$SILO/api/v2/admin/plugins/uploads" \
 
 Uploading a newer file replaces the installed one and keeps its installation id and its data.
 
-## Settings
+### Settings
 
-Moonbase is set up on the **Moonbase** page, which opens from the menu at the top right of Silo's plugin page (Integrations > Plugins > Moonbase) or from Plugin Apps in the admin menu. It has every setting, along with Messages, Apply Defaults To Users, Broadcast, the MDBList key test and the layout editors.
+Moonbase is set up on the **Moonbase** page, which opens from the menu at the top right of Silo's plugin page (Integrations > Plugins > Moonbase) or from Plugin Apps in the admin menu. It has every setting, along with Messages, Apply Defaults To Users, Broadcast, the MDBList key test and the layout editors. It's for admins. Users change their own settings in the Moonfin app, which syncs them.
 
 The Moonbase page is the Jellyfin admin page itself, with the same tabs, fields, search and Save button, in Jellyfin's dark style. `web/host.js` stands in for the Jellyfin dashboard it expects. It says "Silo" where the Jellyfin copy says "Jellyfin", and sections for features Silo can't run say so at the top. Lists it would fill from the library stay empty, because Silo doesn't let plugins read library items, and the user picker lists accounts that have synced settings.
 
@@ -52,7 +61,7 @@ Custom themes are uploaded on the Moonbase page's Themes section and checked the
 
 Both API keys reach every signed-in user through `Settings/Resolved`, the same as on Jellyfin, since Moonfin calls TMDB directly with the key for some rows. Don't use keys here you wouldn't hand to your users.
 
-## Where the routes are
+### Where the routes are
 
 Silo serves plugin routes under the plugin's installation id, not at the server root:
 
@@ -62,7 +71,7 @@ https://silo.example/api/v2/plugin-content/plugins/<installation id>/Moonfin/...
 
 `/api/v1/plugins/<installation id>/Moonfin/...` is an older alias for the same thing. Clients find the installation id with `GET /api/v2/settings/plugins`, which lists Moonbase as `plugin_id` `moonfin.moonbase`. Requests use Silo's own headers: `Authorization: Bearer <token>`, plus `X-Profile-Id` (and `X-Profile-Token` for a PIN-locked profile). Silo checks the profile, and its PIN proof, before the request reaches Moonbase, and passes the verified profile on as `X-Silo-Profile-Id`. The routes only answer on Silo's native port (8090 by default). Moonbase doesn't use or need the Jellyfin-compatible port.
 
-## Known limits
+### Known limits
 
 These come from Silo's plugin API, not from the plugin.
 
@@ -74,23 +83,68 @@ These come from Silo's plugin API, not from the plugin.
 - **Storage is small.** Silo gives each plugin 256 keys of up to 256 KiB. Each profile with synced settings takes one key. The settings, messages, themes and a few indexes take the rest, so a server can hold settings for about 240 profiles.
 - **Deleted users leave their settings behind.** Silo doesn't tell plugins when an account or profile is deleted. Remove them with **Remove Selected User's Data** on the Moonbase page's Actions tab.
 
-## Data, backups and removal
+### Data, backups and removal
 
 Moonbase's settings, synced profiles and messages live in Silo's per-plugin instance state. Silo encrypts it and stores it in its Postgres database, so it’s included in a database backup and needs the server's `SECRET_KEY` to restore. Upgrades keep it. Uninstalling the plugin deletes it.
 
-## Logs
+### Logs
 
 The plugin logs to Silo's log as plugin output. Storage and provider failures are logged with the route path. API keys never appear in logs or error messages.
+
+## Moonbase for Plex
+
+Moonbase for Plex runs as its own service next to Plex Media Server. It checks every caller's Plex token with your Plex server, so only people who can use the server can use it.
+
+### Run it
+
+```sh
+docker run -d --name moonbase-plex --restart unless-stopped \
+  -p 32500:32500 \
+  -e PLEX_URL=http://192.168.1.10:32400 \
+  -v moonbase-plex:/config \
+  moonbase-plex:<version>
+```
+
+| Variable | Default | |
+|---|---|---|
+| `PLEX_URL` | none, required | Your Plex server's address as seen from the container. |
+| `MOONBASE_LISTEN` | `:32500` | Address and port to listen on. |
+| `MOONBASE_DATA` | `/config` | Where Moonbase keeps its data. |
+
+The image runs as a non-root user. A named volume works as is. A bind-mounted folder must be writable by uid 65532.
+
+### Set it up
+
+Open `http://<host>:32500/admin` and sign in with the Plex account that owns the server. It's the same Moonbase page as on Jellyfin, and only the owner can open it. Defaults work the same way as on Silo, see Settings above. Users change their own settings in the Moonfin app.
+
+Signing in once also lets Moonbase recognize shared users and Home members. plex.tv doesn't always know their server tokens, so Moonbase looks them up in the owner's share list. Until the owner signs in, those users can't use Moonbase.
+
+### How apps call it
+
+Routes are at the root: `http://<host>:32500/Moonfin/...`. Apps send the token they already use with the Plex server, as an `X-Plex-Token` header, an `X-Plex-Token` query parameter for image links, or the `Token` field of a MediaBrowser `Authorization` header. Moonbase never asks for the user's plex.tv account token.
+
+### Known limits
+
+- Plex's remote access and relay only cover Plex itself. To use Moonbase away from home, open or proxy port 32500 the way you would any other service.
+- The Moonfin web app on HTTPS can't call Moonbase over plain HTTP. Put Moonbase behind a reverse proxy with HTTPS for that.
+- It covers what Moonbase for Silo does: settings sync, admin defaults, MDBList and TMDB, messages and uploaded themes. The routes that read the library (similar items, custom rows, curated MDBList rows, the seasonal row) and the Seerr proxy aren't available.
+- No live updates. `Settings/Stream` answers 501, so a change reaches other devices at their next sync.
+
+### Data
+
+`/config` holds `store/` (one file per synced profile, messages and settings), `client-id` (how plex.tv knows this install) and `owner-token`, the owner's Plex token from the admin sign-in. Treat `owner-token` like a password. Removing the volume removes everything. Signing out of the "Moonbase" device in your Plex account's authorized devices revokes the token.
 
 ## Building
 
 Needs Go 1.26 or newer.
 
 ```sh
-make test   # go vet and go test -race
-make dist   # dist/Moonbase.Silo-<version>-linux-{amd64,arm64} and SHA256SUMS
+make test         # go vet and go test -race
+make dist         # dist/Moonbase.Silo-<version>-linux-{amd64,arm64} and SHA256SUMS
+make build        # dist/moonbase and dist/moonbase-plex for this machine
+make plex-image   # the moonbase-plex:<version> image (DOCKER=podman works too)
 ```
 
-`cmd/silo/manifest.json` holds the version. `./dist/Moonbase.Silo-<version>-linux-amd64 manifest` prints the manifest the way Silo reads it at install.
+`cmd/silo/manifest.json` holds the version for both. `./dist/Moonbase.Silo-<version>-linux-amd64 manifest` prints the manifest the way Silo reads it at install.
 
 To pick up a newer Jellyfin admin page, copy `Jellyfin/backend/Pages/configPage.html` over `web/configPage.html` unchanged. If it calls a Jellyfin dashboard function or `ApiClient` method that `web/host.js` doesn't have yet, add it there.

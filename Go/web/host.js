@@ -1,10 +1,61 @@
 // Stands in for the parts of Jellyfin's dashboard that configPage.html calls,
-// so the page from the Jellyfin plugin runs unchanged inside Silo.
+// so the page from the Jellyfin plugin runs unchanged on Silo and on the Plex
+// companion.
 (function () {
     'use strict';
 
+    var hostName = (window.moonbaseHost && window.moonbaseHost.name) || 'Silo';
+
+    // What differs between hosts. Sections in unsupported get a note, and
+    // their settings still save, so nothing is lost.
+    var hosts = {
+        Silo: {
+            example: 'silo.example.com',
+            port: ':8090',
+            webApp: 'Silo’s web app',
+            restored: 'Restored the changes you hadn’t saved before your Silo session for this page ended. Press Save to keep them.',
+            sessionEnded: 'Your Silo session for this page has ended. Open Moonbase again from Plugin Apps in Silo’s admin menu. Changes you tried to save are kept and come back when you do.',
+            unsupported: {
+                'Connecting to this server': 'Moonbase on Silo doesn’t host Moonfin web, so these settings do nothing on Silo.',
+                'Seerr Integration': 'Silo has its own requests feature, and the Seerr proxy isn’t part of Moonbase on Silo. These settings do nothing on Silo.',
+                'IMDb Charts': 'Not available on Silo. These settings do nothing on Silo.',
+                'Recommendations': 'Silo doesn’t let plugins read its library, so Moonfin uses Silo’s own recommendations instead.',
+                'Studio Logos': 'Not available on Silo. These settings do nothing on Silo.',
+                'Anime Filler & Recap Markers': 'Silo doesn’t let plugins read its library, so this isn’t available on Silo.',
+                'Retro Games (EmulatorJS)': 'Silo doesn’t let plugins read game files, so this isn’t available on Silo.',
+                'Uploaded Themes': 'Moonbase on Silo keeps up to 5 themes. Apps pick up a new or changed theme the next time they sign in.',
+                'Web Plugin Status': 'Silo’s own web app can’t load Moonfin add-ons, so this doesn’t apply on Silo.',
+                'Active Downloads': 'Silo doesn’t share its transcodes with plugins, so this isn’t available on Silo.',
+                'MDBList Integration': 'Ratings work on Silo. The official MDBList lists don’t.'
+            }
+        },
+        Plex: {
+            example: 'plex.example.com',
+            port: ':32400',
+            webApp: 'Plex Web',
+            restored: 'Restored the changes you hadn’t saved before your Moonbase sign-in ended. Press Save to keep them.',
+            sessionEnded: 'You’re signed out of Moonbase. Sign in again with your Plex account. Changes you tried to save are kept and come back when you do.',
+            signInUrl: 'admin/signin',
+            unsupported: {
+                'Connecting to this server': 'Moonbase for Plex doesn’t host Moonfin web, so these settings do nothing on Plex.',
+                'Seerr Integration': 'The Seerr proxy isn’t part of Moonbase for Plex. These settings do nothing on Plex.',
+                'IMDb Charts': 'Not available on Plex. These settings do nothing on Plex.',
+                'Recommendations': 'Not available on Plex. These settings do nothing on Plex.',
+                'Studio Logos': 'Not available on Plex. These settings do nothing on Plex.',
+                'Anime Filler & Recap Markers': 'Not available on Plex. These settings do nothing on Plex.',
+                'Retro Games (EmulatorJS)': 'Not available on Plex. These settings do nothing on Plex.',
+                'Uploaded Themes': 'Moonbase for Plex keeps up to 5 themes. Apps pick up a new or changed theme the next time they sign in.',
+                'Web Plugin Status': 'Plex Web can’t load Moonfin add-ons, so this doesn’t apply on Plex.',
+                'Active Downloads': 'Not available on Plex.',
+                'MDBList Integration': 'Ratings work on Plex. The official MDBList lists don’t.'
+            }
+        }
+    };
+    var host = hosts[hostName] || hosts.Silo;
+
     // The page is served at <base>/admin and every Moonbase route lives under
-    // <base>/Moonfin, where <base> is this installation's plugin path in Silo.
+    // <base>/Moonfin. On Silo <base> is this installation's plugin path, and on
+    // the Plex companion it's the root.
     var base = location.origin + location.pathname.replace(/\/admin\/?$/, '');
     var draftKey = 'moonbaseConfigDraft:' + base;
 
@@ -18,9 +69,9 @@
         return qs ? url + (url.indexOf('?') < 0 ? '?' : '&') + qs : url;
     }
 
-    // Silo signs these requests with the HttpOnly launch cookie it set when the
-    // page was opened. It lasts five minutes, and Silo replaces it with a fresh
-    // one on a request once it is half way through, so a ping each minute
+    // These requests are signed with an HttpOnly cookie: the Plex companion's
+    // sign-in, or Silo's five-minute launch cookie. Silo replaces that with a
+    // fresh one on a request once it's halfway through, so a ping each minute
     // keeps the page signed in for as long as the admin's Silo login lasts.
     var nativeFetch = window.fetch.bind(window);
     var keepAlive = setInterval(function () {
@@ -53,7 +104,7 @@
         serverAddress: function () { return base; },
         getUrl: getUrl,
         accessToken: function () { return ''; },
-        getCurrentUserId: function () { return 'silo'; },
+        getCurrentUserId: function () { return hostName.toLowerCase(); },
         ajax: function (request) {
             var body = request.data;
             var contentType = request.contentType;
@@ -76,7 +127,7 @@
             draftOffered = true;
             if (draft) {
                 lastConfig = draft;
-                notice('Restored the changes you hadn’t saved before your Silo session for this page ended. Press Save to keep them.');
+                notice(host.restored);
                 return Promise.resolve(clone(draft));
             }
             return this.getJSON(getUrl('Moonfin/Admin/Configuration')).then(function (config) {
@@ -91,7 +142,7 @@
                 // The page has no failure handler of its own, so its loading
                 // overlay would stay up over the settings.
                 Dashboard.hideLoadingMsg();
-                if (status !== 401) toast('Silo didn’t load the settings' + (status ? ' (status ' + status + ').' : '.'));
+                if (status !== 401) toast(hostName + ' didn’t load the settings' + (status ? ' (status ' + status + ').' : '.'));
                 throw error;
             });
         },
@@ -104,13 +155,13 @@
                 if (status === 401) {
                     saveDraft(config);
                 } else {
-                    toast('Silo didn’t save the settings' + (status ? ' (status ' + status + ').' : '.'));
+                    toast(hostName + ' didn’t save the settings' + (status ? ' (status ' + status + ').' : '.'));
                 }
                 throw new Error('Saving the Moonbase settings failed' + (status ? ' with status ' + status : ''));
             });
         },
-        // Silo doesn't tell plugins about its accounts, so this lists the
-        // ones that have used Moonfin with this server.
+        // Neither host lets Moonbase list its accounts, so this lists the ones
+        // that have used Moonfin with this server.
         getUsers: function () {
             return this.getJSON(getUrl('Moonfin/Admin/Users'));
         },
@@ -124,7 +175,7 @@
                 };
             });
         },
-        // Silo gives plugins no way to read library items.
+        // Neither host lets the page read library items.
         getItems: function () {
             return Promise.resolve({ Items: [], TotalRecordCount: 0 });
         }
@@ -197,12 +248,19 @@
         }
     };
 
-    function notice(text, warn) {
+    function notice(text, warn, href) {
         var bar = document.querySelector('.moonbaseHostNotices');
         if (!bar) return;
         var el = document.createElement('div');
         el.className = 'moonbaseHostNotice' + (warn ? ' is-warning' : '');
         el.textContent = text;
+        if (href) {
+            var link = document.createElement('a');
+            link.href = href;
+            link.textContent = 'Sign in';
+            el.appendChild(document.createTextNode(' '));
+            el.appendChild(link);
+        }
         bar.appendChild(el);
     }
 
@@ -211,7 +269,7 @@
         if (sessionEndedShown) return;
         sessionEndedShown = true;
         clearInterval(keepAlive);
-        notice('Your Silo session for this page has ended. Open Moonbase again from Plugin Apps in Silo’s admin menu. Changes you tried to save are kept and come back when you do.', true);
+        notice(host.sessionEnded, true, host.signInUrl && base + '/' + host.signInUrl);
         window.scrollTo(0, 0);
     }
 
@@ -256,31 +314,15 @@
     function swap(text) {
         return text
             .replace(/\s*\(Jellyfin \d+\+\)/g, '')
-            .replace(/jellyfin\.example\.com/g, 'silo.example.com')
-            .replace(/:8096\b/g, ':8090')
-            .replace(/\bjellyfin-web\b/g, 'Silo’s web app')
-            .replace(/\bJellyfin\b/g, 'Silo');
+            .replace(/jellyfin\.example\.com/g, host.example)
+            .replace(/:8096\b/g, host.port)
+            .replace(/\bjellyfin-web\b/g, host.webApp)
+            .replace(/\bJellyfin\b/g, hostName);
     }
-
-    // Notes for the sections Silo can't fully support. Their settings still
-    // save, so nothing is lost.
-    var unsupported = {
-        'Connecting to this server': 'Moonbase on Silo doesn’t host Moonfin web, so these settings do nothing on Silo.',
-        'Seerr Integration': 'Silo has its own requests feature, and the Seerr proxy isn’t part of Moonbase on Silo. These settings do nothing on Silo.',
-        'IMDb Charts': 'Not available on Silo. These settings do nothing on Silo.',
-        'Recommendations': 'Silo doesn’t let plugins read its library, so Moonfin uses Silo’s own recommendations instead.',
-        'Studio Logos': 'Not available on Silo. These settings do nothing on Silo.',
-        'Anime Filler & Recap Markers': 'Silo doesn’t let plugins read its library, so this isn’t available on Silo.',
-        'Retro Games (EmulatorJS)': 'Silo doesn’t let plugins read game files, so this isn’t available on Silo.',
-        'Uploaded Themes': 'Moonbase on Silo keeps up to 5 themes. Apps pick up a new or changed theme the next time they sign in.',
-        'Web Plugin Status': 'Silo’s own web app can’t load Moonfin add-ons, so this doesn’t apply on Silo.',
-        'Active Downloads': 'Silo doesn’t share its transcodes with plugins, so this isn’t available on Silo.',
-        'MDBList Integration': 'Ratings work on Silo. The official MDBList lists don’t.'
-    };
 
     function markUnsupported(root) {
         root.querySelectorAll('.sectionTitle').forEach(function (title) {
-            var text = unsupported[title.textContent.trim()];
+            var text = host.unsupported[title.textContent.trim()];
             if (!text) return;
             var note = document.createElement('div');
             note.className = 'moonbaseSiloNote';
@@ -302,8 +344,8 @@
         bindRemoveUserData();
     });
 
-    // Moonbase on Silo only: removes the stored settings of the account
-    // picked in the page's single-user list.
+    // Removes the stored settings of the account picked in the page's
+    // single-user list.
     function bindRemoveUserData() {
         var select = document.getElementById('SingleUserSelect');
         var after = document.getElementById('ApplySingleUserResult');
@@ -311,7 +353,7 @@
         var help = document.createElement('div');
         help.className = 'fieldDescription';
         help.style.margin = '1.6em 0 0.4em';
-        help.textContent = 'Or remove everything Moonbase keeps for the selected user, on every profile. Use it for an account deleted from Silo, since Silo doesn’t tell Moonbase about that. If the user signs in again, they start from the defaults.';
+        help.textContent = 'Or remove everything Moonbase keeps for the selected user, on every profile. Use it for an account deleted from ' + hostName + ', since ' + hostName + ' doesn’t tell Moonbase about that. If the user signs in again, they start from the defaults.';
         var button = document.createElement('button');
         button.type = 'button';
         button.className = 'raised emby-button';

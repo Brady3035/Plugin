@@ -57,6 +57,8 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 		back = fmt.Sprintf(`<a href="%s" title="%s" aria-label="%s"><span class="material-icons" aria-hidden="true">arrow_back</span></a>`,
 			html.EscapeString(s.backURL), label, label)
 	}
+	// host.js reads the host's name from here to word the page for it.
+	hostJSON, _ := json.Marshal(M{"name": s.name})
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	fmt.Fprintf(w, `<!doctype html>
@@ -66,14 +68,15 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Moonbase</title>
 <link rel="stylesheet" href="admin-assets/host.css?v=%[1]s">
+<script>window.moonbaseHost = %[4]s;</script>
 <script src="admin-assets/host.js?v=%[1]s"></script>
 </head>
 <body>
-<div class="moonbaseHostBar">%[4]s<span class="moonbaseHostVersion">Moonbase %[2]s for %[5]s</span></div>
+<div class="moonbaseHostBar">%[5]s<span class="moonbaseHostVersion">Moonbase %[2]s for %[6]s</span></div>
 <div class="moonbaseHostNotices"></div>
 %[3]s
 </body>
-</html>`, v, html.EscapeString(s.version), adminPageBody(), back, html.EscapeString(s.name))
+</html>`, v, html.EscapeString(s.version), adminPageBody(), hostJSON, back, html.EscapeString(s.name))
 }
 
 func serveEmbedded(w http.ResponseWriter, r *http.Request, name, cacheControl string) {
@@ -162,9 +165,10 @@ func (s *Server) handlePostConfiguration(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleDeleteUser removes every profile's settings that a Silo account has
-// stored, for an account that was deleted from Silo or wants a fresh start.
-// Silo doesn't tell plugins when an account goes, so the admin does this.
+// handleDeleteUser removes every profile's settings that an account has
+// stored, for an account deleted from the server or one that wants a fresh
+// start. Neither Silo nor Plex tells Moonbase when an account goes, so the
+// admin does this.
 func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	userID, err := strconv.Atoi(r.PathValue("userId"))
 	if err != nil || userID <= 0 {
@@ -202,7 +206,7 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAdminUsers lists, in the shape Jellyfin's /Users has, the accounts
-// that have synced settings, since Silo doesn't let plugins list accounts.
+// that have synced settings, since neither host lets Moonbase list accounts.
 func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	var index []indexEntry
 	if _, err := s.loadJSON(r.Context(), keyIndex, &index); err != nil {

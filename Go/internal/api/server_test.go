@@ -496,7 +496,7 @@ func TestAdminPageServesTheJellyfinPage(t *testing.T) {
 	s := newTestServer()
 	page := string(readAll(t, serve(context.Background(), s, adminMain, "GET", "/admin", "", nil)))
 	for _, want := range []string{`<script src="admin-assets/host.js?v=1.2.3">`, `id="MoonfinConfigPage"`, "MoonfinConfig.pluginUniqueId",
-		`href="/admin/plugins" title="Back to Silo"`, "Moonbase 1.2.3 for Silo"} {
+		`window.moonbaseHost = {"name":"Silo"};`, `href="/admin/plugins" title="Back to Silo"`, "Moonbase 1.2.3 for Silo"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page is missing %q", want)
 		}

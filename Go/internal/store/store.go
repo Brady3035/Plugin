@@ -1,10 +1,15 @@
-// Package store keeps Moonbase's own data in a KV the host supplies, such as
-// Silo's per-installation instance state.
+// Package store keeps Moonbase's own data. Each host supplies a KV: Silo's
+// per-installation instance state, or files on disk for the Plex companion.
 package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"net/url"
+	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -47,4 +52,40 @@ func (m *MemKV) Put(_ context.Context, key string, value []byte) error {
 	}
 	m.data[key] = append([]byte(nil), value...)
 	return nil
+}
+
+// FileKV keeps one file per key in a directory.
+type FileKV struct{ Dir string }
+
+func (f FileKV) path(key string) string {
+	return filepath.Join(f.Dir, url.PathEscape(key)+".json")
+}
+
+func (f FileKV) Get(_ context.Context, key string) ([]byte, bool, error) {
+	b, err := os.ReadFile(f.path(key))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, false, nil
+	}
+	return b, err == nil, err
+}
+
+// Put writes through a temporary file so a crash never leaves half a value.
+func (f FileKV) Put(_ context.Context, key string, value []byte) error {
+	tmp, err := os.CreateTemp(f.Dir, ".put-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(value); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), f.path(key))
 }

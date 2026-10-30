@@ -1,5 +1,6 @@
 // Package api serves Moonbase's /Moonfin routes as a plain net/http handler.
-// The host supplies storage, the catalog and who is calling.
+// Each host (Silo, the Plex companion) supplies storage, the catalog and who
+// is calling.
 package api
 
 import (
@@ -80,6 +81,9 @@ type Identity struct {
 	// keys its settings instead.
 	ProfileID   string
 	ProfileName string
+	// Token is the caller's own server token, for a host whose catalog reads
+	// as the caller (Plex). Never put it in a reply or a log.
+	Token string
 }
 
 type identityKey struct{}

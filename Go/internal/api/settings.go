@@ -17,9 +17,9 @@ import (
 
 type M = settings.M
 
-// Moonbase's "user" is a Silo profile, keyed by the account and the profile
-// id Silo verified. Without an id (a Silo release from before it forwarded
-// one, or an account with no profile selected) the profile's name stands in.
+// Moonbase's "user" is a profile, keyed by the account and the profile id the
+// host verified. Without an id (Plex, or a Silo account with no profile
+// selected) the profile's name stands in.
 func settingsKey(id Identity) string {
 	if id.ProfileID != "" {
 		h := sha256.Sum256([]byte(id.ProfileID))
