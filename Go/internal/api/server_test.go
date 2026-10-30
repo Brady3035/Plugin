@@ -310,6 +310,31 @@ func TestWatchPartySubtitlesBelongToTheirHost(t *testing.T) {
 	}
 }
 
+func TestWatchPartyAvatarsAreEachMembersOwn(t *testing.T) {
+	s := newTestServer()
+	const path = "/Moonfin/WatchParty/41366623-4606-488f-b5c0-c837c80d0227"
+	// A guest posting first doesn't make them the subtitles' owner.
+	if code, _ := call(t, s, other, "PUT", path+"/Avatar", `{"url":"/avatars/presets/fox.svg"}`, nil); code != 200 {
+		t.Fatalf("a member posts their avatar, got %d", code)
+	}
+	if code, _ := call(t, s, userMain, "PUT", path+"/Avatar", `{"url":"https://api.dicebear.com/9.x/x/svg?seed=a"}`, nil); code != 200 {
+		t.Fatalf("another member posts theirs, got %d", code)
+	}
+	if code, _ := call(t, s, userMain, "PUT", path, `{"subtitle":{"off":true}}`, nil); code != 200 {
+		t.Fatalf("the host still claims the subtitles, got %d", code)
+	}
+	_, got := call(t, s, userKids, "GET", path, "", nil)
+	avatars, _ := got["avatars"].(map[string]any)
+	if avatars["40"] != "/avatars/presets/fox.svg" || avatars["30"] == nil {
+		t.Fatalf("avatars by profile id: %v", got)
+	}
+	for _, bad := range []string{`{"url":"javascript:alert(1)"}`, `{"url":"avatars/x.svg"}`, `{"url":""}`} {
+		if code, _ := call(t, s, other, "PUT", path+"/Avatar", bad, nil); code != 400 {
+			t.Fatalf("%s must be refused, got %d", bad, code)
+		}
+	}
+}
+
 func TestDeleteUserRemovesEveryProfile(t *testing.T) {
 	s := newTestServer()
 	for _, c := range []caller{userMain, userKids, other} {
