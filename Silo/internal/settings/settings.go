@@ -68,13 +68,12 @@ func Clean(in M) M {
 }
 
 // SaveProfile merges incoming into one profile of env (nil for a new user)
-// and returns the envelope to store. defaults are the admin's.
-func SaveProfile(env M, name string, incoming M, clientID string, keys ServerKeys, defaults M, now time.Time) M {
+// and returns the envelope to store.
+func SaveProfile(env M, name string, incoming M, clientID string, keys ServerKeys, now time.Time) M {
 	if env == nil {
 		env = M{"schemaVersion": 2, "syncEnabled": true}
 	}
 	stored := storedHidden(env)
-	dropInherited(env, name, incoming, defaults)
 	if existing, ok := env[name].(M); ok {
 		mergeProfile(existing, incoming)
 	} else {
@@ -86,9 +85,8 @@ func SaveProfile(env M, name string, incoming M, clientID string, keys ServerKey
 
 // SaveEnvelope builds the envelope to store from a whole incoming one.
 // mergeMode "merge" merges it into existing the way SaveProfile does per
-// profile. Anything else replaces it. defaults gives the admin's defaults
-// for a profile.
-func SaveEnvelope(existing, incoming M, mergeMode, clientID string, keys ServerKeys, defaults func(profile string) M, now time.Time) M {
+// profile. Anything else replaces it.
+func SaveEnvelope(existing, incoming M, mergeMode, clientID string, keys ServerKeys, now time.Time) M {
 	for _, p := range Profiles {
 		if m, ok := incoming[p].(M); ok {
 			incoming[p] = Clean(m)
@@ -109,7 +107,6 @@ func SaveEnvelope(existing, incoming M, mergeMode, clientID string, keys ServerK
 			continue
 		}
 		if in, ok := v.(M); ok && slices.Contains(Profiles, k) {
-			dropInherited(existing, k, in, defaults(k))
 			if ex, ok := existing[k].(M); ok {
 				mergeProfile(ex, in)
 				continue
@@ -119,72 +116,6 @@ func SaveEnvelope(existing, incoming M, mergeMode, clientID string, keys ServerK
 	}
 	finish(existing, clientID, keys, now, stored)
 	return existing
-}
-
-// layoutKeys are the home layout, which Resolve takes whole from one layer.
-var layoutKeys = []string{"homeSections", "homeRowOrder"}
-
-// dropInherited removes from incoming the values profile name of env doesn't
-// hold yet and would resolve to anyway, from global or the admin defaults.
-// Apps send every setting they have, and storing the ones the user never
-// changed would hide any later change to the defaults from them.
-func dropInherited(env M, name string, incoming, defaults M) {
-	own, _ := env[name].(M)
-	var lower []M
-	if name != "global" {
-		g, _ := env["global"].(M)
-		lower = append(lower, g)
-	}
-	lower = append(lower, defaults)
-	for k, v := range incoming {
-		if _, held := own[k]; held || slices.Contains(layoutKeys, k) || isHideField(k) {
-			continue
-		}
-		for _, l := range lower {
-			if inherited, ok := l[k]; ok && inherited != nil {
-				if SameValue(inherited, v) {
-					delete(incoming, k)
-				}
-				break
-			}
-		}
-	}
-}
-
-// SameValue compares two settings values as JSON, so 1 and 1.0 match.
-func SameValue(a, b any) bool {
-	ja, errA := json.Marshal(a)
-	jb, errB := json.Marshal(b)
-	return errA == nil && errB == nil && string(ja) == string(jb)
-}
-
-// Forget removes from every profile of env the keys match picks, so the
-// admin defaults show through for them. Picking either home layout key
-// removes both. It reports whether env changed.
-func Forget(env M, match func(profile, key string, value any) bool) bool {
-	changed := false
-	for _, p := range Profiles {
-		profile, _ := env[p].(M)
-		layout := false
-		for k, v := range profile {
-			if isHideField(k) || !match(p, k, v) {
-				continue
-			}
-			delete(profile, k)
-			changed = true
-			layout = layout || slices.Contains(layoutKeys, k)
-		}
-		if layout {
-			for _, k := range layoutKeys {
-				delete(profile, k)
-			}
-		}
-	}
-	return changed
-}
-
-func isHideField(k string) bool {
-	return slices.ContainsFunc(hideFields, func(f struct{ field, baseline string }) bool { return f.field == k })
 }
 
 func mergeProfile(existing, incoming M) {
@@ -228,6 +159,9 @@ func stripServerKeys(env M, keys ServerKeys) {
 		}
 	}
 }
+
+// layoutKeys are the home layout, which Resolve takes whole from one layer.
+var layoutKeys = []string{"homeSections", "homeRowOrder"}
 
 // LayerDefaults lays the admin's defaults for one device over their defaults
 // for every device. A device's home layout replaces the shared one whole.

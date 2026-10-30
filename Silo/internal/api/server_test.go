@@ -158,46 +158,39 @@ func TestAdminDefaultsAndPush(t *testing.T) {
 	if code != 200 || got["usersAffected"] != 1.0 {
 		t.Fatalf("push = %d %v", code, got)
 	}
-	if _, env := call(t, s, userMain, "GET", "/Moonfin/Settings", "", nil); env["tv"] != nil || len(env["global"].(map[string]any)) != 0 {
-		t.Fatalf("overwrite must clear the user's settings: %v", env)
-	}
-	if _, got := call(t, s, userMain, "GET", "/Moonfin/Settings/Resolved/tv", "", nil); got["b"] != 2.0 {
-		t.Fatalf("a reset user must get the defaults: %v", got)
+	if _, env := call(t, s, userMain, "GET", "/Moonfin/Settings", "", nil); env["tv"] != nil || env["global"].(map[string]any)["b"] != 2.0 {
+		t.Fatalf("overwrite must reset to the defaults: %v", env)
 	}
 	if _, got := call(t, s, adminMain, "POST", "/Moonfin/Admin/PushDefaults", "", map[string]any{"overwrite": "True"}); got["overwrite"] != true {
 		t.Fatalf("overwrite must ignore case: %v", got)
 	}
 }
 
-func TestDefaultsReachUsersWhoNeverChangedThem(t *testing.T) {
+// As on Jellyfin, changing a default leaves what users have stored alone.
+// Apply Defaults is what moves them onto it.
+func TestChangedDefaultsWaitForApplyDefaults(t *testing.T) {
 	s := newTestServer()
 	saveConfig(t, s, map[string]any{"DefaultUserSettings": map[string]any{"style": "classic"}})
 	// Apps send every setting they hold, the ones from the defaults included.
-	call(t, s, userMain, "POST", "/Moonfin/Settings/Profile/mobile", `{"profile":{"style":"classic","thumbs":false}}`, nil)
-	call(t, s, other, "POST", "/Moonfin/Settings/Profile/mobile", `{"profile":{"style":"modern","thumbs":false}}`, nil)
-	if _, env := call(t, s, userMain, "GET", "/Moonfin/Settings", "", nil); env["mobile"].(map[string]any)["style"] != nil {
-		t.Fatalf("a value equal to the default must not be stored: %v", env)
+	call(t, s, userMain, "POST", "/Moonfin/Settings/Profile/global", `{"profile":{"style":"classic"}}`, nil)
+	saveConfig(t, s, map[string]any{"DefaultUserSettings": map[string]any{"style": "spotlight"}})
+	style := func() any {
+		_, got := call(t, s, userMain, "GET", "/Moonfin/Settings/Resolved/mobile", "", nil)
+		return got["style"]
 	}
-
-	saveConfig(t, s, map[string]any{"DefaultUserSettings": map[string]any{"style": "spotlight", "thumbs": true}})
-	resolved := func(c caller) map[string]any {
-		_, got := call(t, s, c, "GET", "/Moonfin/Settings/Resolved/mobile", "", nil)
-		return got
+	if got := style(); got != "classic" {
+		t.Fatalf("a changed default must not replace a stored value, got %v", got)
 	}
-	if got := resolved(userMain); got["style"] != "spotlight" || got["thumbs"] != true {
-		t.Fatalf("a user on the defaults must follow them, and a new default replaces the app's own: %v", got)
+	if code, _ := call(t, s, adminMain, "POST", "/Moonfin/Admin/PushDefaults", "", nil); code != 200 {
+		t.Fatalf("push = %d", code)
 	}
-	if got := resolved(other); got["style"] != "modern" || got["thumbs"] != true {
-		t.Fatalf("a value picked against the old default must stay: %v", got)
+	if got := style(); got != "spotlight" {
+		t.Fatalf("Apply Defaults must move the user onto the new default, got %v", got)
 	}
 }
 
 func TestDeviceDefaults(t *testing.T) {
 	s := newTestServer()
-	// Defaults seen in the format from before device defaults.
-	if err := s.saveJSON(context.Background(), keyDefaultsSeen, map[string]any{"style": "classic"}); err != nil {
-		t.Fatal(err)
-	}
 	saveConfig(t, s, map[string]any{
 		"DefaultUserSettings":   map[string]any{"style": "classic", "size": "m"},
 		"DefaultDeviceSettings": map[string]any{"tv": map[string]any{"style": "modern", "x": nil}, "bogus": map[string]any{"a": 1}},
@@ -213,24 +206,32 @@ func TestDeviceDefaults(t *testing.T) {
 		t.Fatalf("tv must get its own default over the shared ones: tv %v mobile %v", tv, mobile)
 	}
 
-	// The tv app sends the tv default back, which must not be stored.
-	call(t, s, userMain, "POST", "/Moonfin/Settings/Profile/tv", `{"profile":{"style":"modern"}}`, nil)
-	call(t, s, other, "POST", "/Moonfin/Settings/Profile/tv", `{"profile":{"style":"spotlight"}}`, nil)
-	if _, env := call(t, s, userMain, "GET", "/Moonfin/Settings", "", nil); env["tv"].(map[string]any)["style"] != nil {
-		t.Fatalf("a value equal to the device default must not be stored: %v", env)
-	}
-
-	call(t, s, other, "POST", "/Moonfin/Settings/Profile/tv", `{"profile":{"theme":"dark"}}`, nil)
+	// As on Jellyfin, what users stored stays when a default changes, and
+	// Apply Defaults moves each profile onto its own defaults.
+	call(t, s, other, "POST", "/Moonfin/Settings/Profile/tv", `{"profile":{"style":"spotlight","theme":"dark"}}`, nil)
 	call(t, s, other, "POST", "/Moonfin/Settings/Profile/mobile", `{"profile":{"theme":"dark"}}`, nil)
 	saveConfig(t, s, map[string]any{
 		"DefaultUserSettings":   map[string]any{"style": "classic", "size": "m"},
 		"DefaultDeviceSettings": map[string]any{"tv": map[string]any{"style": "retro", "theme": "light"}},
 	})
-	if got := resolved(other, "tv"); got["style"] != "spotlight" || got["theme"] != "light" {
-		t.Fatalf("tv must keep a pick against the old default and take a new one: %v", got)
+	if got := resolved(other, "tv"); got["style"] != "spotlight" || got["theme"] != "dark" {
+		t.Fatalf("a changed default must not replace stored values: %v", got)
 	}
-	if got := resolved(other, "mobile"); got["theme"] != "dark" {
+	if code, _ := call(t, s, adminMain, "POST", "/Moonfin/Admin/PushDefaults", "", nil); code != 200 {
+		t.Fatalf("push = %d", code)
+	}
+	if got := resolved(other, "tv"); got["style"] != "retro" || got["theme"] != "light" {
+		t.Fatalf("Apply Defaults must give tv its own defaults: %v", got)
+	}
+	if got := resolved(other, "mobile"); got["style"] != "classic" || got["theme"] != "dark" {
 		t.Fatalf("a tv default must leave mobile alone: %v", got)
+	}
+
+	if code, _ := call(t, s, adminMain, "POST", "/Moonfin/Admin/PushDefaults", "", map[string]any{"overwrite": "true"}); code != 200 {
+		t.Fatalf("reset = %d", code)
+	}
+	if tv, mobile := resolved(other, "tv"), resolved(other, "mobile"); tv["style"] != "retro" || tv["size"] != "m" || mobile["style"] != "classic" || mobile["theme"] != nil {
+		t.Fatalf("a reset must keep each device on its own defaults: tv %v mobile %v", tv, mobile)
 	}
 }
 

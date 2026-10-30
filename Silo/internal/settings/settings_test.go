@@ -19,8 +19,6 @@ func decode(t *testing.T, s string) M {
 	return m
 }
 
-func noDefaults(string) M { return nil }
-
 func TestLayerDefaults(t *testing.T) {
 	all := decode(t, `{"a":1,"b":1,"homeSections":[1],"homeRowOrder":["x"]}`)
 	if got := LayerDefaults(all, nil); !reflect.DeepEqual(got, all) {
@@ -85,7 +83,7 @@ func TestServerKeysFillOnResolveAndStripOnSave(t *testing.T) {
 		t.Fatalf("rtAudience not rewritten: %v", got["mdblistRatingSources"])
 	}
 
-	env := SaveProfile(nil, "tv", Clean(decode(t, `{"tmdbApiKey":"server-tmdb","mdblistApiKey":"mine"}`)), "c", keys, nil, now)
+	env := SaveProfile(nil, "tv", Clean(decode(t, `{"tmdbApiKey":"server-tmdb","mdblistApiKey":"mine"}`)), "c", keys, now)
 	tv := env["tv"].(M)
 	if _, ok := tv["tmdbApiKey"]; ok {
 		t.Fatal("a copy of the server key must not be stored")
@@ -96,8 +94,8 @@ func TestServerKeysFillOnResolveAndStripOnSave(t *testing.T) {
 }
 
 func TestMergeKeepsOldValuesAndSkipsBlankKeys(t *testing.T) {
-	env := SaveProfile(nil, "tv", M{"a": 1.0, "seerrApiKey": "k", "homeSections": []any{}}, "c", ServerKeys{}, nil, now)
-	env = SaveProfile(env, "tv", M{"b": 2.0, "seerrApiKey": "  ", "homeRowOrder": []any{"x"}}, "c2", ServerKeys{}, nil, now)
+	env := SaveProfile(nil, "tv", M{"a": 1.0, "seerrApiKey": "k", "homeSections": []any{}}, "c", ServerKeys{}, now)
+	env = SaveProfile(env, "tv", M{"b": 2.0, "seerrApiKey": "  ", "homeRowOrder": []any{"x"}}, "c2", ServerKeys{}, now)
 	tv := env["tv"].(M)
 	if tv["a"] != 1.0 || tv["b"] != 2.0 || tv["seerrApiKey"] != "k" {
 		t.Fatalf("merge lost data: %v", tv)
@@ -112,7 +110,7 @@ func TestMergeKeepsOldValuesAndSkipsBlankKeys(t *testing.T) {
 
 func TestHiddenContentMovesToGlobalAndUnhides(t *testing.T) {
 	keys := ServerKeys{}
-	env := SaveProfile(nil, "tv", M{"hiddenContinueWatchingItems": `{"a":"2026-01-01T00:00:00Z","b":"2026-01-01T00:00:00Z"}`}, "c", keys, nil, now)
+	env := SaveProfile(nil, "tv", M{"hiddenContinueWatchingItems": `{"a":"2026-01-01T00:00:00Z","b":"2026-01-01T00:00:00Z"}`}, "c", keys, now)
 	if _, ok := env["tv"].(M)["hiddenContinueWatchingItems"]; ok {
 		t.Fatal("device profiles must not keep hidden items")
 	}
@@ -123,7 +121,7 @@ func TestHiddenContentMovesToGlobalAndUnhides(t *testing.T) {
 	// The phone pulls, then unhides "b" and hides "c".
 	resolved := Resolve(env, "mobile", nil, keys)
 	RecordBaseline(env, "mobile", resolved)
-	env = SaveProfile(env, "mobile", M{"hiddenContinueWatchingItems": `{"a":"2026-01-01T00:00:00Z","c":"2026-02-01T00:00:00Z"}`}, "c", keys, nil, now)
+	env = SaveProfile(env, "mobile", M{"hiddenContinueWatchingItems": `{"a":"2026-01-01T00:00:00Z","c":"2026-02-01T00:00:00Z"}`}, "c", keys, now)
 	got := parseHidden(env["global"].(M)["hiddenContinueWatchingItems"].(string))
 	if _, ok := got["b"]; ok || got["a"] == "" || got["c"] == "" {
 		t.Fatalf("got %v, want a and c", got)
@@ -140,15 +138,15 @@ func TestIsLaterHide(t *testing.T) {
 }
 
 func TestSaveEnvelopeMergeAndReplace(t *testing.T) {
-	env := SaveProfile(nil, "global", M{"a": 1.0}, "c", ServerKeys{}, nil, now)
-	merged := SaveEnvelope(env, decode(t, `{"tv":{"b":2},"hiddenContentBaselines":{"x":{}}}`), "merge", "c", ServerKeys{}, noDefaults, now)
+	env := SaveProfile(nil, "global", M{"a": 1.0}, "c", ServerKeys{}, now)
+	merged := SaveEnvelope(env, decode(t, `{"tv":{"b":2},"hiddenContentBaselines":{"x":{}}}`), "merge", "c", ServerKeys{}, now)
 	if merged["global"].(M)["a"] != 1.0 || merged["tv"].(M)["b"] != 2.0 {
 		t.Fatalf("merge lost data: %v", merged)
 	}
 	if _, ok := merged["hiddenContentBaselines"]; ok {
 		t.Fatal("clients must not write baselines")
 	}
-	replaced := SaveEnvelope(env, decode(t, `{"tv":{"b":2}}`), "replace", "c", ServerKeys{}, noDefaults, now)
+	replaced := SaveEnvelope(env, decode(t, `{"tv":{"b":2}}`), "replace", "c", ServerKeys{}, now)
 	if len(replaced["global"].(M)) != 0 {
 		t.Fatalf("replace must drop old profiles: %v", replaced["global"])
 	}

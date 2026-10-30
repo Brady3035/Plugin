@@ -1,9 +1,7 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"html"
 	"mime"
@@ -13,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Moonfin-Client/Plugin/Silo/internal/settings"
 	"github.com/Moonfin-Client/Plugin/Silo/web"
@@ -156,94 +153,7 @@ func (s *Server) handlePostConfiguration(w http.ResponseWriter, r *http.Request)
 		storageFailed(w, r, err)
 		return
 	}
-	if err := s.followChangedDefaults(ctx); err != nil {
-		logError(r, "apply changed defaults to users", err)
-	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// keyDefaultsSeen holds the admin defaults users were last moved onto, by
-// profile.
-const keyDefaultsSeen = "s/defaults-seen"
-
-// followChangedDefaults moves users onto each default the admin changed
-// since the last run (the caller holds s.mu): a user's stored value gives
-// way to the new default when it equals the old one, or when there was no
-// default before (apps store every value they have, so a value from then
-// is the app's own default, not a choice). Values a user picked against an
-// earlier default are kept. The first run only records the defaults.
-func (s *Server) followChangedDefaults(ctx context.Context) error {
-	cfg := s.config(ctx)
-	after := M{}
-	for _, p := range settings.Profiles {
-		after[p] = nonNil(cfg.DefaultsFor(p))
-	}
-	var before M
-	found, err := s.loadJSON(ctx, keyDefaultsSeen, &before)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return s.saveJSON(ctx, keyDefaultsSeen, after)
-	}
-	if _, byProfile := before["global"].(M); !byProfile {
-		// Recorded before device defaults, when every profile had the same.
-		flat := before
-		before = M{}
-		for _, p := range settings.Profiles {
-			before[p] = flat
-		}
-	}
-	changed := map[string]M{}
-	for _, p := range settings.Profiles {
-		was, _ := before[p].(M)
-		for k, v := range after[p].(M) {
-			if old, ok := was[k]; !ok || !settings.SameValue(old, v) {
-				if changed[p] == nil {
-					changed[p] = M{}
-				}
-				changed[p][k] = v
-			}
-		}
-	}
-	if len(changed) == 0 {
-		return nil
-	}
-	var index []indexEntry
-	if _, err := s.loadJSON(ctx, keyIndex, &index); err != nil {
-		return err
-	}
-	var errs []error
-	for _, e := range index {
-		env, err := s.loadEnvelope(ctx, e.identity())
-		if err != nil || env == nil {
-			errs = append(errs, err)
-			continue
-		}
-		follows := func(p, k string, v any) bool {
-			if _, ok := changed[p][k]; !ok {
-				return false
-			}
-			old, had := before[p].(M)[k]
-			return !had || settings.SameValue(old, v)
-		}
-		if settings.Forget(env, follows) {
-			env["lastUpdated"] = time.Now().UnixMilli()
-			env["lastUpdatedBy"] = "admin-defaults-changed"
-			errs = append(errs, s.saveJSON(ctx, e.key(), env))
-		}
-	}
-	// Recorded even after a failure, so a later save doesn't take a user's
-	// value from this round for one from before it.
-	errs = append(errs, s.saveJSON(ctx, keyDefaultsSeen, after))
-	return errors.Join(errs...)
-}
-
-func nonNil(m M) M {
-	if m == nil {
-		return M{}
-	}
-	return m
 }
 
 // handleDeleteUser removes every profile's settings that a Silo account has

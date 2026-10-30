@@ -197,8 +197,7 @@ func (s *Server) handlePostSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	clientID, _ := body["clientid"].(string)
 	s.save(w, r, func(env M) M {
-		cfg := s.config(r.Context())
-		return settings.SaveEnvelope(env, incoming, mode, clientID, serverKeys(cfg), cfg.DefaultsFor, time.Now())
+		return settings.SaveEnvelope(env, incoming, mode, clientID, serverKeys(s.config(r.Context())), time.Now())
 	})
 }
 
@@ -222,8 +221,7 @@ func (s *Server) handlePostProfile(w http.ResponseWriter, r *http.Request) {
 // extra fields added to the success body.
 func (s *Server) saveProfile(w http.ResponseWriter, r *http.Request, name string, incoming M, clientID string, extra M) {
 	s.save(w, r, func(env M) M {
-		cfg := s.config(r.Context())
-		return settings.SaveProfile(env, name, incoming, clientID, serverKeys(cfg), cfg.DefaultsFor(name), time.Now())
+		return settings.SaveProfile(env, name, incoming, clientID, serverKeys(s.config(r.Context())), time.Now())
 	}, extra)
 }
 
@@ -383,21 +381,26 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 	if only != 0 {
 		by = "admin-reset-user"
 	}
-	defaults := map[string]M{}
-	for _, p := range settings.Profiles {
-		defaults[p] = cfg.DefaultsFor(p)
-	}
 	affected, failed := 0, 0
 	for _, e := range index {
 		if only != 0 && e.UserID != only {
 			continue
 		}
-		// Either way the defaults come through Resolve rather than as copies,
-		// so a later change to them still reaches this user.
 		var env M
 		if reset {
-			env = M{"schemaVersion": 2, "syncEnabled": true, "global": M{},
+			global := clone(cfg.Defaults)
+			if global == nil {
+				global = M{}
+			}
+			env = M{"schemaVersion": 2, "syncEnabled": true, "global": global,
 				"lastUpdated": time.Now().UnixMilli(), "lastUpdatedBy": by}
+			// A device's own defaults go in its profile, or global would win
+			// over them.
+			for _, p := range settings.Profiles[1:] {
+				if d, _ := cfg.DeviceDefaults[p].(M); len(d) > 0 {
+					env[p] = clone(d)
+				}
+			}
 		} else {
 			existing, err := s.loadEnvelope(ctx, e.identity())
 			if err != nil {
@@ -408,11 +411,17 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 			if existing == nil {
 				continue
 			}
-			if settings.Forget(existing, func(p, k string, _ any) bool { _, ok := defaults[p][k]; return ok }) {
-				existing["lastUpdated"] = time.Now().UnixMilli()
-				existing["lastUpdatedBy"] = "admin-default-merge"
-			}
+			// As on Jellyfin, the defaults go into global and every device
+			// profile the user has, since a device profile wins over global.
 			env = existing
+			for _, p := range settings.Profiles {
+				if _, has := env[p].(M); p != "global" && !has {
+					continue
+				}
+				if d := cfg.DefaultsFor(p); len(d) > 0 {
+					env = settings.SaveProfile(env, p, clone(d), "admin-default-merge", serverKeys(cfg), time.Now())
+				}
+			}
 		}
 		// Every entry is already in the index, so only its own key changes.
 		if err := s.saveJSON(ctx, e.key(), env); err != nil {
@@ -432,6 +441,13 @@ func (s *Server) handlePushDefaults(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, M{"success": true, "overwrite": reset, "usersAffected": affected,
 		"orphansDeleted": 0, "liveRefreshDeliveries": 0})
+}
+
+func clone(m M) M {
+	raw, _ := json.Marshal(m)
+	var out M
+	_ = json.Unmarshal(raw, &out)
+	return out
 }
 
 // handleSeerrConfig always reports Seerr off: the Seerr proxy isn't part of

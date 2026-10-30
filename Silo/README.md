@@ -44,7 +44,7 @@ The Moonbase page is the Jellyfin admin page itself, with the same tabs, fields,
 
 Earlier releases also put most settings on Silo's own plugin form. Silo keeps what was saved there, and Moonbase reads it until the Moonbase page is first saved, which keeps those values with the page's settings from then on.
 
-Defaults reach every user who hasn't changed that setting. When an admin changes a default, users on the old default move to the new one, and so does everyone when there was no default before (the apps store every value they hold, so a value from then is the app's own default rather than a choice).
+Defaults work as they do on Jellyfin. A setting a user has no value for comes from the admin's default. The apps store every setting they hold at their first sync, so changing a default later doesn't change it for users who already synced. **Apply Defaults To Users** on the Actions tab copies the defaults into each user's settings, or resets them to the defaults with overwrite on. The **Defaults for** picker on the User defaults tab sets separate defaults for desktop, mobile and TV, which apply over the ones for all devices.
 
 Silo signs a plugin page in for five minutes and renews that while the page keeps calling its routes and the Silo sign-in is still good. The page pings Moonbase each minute to keep it signed in. If Save fails anyway, the page says so and keeps what you tried to save. Open Moonbase again in the same browser tab within an hour and those changes come back, ready to save.
 
